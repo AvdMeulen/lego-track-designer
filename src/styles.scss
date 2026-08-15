@@ -24,6 +24,11 @@ body {
   min-height: 100%;
 }
 
+body.immersive {
+  overflow: hidden;
+  height: 100vh;
+}
+
 body {
   font-family: 'Outfit', 'Segoe UI', sans-serif;
   color: var(--color-ink);

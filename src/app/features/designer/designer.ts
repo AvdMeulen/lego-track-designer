@@ -17,6 +17,7 @@ export class Designer {
   protected readonly catalog = inject(CatalogService);
   protected readonly store = inject(LayoutStore);
   private readonly canvasHost = viewChild<ElementRef<HTMLElement>>('canvasHost');
+  private readonly canvas = viewChild(TrackCanvas);
 
   protected readonly fixtures = allFixtures();
 
@@ -40,7 +41,7 @@ export class Designer {
   async exportPng(): Promise<void> {
     const svg = this.canvasHost()?.nativeElement.querySelector('svg');
     if (svg) {
-      await exportSvgElementToPng(svg);
+      await exportSvgElementToPng(svg, 'lego-track-design.png', this.canvas()?.fullViewBox());
     }
   }
 }

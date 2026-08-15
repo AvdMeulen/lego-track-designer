@@ -1,7 +1,14 @@
-export async function exportSvgElementToPng(svg: SVGSVGElement, filename = 'lego-track-design.png'): Promise<void> {
+export async function exportSvgElementToPng(
+  svg: SVGSVGElement,
+  filename = 'lego-track-design.png',
+  viewBox?: string,
+): Promise<void> {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  const box = svg.viewBox.baseVal;
+  if (viewBox) {
+    clone.setAttribute('viewBox', viewBox);
+  }
+  const box = clone.viewBox.baseVal;
   const width = Math.max(box.width || svg.clientWidth || 1200, 800);
   const height = Math.max(box.height || svg.clientHeight || 800, 600);
   clone.setAttribute('width', `${width}`);

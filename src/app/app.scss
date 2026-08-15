@@ -4,6 +4,11 @@
   flex-direction: column;
 }
 
+.app-shell.immersive {
+  height: 100vh;
+  overflow: hidden;
+}
+
 .top-bar {
   display: flex;
   align-items: center;
@@ -12,6 +17,17 @@
   padding: 1.1rem 1.5rem;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line);
+}
+
+.app-shell.immersive .top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom-color: color-mix(in srgb, var(--color-line) 70%, transparent);
 }
 
 .brand {
@@ -76,4 +92,9 @@
 .content {
   flex: 1;
   padding: 2rem 1.5rem 3rem;
+}
+
+.content.immersive {
+  padding: 0;
+  overflow: hidden;
 }

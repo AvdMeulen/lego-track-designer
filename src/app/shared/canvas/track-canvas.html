@@ -1,8 +1,14 @@
 <svg
   class="canvas"
+  [class.dragging]="dragging()"
   [attr.viewBox]="view().box"
   role="img"
   aria-label="LEGO City track layout"
+  (pointerdown)="onPointerDown($event)"
+  (pointermove)="onPointerMove($event)"
+  (pointerup)="onPointerUp()"
+  (pointercancel)="onPointerUp()"
+  (wheel)="onWheel($event)"
 >
   <rect
     class="backdrop"
@@ -12,14 +18,14 @@
     [attr.height]="view().height"
   />
 
-  @for (x of [0]; track x) {
-    <g class="grid" [attr.transform]="'translate(0,0)'">
-      @for (line of [0, 16, 32, 48, 64, 80, 96]; track line) {
-        <line [attr.x1]="view().minX" [attr.x2]="view().minX + view().width" [attr.y1]="line" [attr.y2]="line" />
-        <line [attr.y1]="view().minY" [attr.y2]="view().minY + view().height" [attr.x1]="line" [attr.x2]="line" />
-      }
-    </g>
-  }
+  <g class="grid">
+    @for (x of grid().xs; track x) {
+      <line [attr.x1]="x" [attr.x2]="x" [attr.y1]="view().minY" [attr.y2]="view().minY + view().height" />
+    }
+    @for (y of grid().ys; track y) {
+      <line [attr.x1]="view().minX" [attr.x2]="view().minX + view().width" [attr.y1]="y" [attr.y2]="y" />
+    }
+  </g>
 
   @for (item of drawnParts(); track item.part.instanceId) {
     <g
@@ -48,9 +54,4 @@
       [attr.y]="mark.y"
     >{{ mark.text }}</text>
   }
-
-  <g class="legend" [attr.transform]="'translate(' + (view().minX + 4) + ' ' + (view().minY + view().height - 28) + ')'">
-    <text class="summary" x="0" y="0">{{ summary() || 'No parts placed' }}</text>
-    <text class="scale" x="0" y="10">Scale: 16 studs = one straight</text>
-  </g>
 </svg>

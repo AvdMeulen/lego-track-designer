@@ -1,5 +1,13 @@
-<section class="page">
-  <aside class="panel">
+<section class="workspace">
+  <div class="stage" #canvasHost>
+    <app-track-canvas
+      [layout]="store.layout()"
+      [selectedLabel]="store.selectedLabel()"
+      (partSelect)="store.select($event)"
+    />
+  </div>
+
+  <aside class="panel float">
     <p class="eyebrow">Designer</p>
     <h1>Suggested layout</h1>
     <p class="status">{{ store.layout().message || 'Generate a design from your collection.' }}</p>
@@ -14,123 +22,121 @@
 
     <a routerLink="/inventory">Edit collection</a>
 
-    <fieldset>
-      <legend>Preferences</legend>
-      <label>
-        Parking spots
-        <select
-          [ngModel]="store.preferences().targetParkingSpots"
-          (ngModelChange)="setParking('' + $event)"
-        >
-          <option [ngValue]="0">0</option>
-          <option [ngValue]="1">1</option>
-          <option [ngValue]="2">2+</option>
-        </select>
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          [ngModel]="store.preferences().preferReversingRoute"
-          (ngModelChange)="store.updatePreferences({ preferReversingRoute: $event })"
-        />
-        Prefer a reversing route
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          [ngModel]="store.preferences().loopPlusParking"
-          (ngModelChange)="store.updatePreferences({ loopPlusParking: $event })"
-        />
-        Loop plus parking
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          [ngModel]="store.preferences().allowFlexCloses"
-          (ngModelChange)="store.updatePreferences({ allowFlexCloses: $event })"
-        />
-        Allow flex gap-closes
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          [ngModel]="store.preferences().preferMorePieces"
-          (ngModelChange)="store.updatePreferences({ preferMorePieces: $event })"
-        />
-        Prefer using more pieces
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          [ngModel]="store.preferences().compact"
-          (ngModelChange)="store.updatePreferences({ compact: $event })"
-        />
-        Compact footprint
-      </label>
-    </fieldset>
+    <div class="panel-scroll">
+      <fieldset>
+        <legend>Preferences</legend>
+        <label>
+          Parking spots
+          <select
+            [ngModel]="store.preferences().targetParkingSpots"
+            (ngModelChange)="setParking('' + $event)"
+          >
+            <option [ngValue]="0">0</option>
+            <option [ngValue]="1">1</option>
+            <option [ngValue]="2">2+</option>
+          </select>
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            [ngModel]="store.preferences().preferReversingRoute"
+            (ngModelChange)="store.updatePreferences({ preferReversingRoute: $event })"
+          />
+          Prefer a reversing route
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            [ngModel]="store.preferences().loopPlusParking"
+            (ngModelChange)="store.updatePreferences({ loopPlusParking: $event })"
+          />
+          Loop plus parking
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            [ngModel]="store.preferences().allowFlexCloses"
+            (ngModelChange)="store.updatePreferences({ allowFlexCloses: $event })"
+          />
+          Allow flex gap-closes
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            [ngModel]="store.preferences().preferMorePieces"
+            (ngModelChange)="store.updatePreferences({ preferMorePieces: $event })"
+          />
+          Prefer using more pieces
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            [ngModel]="store.preferences().compact"
+            (ngModelChange)="store.updatePreferences({ compact: $event })"
+          />
+          Compact footprint
+        </label>
+      </fieldset>
 
-    @if (store.layout().notes.length) {
-      <ul class="notes">
-        @for (note of store.layout().notes; track note) {
-          <li>{{ note }}</li>
+      @if (store.layout().notes.length) {
+        <ul class="notes">
+          @for (note of store.layout().notes; track note) {
+            <li>{{ note }}</li>
+          }
+        </ul>
+      }
+
+      <h2>Parking and reverse</h2>
+      <ul>
+        @for (spot of store.layout().parkingSpots; track spot.id) {
+          <li>Parking {{ $index + 1 }} · {{ spot.clearLengthStuds }} studs</li>
+        } @empty {
+          <li>No parking spots</li>
+        }
+        @for (option of store.layout().reverseOptions; track option.kind + option.partIds.join('-')) {
+          <li>{{ option.kind }}</li>
         }
       </ul>
-    }
 
-    <h2>Parking and reverse</h2>
-    <ul>
-      @for (spot of store.layout().parkingSpots; track spot.id) {
-        <li>Parking {{ $index + 1 }} · {{ spot.clearLengthStuds }} studs</li>
-      } @empty {
-        <li>No parking spots</li>
-      }
-      @for (option of store.layout().reverseOptions; track option.kind + option.partIds.join('-')) {
-        <li>{{ option.kind }}</li>
-      }
-    </ul>
+      <h2>Leftover</h2>
+      <ul>
+        @for (item of store.layout().unusedInventory; track item.partId) {
+          <li>{{ item.quantity }}× {{ catalog.byId(item.partId).name }}</li>
+        } @empty {
+          <li>None</li>
+        }
+      </ul>
 
-    <h2>Piece list</h2>
-    <ul class="piece-list">
-      @for (part of store.layout().parts; track part.instanceId) {
-        <li
-          [class.active]="store.selectedLabel() === part.label"
-          (click)="store.select(part.label)"
-        >
-          <strong>{{ part.label }}</strong>
-          {{ catalog.byId(part.partId).name }}
-        </li>
-      } @empty {
-        <li>No parts placed yet.</li>
-      }
-    </ul>
-
-    <h2>Leftover</h2>
-    <ul>
-      @for (item of store.layout().unusedInventory; track item.partId) {
-        <li>{{ item.quantity }}× {{ catalog.byId(item.partId).name }}</li>
-      } @empty {
-        <li>None</li>
-      }
-    </ul>
-
-    <h2>Proof fixtures</h2>
-    <div class="fixtures">
-      @for (fixture of fixtures; track fixture.id) {
-        <button type="button" (click)="showFixture(fixture.id)">{{ fixture.id }}</button>
-      }
+      <h2>Proof fixtures</h2>
+      <div class="fixtures">
+        @for (fixture of fixtures; track fixture.id) {
+          <button type="button" (click)="showFixture(fixture.id)">{{ fixture.id }}</button>
+        }
+      </div>
     </div>
+
+    <section class="piece-box">
+      <h2>Piece list</h2>
+      <ul class="piece-list">
+        @for (part of store.layout().parts; track part.instanceId) {
+          <li
+            [class.active]="store.selectedLabel() === part.label"
+            (click)="store.select(part.label)"
+          >
+            <strong>{{ part.label }}</strong>
+            {{ catalog.byId(part.partId).name }}
+          </li>
+        } @empty {
+          <li>No parts placed yet.</li>
+        }
+      </ul>
+    </section>
   </aside>
 
-  <div class="stage" #canvasHost>
-    <app-track-canvas
-      [layout]="store.layout()"
-      [selectedLabel]="store.selectedLabel()"
-      (partSelect)="store.select($event)"
-    />
-    <p class="meta">
-      {{ store.layout().parkingSpots.length }} parking ·
-      {{ store.layout().reverseOptions.length }} reverse options ·
-      {{ store.layout().unfinishedPorts }} unfinished connectors
-    </p>
-  </div>
+  <p class="meta float">
+    Drag to pan · scroll to zoom ·
+    {{ store.layout().parkingSpots.length }} parking ·
+    {{ store.layout().reverseOptions.length }} reverse options ·
+    {{ store.layout().unfinishedPorts }} unfinished connectors
+  </p>
 </section>

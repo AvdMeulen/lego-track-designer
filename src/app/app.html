@@ -1,4 +1,4 @@
-<div class="app-shell">
+<div class="app-shell" [class.immersive]="immersive()">
   <header class="top-bar">
     <a class="brand" routerLink="/">
       <span class="studs" aria-hidden="true">
@@ -19,7 +19,7 @@
     </nav>
   </header>
 
-  <main class="content">
+  <main class="content" [class.immersive]="immersive()">
     <router-outlet />
   </main>
 </div>
