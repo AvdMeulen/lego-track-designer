@@ -271,6 +271,48 @@ describe('generateLayout', () => {
       ),
     );
     expect(closedDiverges.length - layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
+    const switches = layout.parts.filter((part) => part.partId.startsWith('switch-'));
+    let gap = 0;
+    for (let i = 0; i < switches.length; i += 1) {
+      for (let j = i + 1; j < switches.length; j += 1) {
+        const dx = switches[i].x - switches[j].x;
+        const dy = switches[i].y - switches[j].y;
+        gap = Math.max(gap, Math.hypot(dx, dy));
+      }
+    }
+    expect(gap).toBeGreaterThanOrEqual(96);
+  });
+
+  it('keeps a long passing lane and wanders off the box', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 58 },
+        { partId: 'curve-22', quantity: 97 },
+        { partId: 'switch-left', quantity: 2 },
+        { partId: 'switch-right', quantity: 2 },
+        { partId: 'double-crossover', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { seed: 18, timeoutMs: 2500 },
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    const switches = layout.parts.filter((part) => part.partId.startsWith('switch-'));
+    let gap = 0;
+    for (let i = 0; i < switches.length; i += 1) {
+      for (let j = i + 1; j < switches.length; j += 1) {
+        gap = Math.max(gap, Math.hypot(switches[i].x - switches[j].x, switches[i].y - switches[j].y));
+      }
+    }
+    expect(gap).toBeGreaterThanOrEqual(96);
+    const passing = layout.parts.filter((part) => part.instanceId.startsWith('par'));
+    expect(passing.length).toBeGreaterThanOrEqual(4);
+    const wandered = layout.parts.some((part) => part.instanceId.startsWith('rnd') || part.instanceId.startsWith('w'));
+    const headings = new Set(
+      layout.parts
+        .filter((part) => part.partId === 'straight-16')
+        .map((part) => Math.round((((part.rotation % 360) + 360) % 360) / 22.5) % 8),
+    );
+    expect(wandered || headings.size >= 3).toBeTrue();
   });
 
   it('uses opposite-curve S-bends instead of only 90-degree corners', () => {
