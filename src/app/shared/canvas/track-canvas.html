@@ -37,8 +37,16 @@
     </g>
   }
 
-  @for (spot of layout().parkingSpots; track spot.id) {
-    <text class="note park" [attr.x]="0" [attr.y]="view().minY + 8">Parking {{ $index + 1 }}</text>
+  @for (mark of layout().marks; track mark.kind + mark.text + mark.x + mark.y) {
+    <text
+      class="note"
+      [class.park]="mark.kind === 'parking'"
+      [class.reverse]="mark.kind === 'reverse'"
+      [class.flex]="mark.kind === 'flex'"
+      [class.open]="mark.kind === 'unfinished'"
+      [attr.x]="mark.x"
+      [attr.y]="mark.y"
+    >{{ mark.text }}</text>
   }
 
   <g class="legend" [attr.transform]="'translate(' + (view().minX + 4) + ' ' + (view().minY + view().height - 28) + ')'">

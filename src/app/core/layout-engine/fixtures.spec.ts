@@ -9,7 +9,10 @@ import {
   flexGapFixture,
   ovalFixture,
   parkingSidingFixture,
+  pointToPointFixture,
+  reversingLoopFixture,
   switchFixture,
+  wyeFixture,
 } from './fixtures';
 import { worldPorts } from './geometry';
 
@@ -73,5 +76,19 @@ describe('fixtures', () => {
     const layout = parkingSidingFixture();
     expect(layout.parkingSpots.some((spot) => spot.clearLengthStuds >= 16)).toBeTrue();
     expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
+  });
+
+  it('labels two parking ends on a point-to-point run', () => {
+    const layout = pointToPointFixture();
+    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('closes a balloon through a switch as a reversing loop', () => {
+    const layout = reversingLoopFixture();
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+  });
+
+  it('connects three switches for a wye', () => {
+    expect(wyeFixture().parts.filter((part) => part.partId.startsWith('switch-')).length).toBe(3);
   });
 });

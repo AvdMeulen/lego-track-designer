@@ -73,6 +73,13 @@ export interface ReverseOption {
   partIds: string[];
 }
 
+export interface LayoutMark {
+  kind: 'parking' | 'reverse' | 'flex' | 'unfinished';
+  x: number;
+  y: number;
+  text: string;
+}
+
 export interface LayoutScore {
   total: number;
   parkingMatches: number;
@@ -101,6 +108,8 @@ export interface TrackLayout {
   parkingSpots: ParkingSpot[];
   reverseOptions: ReverseOption[];
   unfinishedPorts: number;
+  marks: LayoutMark[];
+  notes: string[];
   score: LayoutScore;
   message?: string;
 }

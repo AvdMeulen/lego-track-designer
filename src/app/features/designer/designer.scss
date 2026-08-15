@@ -84,8 +84,14 @@ ul {
 }
 
 .meta,
-.status {
+.status,
+.notes {
   color: var(--color-muted);
+}
+
+.notes {
+  margin: 0.8rem 0 0;
+  padding-left: 1.1rem;
 }
 
 @media (max-width: 860px) {

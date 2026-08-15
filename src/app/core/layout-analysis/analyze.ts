@@ -1,6 +1,8 @@
 import { detectConnections, openPorts } from '../layout-engine/connections';
 import { distance } from '../layout-engine/geometry';
 import {
+  GenerationPreferences,
+  LayoutMark,
   ParkingSpot,
   PlacedPart,
   ReverseOption,
@@ -23,10 +25,26 @@ export function analyzeLayout(
   const graph = buildGraph(parts, connections);
   const parkingSpots = findParkingSpots(parts, catalog, graph);
   const reverseOptions = findReverseOptions(parts, catalog, graph, parkingSpots);
-  const unfinishedPorts = openPorts(parts, catalog).filter((port) => {
+  const opens = openPorts(parts, catalog);
+  const parkingEnds = new Set(parkingSpots.map((spot) => spot.endInstanceId));
+  const unfinished = opens.filter((port) => {
     const part = catalog[parts.find((item) => item.instanceId === port.instanceId)?.partId ?? ''];
-    return part?.category !== 'buffer';
-  }).length;
+    return part?.category !== 'buffer' && !parkingEnds.has(port.instanceId);
+  });
+  const marks = buildMarks(parts, parkingSpots, reverseOptions, unfinished);
+  const score = {
+    total: 0,
+    parkingMatches: parkingSpots.length,
+    reverseBonus: reverseOptions.reduce((sum, option) => sum + (option.kind === 'dead-end' ? 1 : 3), 0),
+    routeBonus: countCycles(graph),
+    piecesUsed: parts.length,
+    compactness: compactness(parts),
+    unfinishedPenalty: unfinished.length,
+    specialsBonus: parts.filter((part) =>
+      ['switch', 'crossing', 'double-crossover'].includes(catalog[part.partId]?.category),
+    ).length,
+    flexPenalty: parts.filter((part) => part.partId === 'flex-track').length,
+  };
 
   return {
     parts,
@@ -34,22 +52,94 @@ export function analyzeLayout(
     unusedInventory,
     parkingSpots,
     reverseOptions,
-    unfinishedPorts,
-    score: {
-      total: 0,
-      parkingMatches: parkingSpots.length,
-      reverseBonus: reverseOptions.length,
-      routeBonus: countCycles(graph),
-      piecesUsed: parts.length,
-      compactness: compactness(parts),
-      unfinishedPenalty: unfinishedPorts,
-      specialsBonus: parts.filter((part) =>
-        ['switch', 'crossing', 'double-crossover'].includes(catalog[part.partId]?.category),
-      ).length,
-      flexPenalty: parts.filter((part) => part.partId === 'flex-track').length,
-    },
+    unfinishedPorts: unfinished.length,
+    marks,
+    notes: [],
+    score,
     message,
   };
+}
+
+export function preferenceNotes(
+  layout: TrackLayout,
+  prefs: GenerationPreferences,
+  inventory: Record<string, number>,
+): string[] {
+  const notes: string[] = [];
+  const switchCount = (inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0);
+  const unusedFlex = layout.unusedInventory.find((item) => item.partId === 'flex-track')?.quantity ?? 0;
+
+  if ((inventory['curve-22'] ?? 0) === 15 && layout.score.routeBonus === 0) {
+    notes.push('15 curves cannot close a loop. The remaining gap is larger than one flex piece.');
+  }
+  if (prefs.targetParkingSpots > 0 && layout.parkingSpots.length === 0) {
+    notes.push('No spare switch for a siding.');
+  }
+  if (prefs.preferReversingRoute && !layout.reverseOptions.some((option) => option.kind !== 'dead-end')) {
+    if (switchCount === 0) {
+      notes.push('No reversing route with the current pieces.');
+    } else if (!layout.reverseOptions.some((option) => option.kind === 'reversing-loop' || option.kind === 'wye')) {
+      notes.push('No reversing loop or wye; dead-end reverse is available if there is parking.');
+    }
+  }
+  if (prefs.allowFlexCloses && unusedFlex > 0 && layout.unfinishedPorts > 0) {
+    notes.push('Gap too large for flex.');
+  }
+  if (prefs.targetParkingSpots > layout.parkingSpots.length && layout.parkingSpots.length > 0) {
+    notes.push('Fewer parking spots than requested.');
+  }
+  return notes;
+}
+
+function buildMarks(
+  parts: PlacedPart[],
+  parking: ParkingSpot[],
+  reverse: ReverseOption[],
+  unfinished: { x: number; y: number; instanceId: string }[],
+): LayoutMark[] {
+  const byId = Object.fromEntries(parts.map((part) => [part.instanceId, part]));
+  const marks: LayoutMark[] = [];
+
+  parking.forEach((spot, index) => {
+    const part = byId[spot.endInstanceId];
+    if (part) {
+      marks.push({
+        kind: 'parking',
+        x: part.x,
+        y: part.y - 7,
+        text: `P${index + 1}`,
+      });
+    }
+  });
+
+  for (const option of reverse) {
+    if (option.kind === 'dead-end') {
+      continue;
+    }
+    const part = byId[option.partIds[0]];
+    if (part) {
+      marks.push({
+        kind: 'reverse',
+        x: part.x,
+        y: part.y + 8,
+        text: option.kind === 'wye' ? 'Wye' : 'Reverse loop',
+      });
+    }
+  }
+
+  for (const part of parts) {
+    if (part.partId !== 'flex-track') {
+      continue;
+    }
+    const point = part.flexPath?.[Math.floor((part.flexPath.length ?? 1) / 2)] ?? part;
+    marks.push({ kind: 'flex', x: point.x, y: point.y - 7, text: 'Flex' });
+  }
+
+  for (const port of unfinished) {
+    marks.push({ kind: 'unfinished', x: port.x, y: port.y - 6, text: 'Open' });
+  }
+
+  return marks;
 }
 
 function buildGraph(parts: PlacedPart[], connections: TrackLayout['connections']): Map<string, NodeEdge[]> {
@@ -80,11 +170,13 @@ function findParkingSpots(
       continue;
     }
     const { length, switchId } = walkClearLength(part.instanceId, graph, byId, catalog);
-    if (length >= 16 || category === 'buffer') {
+    const siding = !!switchId && length >= 16;
+    const bufferedEnd = category === 'buffer';
+    if (siding || bufferedEnd) {
       spots.push({
         id: `park-${part.instanceId}`,
         endInstanceId: part.instanceId,
-        clearLengthStuds: Math.max(length, category === 'buffer' ? 16 : length),
+        clearLengthStuds: Math.max(length, bufferedEnd ? 16 : length),
         switchInstanceId: switchId,
       });
     }
@@ -108,9 +200,7 @@ function walkClearLength(
     visited.add(current);
     const part = byId[current];
     const category = catalog[part.partId]?.category;
-    if (category === 'straight' || category === 'flex') {
-      length += 16;
-    } else if (category === 'curve') {
+    if (category === 'straight' || category === 'flex' || category === 'curve') {
       length += 16;
     }
     if (category === 'switch') {
@@ -127,6 +217,39 @@ function walkClearLength(
   return { length, switchId };
 }
 
+function nodesOnCycles(graph: Map<string, NodeEdge[]>): Set<string> {
+  const onCycle = new Set<string>();
+  const visited = new Set<string>();
+
+  const dfs = (node: string, parent: string | null, stack: string[]) => {
+    visited.add(node);
+    stack.push(node);
+    for (const edge of graph.get(node) ?? []) {
+      if (edge.to === parent) {
+        continue;
+      }
+      const seenAt = stack.indexOf(edge.to);
+      if (seenAt >= 0) {
+        for (const id of stack.slice(seenAt)) {
+          onCycle.add(id);
+        }
+        continue;
+      }
+      if (!visited.has(edge.to)) {
+        dfs(edge.to, node, stack);
+      }
+    }
+    stack.pop();
+  };
+
+  for (const node of graph.keys()) {
+    if (!visited.has(node)) {
+      dfs(node, null, []);
+    }
+  }
+  return onCycle;
+}
+
 function findReverseOptions(
   parts: PlacedPart[],
   catalog: Record<string, TrackPart>,
@@ -138,11 +261,13 @@ function findReverseOptions(
     partIds: [spot.endInstanceId],
   }));
 
-  if (countCycles(graph) > 0 && parts.some((part) => catalog[part.partId]?.category === 'switch')) {
-    const switchIds = parts.filter((part) => catalog[part.partId]?.category === 'switch').map((part) => part.instanceId);
-    if (switchIds.some((id) => (graph.get(id)?.length ?? 0) >= 3) && countCycles(graph) >= 1) {
-      options.push({ kind: 'reversing-loop', partIds: switchIds });
-    }
+  const cyclic = nodesOnCycles(graph);
+  const switchIds = parts
+    .filter((part) => catalog[part.partId]?.category === 'switch')
+    .map((part) => part.instanceId);
+  const balloon = switchIds.filter((id) => cyclic.has(id) && (graph.get(id)?.length ?? 0) >= 2);
+  if (balloon.length) {
+    options.push({ kind: 'reversing-loop', partIds: balloon });
   }
 
   const switches = parts.filter((part) => catalog[part.partId]?.category === 'switch');
@@ -167,42 +292,14 @@ function switchesConnected(switches: PlacedPart[], graph: Map<string, NodeEdge[]
     }
     seen.add(id);
     for (const edge of graph.get(id) ?? []) {
-      if (wanted.has(edge.to)) {
-        queue.push(edge.to);
-      }
+      queue.push(edge.to);
     }
   }
   return [...wanted].every((id) => seen.has(id));
 }
 
 function countCycles(graph: Map<string, NodeEdge[]>): number {
-  const visited = new Set<string>();
-  let cycles = 0;
-
-  const dfs = (node: string, parent: string | null, path: Set<string>) => {
-    visited.add(node);
-    path.add(node);
-    for (const edge of graph.get(node) ?? []) {
-      if (edge.to === parent) {
-        continue;
-      }
-      if (path.has(edge.to)) {
-        cycles += 1;
-        continue;
-      }
-      if (!visited.has(edge.to)) {
-        dfs(edge.to, node, path);
-      }
-    }
-    path.delete(node);
-  };
-
-  for (const node of graph.keys()) {
-    if (!visited.has(node)) {
-      dfs(node, null, new Set());
-    }
-  }
-  return cycles;
+  return nodesOnCycles(graph).size > 0 ? 1 : 0;
 }
 
 function compactness(parts: PlacedPart[]): number {

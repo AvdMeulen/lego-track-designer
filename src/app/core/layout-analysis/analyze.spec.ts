@@ -1,0 +1,51 @@
+import { DEFAULT_PREFERENCES } from '../../shared/models/track';
+import {
+  parkingSidingFixture,
+  pointToPointFixture,
+  reversingLoopFixture,
+  wyeFixture,
+} from '../layout-engine/fixtures';
+import { preferenceNotes } from './analyze';
+
+describe('layout analysis', () => {
+  it('marks a buffered siding as parking and dead-end reverse', () => {
+    const layout = parkingSidingFixture();
+    expect(layout.parkingSpots.some((spot) => spot.clearLengthStuds >= 16)).toBeTrue();
+    expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
+    expect(layout.marks.some((mark) => mark.kind === 'parking')).toBeTrue();
+  });
+
+  it('finds two parking ends on a point-to-point layout', () => {
+    const layout = pointToPointFixture();
+    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(2);
+    const deadEnds = layout.reverseOptions.filter((option) => option.kind === 'dead-end');
+    expect(deadEnds.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('detects a reversing loop when a switch sits on a cycle', () => {
+    const layout = reversingLoopFixture();
+    expect(layout.reverseOptions.some((option) => option.kind === 'reversing-loop')).toBeTrue();
+    expect(layout.marks.some((mark) => mark.kind === 'reverse')).toBeTrue();
+  });
+
+  it('detects a wye from three connected switches', () => {
+    const layout = wyeFixture();
+    expect(layout.reverseOptions.some((option) => option.kind === 'wye')).toBeTrue();
+  });
+
+  it('explains missing parking and an oversized flex gap', () => {
+    const notes = preferenceNotes(
+      {
+        ...parkingSidingFixture(),
+        parkingSpots: [],
+        reverseOptions: [],
+        unfinishedPorts: 2,
+        unusedInventory: [{ partId: 'flex-track', quantity: 1 }],
+      },
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, allowFlexCloses: true },
+      { 'switch-left': 0, 'flex-track': 1 },
+    );
+    expect(notes.some((note) => note.includes('No spare switch for a siding'))).toBeTrue();
+    expect(notes.some((note) => note.includes('Gap too large for flex'))).toBeTrue();
+  });
+});

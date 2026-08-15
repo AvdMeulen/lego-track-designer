@@ -102,6 +102,46 @@ export function flexGapFixture(): TrackLayout {
   return analyzeLayout(closed, catalog, [], 'Flex gap-close fixture');
 }
 
+export function pointToPointFixture(): TrackLayout {
+  const sequence = ['buffer-stop', 'straight-16', 'curve-22', 'straight-16', 'curve-22', 'straight-16', 'buffer-stop'];
+  const parts = grow(sequence);
+  return analyzeLayout(parts, catalog, [], 'Point-to-point with two parking ends');
+}
+
+export function reversingLoopFixture(): TrackLayout {
+  const parts: PlacedPart[] = [
+    { instanceId: 's1', partId: 'switch-left', label: 1, x: 0, y: 0, rotation: 0 },
+  ];
+  const through = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'through')!;
+  const diverge = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'diverge')!;
+  const loop = ['curve-22', 'curve-22', 'curve-22', 'curve-22', 'straight-16', 'curve-22', 'curve-22', 'curve-22', 'curve-22', 'straight-16', 'curve-22', 'curve-22', 'curve-22', 'curve-22', 'straight-16', 'curve-22', 'curve-22', 'curve-22', 'curve-22'];
+  let head = through;
+  loop.forEach((partId, index) => {
+    const next = attachTo(partId, `loop${index + 1}`, index + 2, head, 'a');
+    parts.push(next);
+    const ports = worldPorts(catalog[partId], next);
+    head = ports.find((port) => port.id !== 'a') ?? ports[ports.length - 1];
+  });
+  const siding = attachTo('straight-16', 'sid1', parts.length + 1, diverge, 'a');
+  parts.push(siding);
+  const sidingEnd = worldPorts(catalog['straight-16'], siding).find((port) => port.id === 'b')!;
+  parts.push(attachTo('buffer-stop', 'buf1', parts.length + 1, sidingEnd, 'a'));
+  return analyzeLayout(parts, catalog, [], 'Reversing loop with parking siding');
+}
+
+export function wyeFixture(): TrackLayout {
+  const parts: PlacedPart[] = [
+    { instanceId: 'w1', partId: 'switch-left', label: 1, x: 0, y: 0, rotation: 0 },
+  ];
+  const through = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'through')!;
+  const stem = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'stem')!;
+  const diverge = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'diverge')!;
+  parts.push(attachTo('switch-right', 'w2', 2, through, 'stem'));
+  parts.push(attachTo('switch-left', 'w3', 3, stem, 'through'));
+  parts.push(attachTo('straight-16', 'leg', 4, diverge, 'a'));
+  return analyzeLayout(parts, catalog, [], 'Wye of three switches');
+}
+
 export function parkingSidingFixture(): TrackLayout {
   const parts: PlacedPart[] = [
     { instanceId: 's1', partId: 'switch-left', label: 1, x: 0, y: 0, rotation: 0 },
@@ -129,6 +169,9 @@ export function allFixtures(): { id: string; layout: TrackLayout }[] {
     { id: 'buffer', layout: bufferFixture() },
     { id: 'flex', layout: flexGapFixture() },
     { id: 'parking', layout: parkingSidingFixture() },
+    { id: 'point-to-point', layout: pointToPointFixture() },
+    { id: 'reverse-loop', layout: reversingLoopFixture() },
+    { id: 'wye', layout: wyeFixture() },
   ];
 }
 

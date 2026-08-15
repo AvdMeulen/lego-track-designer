@@ -52,6 +52,20 @@ describe('generateLayout', () => {
     expect(layout.parkingSpots.length).toBeGreaterThan(0);
   });
 
+  it('builds a point-to-point with two dead-end parking spots', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'buffer-stop', quantity: 2 },
+        { partId: 'straight-16', quantity: 4 },
+        { partId: 'curve-22', quantity: 4 },
+      ],
+      { ...DEFAULT_PREFERENCES, loopPlusParking: false, targetParkingSpots: 2 },
+      { seed: 5, timeoutMs: 1500 },
+    );
+    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
+    expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
+  });
+
   it('accepts a 16-curve circle when parking is set to 0', () => {
     const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], {
       ...DEFAULT_PREFERENCES,

@@ -54,12 +54,40 @@
       <label>
         <input
           type="checkbox"
+          [ngModel]="store.preferences().preferMorePieces"
+          (ngModelChange)="store.updatePreferences({ preferMorePieces: $event })"
+        />
+        Prefer using more pieces
+      </label>
+      <label>
+        <input
+          type="checkbox"
           [ngModel]="store.preferences().compact"
           (ngModelChange)="store.updatePreferences({ compact: $event })"
         />
         Compact footprint
       </label>
     </fieldset>
+
+    @if (store.layout().notes.length) {
+      <ul class="notes">
+        @for (note of store.layout().notes; track note) {
+          <li>{{ note }}</li>
+        }
+      </ul>
+    }
+
+    <h2>Parking and reverse</h2>
+    <ul>
+      @for (spot of store.layout().parkingSpots; track spot.id) {
+        <li>Parking {{ $index + 1 }} · {{ spot.clearLengthStuds }} studs</li>
+      } @empty {
+        <li>No parking spots</li>
+      }
+      @for (option of store.layout().reverseOptions; track option.kind + option.partIds.join('-')) {
+        <li>{{ option.kind }}</li>
+      }
+    </ul>
 
     <h2>Piece list</h2>
     <ul class="piece-list">

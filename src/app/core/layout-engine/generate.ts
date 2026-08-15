@@ -1,4 +1,4 @@
-import { analyzeLayout } from '../layout-analysis/analyze';
+import { analyzeLayout, preferenceNotes } from '../layout-analysis/analyze';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import {
   DEFAULT_PREFERENCES,
@@ -70,6 +70,10 @@ function finalize(
   const withFlex = closeWithFlex(parts, catalog, remainingInventory(inventory, parts), prefs.allowFlexCloses);
   const labeled = withFlex.map((part, index) => ({ ...part, label: index + 1 }));
   const layout = analyzeLayout(labeled, catalog, unusedItems(inventory, labeled), message);
+  layout.notes = preferenceNotes(layout, prefs, inventory);
+  if (layout.notes.length) {
+    layout.message = layout.notes.join(' ');
+  }
   layout.score.total = scoreLayout(layout, prefs);
   return layout;
 }
@@ -325,10 +329,6 @@ export function generateLayout(
   const best = candidates[0];
   if (best.parts.length === 0) {
     best.message = 'Could not place a layout with the current inventory.';
-  } else if ((inventory['curve-22'] ?? 0) === 15 && best.score.routeBonus === 0) {
-    best.message = '15 curves cannot close a loop. The remaining gap is larger than one flex piece.';
-  } else if (prefs.targetParkingSpots > 0 && best.parkingSpots.length === 0) {
-    best.message = 'No spare switch for a siding.';
   }
   return best;
 }
