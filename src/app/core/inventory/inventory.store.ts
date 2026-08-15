@@ -45,6 +45,20 @@ export class InventoryStore {
     this.storage.write(INVENTORY_STORAGE_KEY, next);
   }
 
+  replaceAll(items: InventoryItem[]): void {
+    const next: Record<string, number> = {};
+    for (const part of this.catalog.parts) {
+      next[part.id] = 0;
+    }
+    for (const item of items) {
+      if (item.partId in next) {
+        next[item.partId] = Math.max(0, Math.floor(item.quantity));
+      }
+    }
+    this.quantities.set(next);
+    this.storage.write(INVENTORY_STORAGE_KEY, next);
+  }
+
   snapshot(): InventoryItem[] {
     return this.items().filter((item) => item.quantity > 0);
   }

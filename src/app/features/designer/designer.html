@@ -53,8 +53,22 @@
       <button type="button" (click)="exportPng()" [disabled]="store.layout().parts.length === 0">
         {{ 'designer.exportPng' | t }}
       </button>
+      <button type="button" (click)="exportJson()">{{ 'designer.exportJson' | t }}</button>
+      <button type="button" (click)="copyJson()">{{ 'designer.copyJson' | t }}</button>
+      <button type="button" (click)="openImport()">{{ 'designer.importJson' | t }}</button>
+      <input
+        #snapshotFile
+        class="file"
+        type="file"
+        accept="application/json,.json"
+        (change)="importFile($event)"
+      />
     </div>
     <p class="hint">{{ 'designer.generateHelp' | t }}</p>
+    <p class="hint">{{ 'designer.snapshotHelp' | t }}</p>
+    @if (snapshotStatus()) {
+      <p class="hint">{{ snapshotStatus()! | t }}</p>
+    }
 
     <a routerLink="/inventory">{{ 'designer.editCollection' | t }}</a>
 

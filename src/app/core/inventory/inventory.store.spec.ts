@@ -41,4 +41,20 @@ describe('InventoryStore', () => {
     expect(store.totalPieces()).toBe(0);
     expect(store.quantity('curve-22')).toBe(0);
   });
+
+  it('replaces the whole collection from a snapshot list', () => {
+    const memory = new MemoryStorage();
+    TestBed.configureTestingModule({
+      providers: [{ provide: BrowserStorage, useValue: memory }],
+    });
+    const store = TestBed.inject(InventoryStore);
+    store.setQuantity('flex-track', 3);
+    store.replaceAll([
+      { partId: 'curve-22', quantity: 16 },
+      { partId: 'unknown-part', quantity: 9 },
+    ]);
+    expect(store.quantity('curve-22')).toBe(16);
+    expect(store.quantity('flex-track')).toBe(0);
+    expect(store.quantity('unknown-part')).toBe(0);
+  });
 });

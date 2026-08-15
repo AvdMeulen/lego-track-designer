@@ -24,6 +24,8 @@ describe('Designer', () => {
     expect(compiled.textContent).toContain('Generate');
     expect(compiled.textContent).toContain('Rebuild');
     expect(compiled.textContent).toContain('Export PNG');
+    expect(compiled.textContent).toContain('Export JSON');
+    expect(compiled.textContent).toContain('Import JSON');
     expect(compiled.querySelector('.piece-list')).toBeTruthy();
     expect(compiled.querySelector('.workspace')).toBeTruthy();
   });

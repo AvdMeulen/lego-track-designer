@@ -6,6 +6,7 @@ import {
   LAYOUT_STORAGE_KEY,
   TrackLayout,
 } from '../../shared/models/track';
+import { buildSnapshot, DesignerSnapshot } from '../export/snapshot';
 import { emptyLayout, generateLayout } from '../layout-engine/generate';
 import { InventoryStore } from '../inventory/inventory.store';
 import { BrowserStorage } from '../storage/browser-storage';
@@ -90,6 +91,29 @@ export class LayoutStore {
   show(layout: TrackLayout): void {
     this.layout.set(layout);
     this.usedInventory.set(this.inventory.snapshot());
+    this.persist();
+  }
+
+  currentSeed(): number {
+    return this.seed;
+  }
+
+  exportSnapshot(): DesignerSnapshot {
+    return buildSnapshot({
+      seed: this.seed,
+      preferences: this.preferences(),
+      inventory: this.usedInventory() ?? this.inventory.snapshot(),
+      layout: this.layout(),
+    });
+  }
+
+  importSnapshot(snapshot: DesignerSnapshot): void {
+    this.inventory.replaceAll(snapshot.inventory);
+    this.preferences.set({ ...DEFAULT_PREFERENCES, ...snapshot.preferences });
+    this.layout.set(snapshot.layout);
+    this.seed = snapshot.seed;
+    this.usedInventory.set(snapshot.inventory);
+    this.selectedLabel.set(null);
     this.persist();
   }
 

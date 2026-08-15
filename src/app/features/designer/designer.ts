@@ -1,8 +1,9 @@
-import { Component, ElementRef, inject, viewChild } from '@angular/core';
+import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import { exportSvgElementToPng } from '../../core/export/png-export';
+import { downloadJson, parseSnapshotText } from '../../core/export/snapshot';
 import { TPipe } from '../../core/i18n/t.pipe';
 import { allFixtures } from '../../core/layout-engine/fixtures';
 import { LayoutStore } from '../../core/layout-store/layout.store';
@@ -19,8 +20,10 @@ export class Designer {
   protected readonly store = inject(LayoutStore);
   private readonly canvasHost = viewChild<ElementRef<HTMLElement>>('canvasHost');
   private readonly canvas = viewChild(TrackCanvas);
+  private readonly snapshotFile = viewChild<ElementRef<HTMLInputElement>>('snapshotFile');
 
   protected readonly fixtures = allFixtures();
+  protected readonly snapshotStatus = signal<string | null>(null);
 
   setParking(value: string): void {
     const parsed = Number(value);
@@ -48,5 +51,40 @@ export class Designer {
     if (svg) {
       await exportSvgElementToPng(svg, 'lego-track-design.png', this.canvas()?.fullViewBox());
     }
+  }
+
+  exportJson(): void {
+    downloadJson(`lego-track-snapshot-seed-${this.store.currentSeed()}.json`, this.store.exportSnapshot());
+    this.snapshotStatus.set('designer.snapshotExported');
+  }
+
+  async copyJson(): Promise<void> {
+    const text = JSON.stringify(this.store.exportSnapshot(), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      this.snapshotStatus.set('designer.snapshotCopied');
+    } catch {
+      this.exportJson();
+    }
+  }
+
+  openImport(): void {
+    this.snapshotFile()?.nativeElement.click();
+  }
+
+  async importFile(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) {
+      return;
+    }
+    const snapshot = parseSnapshotText(await file.text());
+    if (!snapshot) {
+      this.snapshotStatus.set('designer.snapshotInvalid');
+      return;
+    }
+    this.store.importSnapshot(snapshot);
+    this.snapshotStatus.set('designer.snapshotImported');
   }
 }

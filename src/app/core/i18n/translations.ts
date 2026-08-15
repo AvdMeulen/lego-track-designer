@@ -60,6 +60,16 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.generateHelp':
       'Generate searches for a layout. Rebuild is available after you change the collection.',
     'designer.exportPng': 'Export PNG',
+    'designer.exportJson': 'Export JSON',
+    'designer.copyJson': 'Copy JSON',
+    'designer.importJson': 'Import JSON',
+    'designer.snapshotHelp':
+      'JSON includes collection, preferences, seed, and the current layout. Paste or attach it when asking to improve the generator.',
+    'designer.snapshotExported': 'JSON file downloaded.',
+    'designer.snapshotCopied': 'JSON copied. Paste it in the chat.',
+    'designer.snapshotCopyFailed': 'Could not copy. Use Export JSON instead.',
+    'designer.snapshotImported': 'Collection and layout imported.',
+    'designer.snapshotInvalid': 'That file is not a Track Designer snapshot.',
     'designer.editCollection': 'Edit collection',
     'designer.preferences': 'Preferences',
     'designer.parkingSpots': 'Parking spots',
@@ -179,6 +189,16 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.generateHelp':
       'Genereer zoekt een ontwerp. Herbouw wordt actief nadat je de collectie wijzigt.',
     'designer.exportPng': 'Exporteer PNG',
+    'designer.exportJson': 'Exporteer JSON',
+    'designer.copyJson': 'Kopieer JSON',
+    'designer.importJson': 'Importeer JSON',
+    'designer.snapshotHelp':
+      'JSON bevat collectie, voorkeuren, seed en het huidige ontwerp. Plak of voeg het toe als je de generator wilt verbeteren.',
+    'designer.snapshotExported': 'JSON-bestand gedownload.',
+    'designer.snapshotCopied': 'JSON gekopieerd. Plak het in de chat.',
+    'designer.snapshotCopyFailed': 'Kopiëren lukte niet. Gebruik Exporteer JSON.',
+    'designer.snapshotImported': 'Collectie en ontwerp geïmporteerd.',
+    'designer.snapshotInvalid': 'Dat bestand is geen Track Designer-snapshot.',
     'designer.editCollection': 'Collectie bewerken',
     'designer.preferences': 'Voorkeuren',
     'designer.parkingSpots': 'Parkeerplekken',

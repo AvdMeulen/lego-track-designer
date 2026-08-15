@@ -146,6 +146,10 @@ button {
   border-color: var(--color-blue);
 }
 
+.file {
+  display: none;
+}
+
 .panel-scroll {
   overflow: auto;
   min-height: 0;
