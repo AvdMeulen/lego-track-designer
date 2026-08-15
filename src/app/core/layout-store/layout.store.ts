@@ -71,17 +71,20 @@ export class LayoutStore {
   }
 
   generate(): void {
+    if (this.generating()) {
+      return;
+    }
     if (this.usedInventory() !== null || this.layout().parts.length > 0) {
       this.seed += 1;
     }
-    this.run();
+    this.startRun();
   }
 
   rebuild(): void {
-    if (!this.canRebuild()) {
+    if (this.generating() || !this.canRebuild()) {
       return;
     }
-    this.run();
+    this.startRun();
   }
 
   show(layout: TrackLayout): void {
@@ -90,8 +93,14 @@ export class LayoutStore {
     this.persist();
   }
 
-  private run(): void {
+  private startRun(): void {
     this.generating.set(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => this.finishRun());
+    });
+  }
+
+  private finishRun(): void {
     const used = this.inventory.snapshot();
     const layout = generateLayout(used, this.preferences(), {
       seed: this.seed,

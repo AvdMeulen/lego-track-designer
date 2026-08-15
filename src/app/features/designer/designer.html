@@ -5,13 +5,25 @@
       [selectedLabel]="store.selectedLabel()"
       (partSelect)="store.select($event)"
     />
+    @if (store.generating()) {
+      <div class="busy" role="status" aria-live="polite">
+        <span class="busy-studs" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+        <p>{{ 'designer.searching' | t }}</p>
+      </div>
+    }
   </div>
 
   <aside class="panel float">
     <p class="eyebrow">{{ 'designer.eyebrow' | t }}</p>
     <h1>{{ 'designer.title' | t }}</h1>
     <p class="status">
-      @if (store.layout().notes.length) {
+      @if (store.generating()) {
+        {{ 'designer.searching' | t }}
+      } @else if (store.layout().notes.length) {
         @for (note of store.layout().notes; track note) {
           {{ note | t }}
         }
@@ -28,7 +40,7 @@
         [disabled]="store.generating()"
         [attr.title]="'designer.generateHint' | t"
       >
-        {{ 'designer.generate' | t }}
+        {{ (store.generating() ? 'designer.searching' : 'designer.generate') | t }}
       </button>
       <button
         type="button"
