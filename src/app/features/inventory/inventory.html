@@ -1,0 +1,38 @@
+<section class="page">
+  <header class="intro">
+    <p class="eyebrow">Collection</p>
+    <h1>Which City tracks do you own?</h1>
+    <p>Set a quantity for each part. The collection is saved in this browser.</p>
+    <p class="total">{{ inventory.totalPieces() }} pieces in the box</p>
+  </header>
+
+  <div class="presets">
+    @for (preset of presets; track preset.id) {
+      <button type="button" (click)="inventory.applyPreset(preset.quantities)">
+        {{ preset.name }}
+      </button>
+    }
+  </div>
+
+  <div class="grid">
+    @for (part of catalog.parts; track part.id) {
+      <article class="card">
+        <span class="swatch" [style.background]="part.color"></span>
+        <h2>{{ part.name }}</h2>
+        <p>{{ part.hint }}</p>
+        @if (part.legoIds?.length) {
+          <small>LEGO {{ part.legoIds?.join(', ') }}</small>
+        }
+        <div class="stepper">
+          <button type="button" (click)="inventory.adjust(part.id, -1)" [disabled]="inventory.quantity(part.id) === 0">
+            −
+          </button>
+          <strong>{{ inventory.quantity(part.id) }}</strong>
+          <button type="button" (click)="inventory.adjust(part.id, 1)">+</button>
+        </div>
+      </article>
+    }
+  </div>
+
+  <a class="cta" routerLink="/designer">Design with this collection</a>
+</section>

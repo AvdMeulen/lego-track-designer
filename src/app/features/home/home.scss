@@ -48,3 +48,30 @@ h1 {
   margin: 0;
   color: var(--color-muted);
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 2.5rem;
+}
+
+.cta,
+.ghost {
+  display: inline-block;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.cta {
+  background: var(--color-blue);
+  color: white;
+}
+
+.ghost {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: inherit;
+}

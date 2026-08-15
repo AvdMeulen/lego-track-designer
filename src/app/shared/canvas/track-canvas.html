@@ -1,0 +1,48 @@
+<svg
+  class="canvas"
+  [attr.viewBox]="view().box"
+  role="img"
+  aria-label="LEGO City track layout"
+>
+  <rect
+    class="backdrop"
+    [attr.x]="view().minX"
+    [attr.y]="view().minY"
+    [attr.width]="view().width"
+    [attr.height]="view().height"
+  />
+
+  @for (x of [0]; track x) {
+    <g class="grid" [attr.transform]="'translate(0,0)'">
+      @for (line of [0, 16, 32, 48, 64, 80, 96]; track line) {
+        <line [attr.x1]="view().minX" [attr.x2]="view().minX + view().width" [attr.y1]="line" [attr.y2]="line" />
+        <line [attr.y1]="view().minY" [attr.y2]="view().minY + view().height" [attr.x1]="line" [attr.x2]="line" />
+      }
+    </g>
+  }
+
+  @for (item of drawnParts(); track item.part.instanceId) {
+    <g
+      class="part"
+      [class.selected]="selectedLabel() === item.part.label"
+      (click)="select(item.part)"
+    >
+      @if (item.path) {
+        <path [attr.d]="item.path" [attr.stroke]="item.spec.color" fill="none" stroke-width="6" stroke-linecap="round" />
+      } @else {
+        <polygon [attr.points]="item.points" [attr.fill]="item.spec.color" />
+      }
+      <circle [attr.cx]="item.center.x" [attr.cy]="item.center.y" r="3.2" class="badge" />
+      <text [attr.x]="item.center.x" [attr.y]="item.center.y" class="label">{{ item.part.label }}</text>
+    </g>
+  }
+
+  @for (spot of layout().parkingSpots; track spot.id) {
+    <text class="note park" [attr.x]="0" [attr.y]="view().minY + 8">Parking {{ $index + 1 }}</text>
+  }
+
+  <g class="legend" [attr.transform]="'translate(' + (view().minX + 4) + ' ' + (view().minY + view().height - 28) + ')'">
+    <text class="summary" x="0" y="0">{{ summary() || 'No parts placed' }}</text>
+    <text class="scale" x="0" y="10">Scale: 16 studs = one straight</text>
+  </g>
+</svg>

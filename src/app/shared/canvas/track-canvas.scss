@@ -1,0 +1,63 @@
+:host {
+  display: block;
+  min-height: 420px;
+}
+
+.canvas {
+  width: 100%;
+  height: min(70vh, 720px);
+  background: #fffdf8;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+}
+
+.backdrop {
+  fill: #fffdf8;
+}
+
+.grid line {
+  stroke: #efe4d4;
+  stroke-width: 0.3;
+}
+
+.part {
+  cursor: pointer;
+}
+
+.part polygon {
+  fill-opacity: 0.88;
+  stroke: #1f1a17;
+  stroke-width: 0.35;
+}
+
+.part.selected polygon,
+.part.selected path {
+  stroke: #c91a1a;
+  stroke-width: 1.1;
+}
+
+.badge {
+  fill: #fffdf8;
+  stroke: #1f1a17;
+  stroke-width: 0.35;
+}
+
+.label {
+  font-size: 3.4px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  fill: #1f1a17;
+  pointer-events: none;
+}
+
+.note,
+.summary,
+.scale {
+  font-size: 4px;
+  fill: #5c534c;
+}
+
+.park {
+  fill: #2d7a3a;
+}

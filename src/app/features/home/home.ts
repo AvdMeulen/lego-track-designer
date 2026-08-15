@@ -1,8 +1,9 @@
 import { Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-home',
-  imports: [],
+  imports: [RouterLink],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
@@ -14,11 +15,11 @@ export class Home {
     },
     {
       title: 'Generate a layout',
-      text: 'The planner will search for a valid track arrangement that uses your pieces.',
+      text: 'The planner searches for a network with parking, reversing, and flex only as a last-resort gap closer.',
     },
     {
-      title: 'Review the design',
-      text: 'Inspect a visual suggestion, then tweak inventory or regenerate for another idea.',
+      title: 'See which part goes where',
+      text: 'Inspect numbered pieces, export a PNG, and reopen the saved design after refresh.',
     },
   ];
 }

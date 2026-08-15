@@ -1,0 +1,118 @@
+export type PartCategory =
+  | 'straight'
+  | 'curve'
+  | 'switch'
+  | 'crossing'
+  | 'double-crossover'
+  | 'buffer'
+  | 'flex';
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Port {
+  id: string;
+  x: number;
+  y: number;
+  heading: number;
+}
+
+export interface FlexLimits {
+  lengthStuds: number;
+  minChordStuds: number;
+  maxBendDegrees: number;
+}
+
+export interface TrackPart {
+  id: string;
+  name: string;
+  category: PartCategory;
+  hint: string;
+  legoIds?: string[];
+  ports: Port[];
+  footprint: Point[];
+  color: string;
+  flex?: FlexLimits;
+}
+
+export interface InventoryItem {
+  partId: string;
+  quantity: number;
+}
+
+export interface PlacedPart {
+  instanceId: string;
+  partId: string;
+  label: number;
+  x: number;
+  y: number;
+  rotation: number;
+  flexPath?: Point[];
+}
+
+export interface Connection {
+  fromInstanceId: string;
+  fromPortId: string;
+  toInstanceId: string;
+  toPortId: string;
+}
+
+export interface ParkingSpot {
+  id: string;
+  endInstanceId: string;
+  clearLengthStuds: number;
+  switchInstanceId?: string;
+}
+
+export type ReverseKind = 'dead-end' | 'reversing-loop' | 'wye';
+
+export interface ReverseOption {
+  kind: ReverseKind;
+  partIds: string[];
+}
+
+export interface LayoutScore {
+  total: number;
+  parkingMatches: number;
+  reverseBonus: number;
+  routeBonus: number;
+  piecesUsed: number;
+  compactness: number;
+  unfinishedPenalty: number;
+  specialsBonus: number;
+  flexPenalty: number;
+}
+
+export interface GenerationPreferences {
+  targetParkingSpots: 0 | 1 | 2;
+  preferReversingRoute: boolean;
+  preferMorePieces: boolean;
+  compact: boolean;
+  loopPlusParking: boolean;
+  allowFlexCloses: boolean;
+}
+
+export interface TrackLayout {
+  parts: PlacedPart[];
+  connections: Connection[];
+  unusedInventory: InventoryItem[];
+  parkingSpots: ParkingSpot[];
+  reverseOptions: ReverseOption[];
+  unfinishedPorts: number;
+  score: LayoutScore;
+  message?: string;
+}
+
+export const DEFAULT_PREFERENCES: GenerationPreferences = {
+  targetParkingSpots: 1,
+  preferReversingRoute: true,
+  preferMorePieces: true,
+  compact: false,
+  loopPlusParking: true,
+  allowFlexCloses: true,
+};
+
+export const INVENTORY_STORAGE_KEY = 'lego-track-designer.inventory.v1';
+export const LAYOUT_STORAGE_KEY = 'lego-track-designer.layout.v1';

@@ -1,0 +1,86 @@
+.page {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+}
+
+.eyebrow {
+  margin: 0 0 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-red);
+}
+
+h1 {
+  margin: 0 0 0.6rem;
+}
+
+.total {
+  font-weight: 700;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.presets button,
+.stepper button,
+.cta {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.swatch {
+  display: block;
+  width: 2.2rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  margin-bottom: 0.7rem;
+}
+
+.card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.card p,
+.card small {
+  color: var(--color-muted);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 1.5rem;
+  background: var(--color-blue);
+  color: white;
+  text-decoration: none;
+  font-weight: 700;
+}

@@ -1,64 +1,27 @@
 # Getting started
 
-## Install
-
-From the repository root:
-
 ```bash
 npm install
-```
-
-## Run the app
-
-```bash
 npm start
 ```
 
-The development server listens on [http://localhost:4200](http://localhost:4200).
+Open [http://localhost:4200](http://localhost:4200).
 
-## Build
+| Script | Purpose |
+| --- | --- |
+| `npm start` | Development server |
+| `npm run build` | Production build |
+| `npm test` | Unit tests (watch) |
+| `npm run test:ci` | Headless Chrome, single run |
 
-```bash
-npm run build
-```
+## Pages
 
-Output is written to `dist/lego-track-designer/browser`.
+- `/` home
+- `/inventory` collection and presets
+- `/designer` generate, inspect numbered parts, export PNG
 
-## Test
+Inventory and the last layout are stored in this browser. Export PNG for a portable snapshot.
 
-```bash
-npm test
-```
+## GitHub
 
-Karma opens Chrome by default. Use `ng test --watch=false --browsers=ChromeHeadless` for a single CI-style run.
-
-## Project layout
-
-```text
-src/app/
-  app.ts                 Application shell
-  app.routes.ts          Route table
-  features/home/         Landing page
-  core/                  Planned: services and configuration
-  shared/                Planned: models and reusable UI
-docs/                    Product and engineering documentation
-```
-
-## Connect GitHub
-
-The local repository is already initialized. Create an empty GitHub repository, then:
-
-```bash
-git remote add origin https://github.com/<your-username>/lego-track-designer.git
-git push -u origin main
-```
-
-Or with the GitHub CLI:
-
-```bash
-gh repo create lego-track-designer --private --source=. --remote=origin --push
-```
-
-## Node version note
-
-This app was generated with Angular CLI 20 because Node.js 22.20.0 does not meet the Angular 21+ minimum (`v22.22.3`). After upgrading Node, Angular can be updated in a later phase.
+https://github.com/AvdMeulen/lego-track-designer
