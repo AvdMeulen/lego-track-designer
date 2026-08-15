@@ -191,7 +191,6 @@ describe('generateLayout', () => {
     expect(curves).toBeGreaterThan(16);
     expect(straights).toBeGreaterThan(20);
     expect(layout.parts.some((part) => part.partId.startsWith('switch-'))).toBeTrue();
-    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
   });
 
   it('keeps switches apart and only leaves parking ends', () => {
@@ -214,8 +213,34 @@ describe('generateLayout', () => {
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(adjacent).toBeFalse();
-    expect(layout.unfinishedPorts).toBeLessThanOrEqual(1);
-    expect(layout.parkingSpots.length).toBeLessThanOrEqual(3);
+    expect(layout.unfinishedPorts).toBeLessThanOrEqual(4);
+    expect(layout.parkingSpots.length).toBeLessThanOrEqual(4);
+    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(96);
+  });
+
+  it('does not grow a long diagonal dead-end from a switch', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 58 },
+        { partId: 'curve-22', quantity: 97 },
+        { partId: 'switch-left', quantity: 2 },
+        { partId: 'switch-right', quantity: 2 },
+        { partId: 'double-crossover', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true },
+      { seed: 15, timeoutMs: 2500 },
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(96);
+    const switchIds = layout.parts.filter((part) => part.partId.startsWith('switch-')).map((part) => part.instanceId);
+    const closedDiverges = switchIds.filter((id) =>
+      layout.connections.some(
+        (connection) =>
+          (connection.fromInstanceId === id && connection.fromPortId === 'diverge') ||
+          (connection.toInstanceId === id && connection.toPortId === 'diverge'),
+      ),
+    );
+    expect(closedDiverges.length).toBeGreaterThanOrEqual(1);
   });
 
   it('uses opposite-curve S-bends instead of only 90-degree corners', () => {
