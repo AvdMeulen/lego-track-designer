@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="LEGO Track Designer">
+  <rect width="32" height="32" rx="8" fill="#1f1a17"/>
+  <g fill="#c91a1a">
+    <circle cx="8" cy="16" r="4.35"/>
+    <circle cx="8" cy="16" r="2.15" fill="#e24a4a"/>
+  </g>
+  <g fill="#f5c518">
+    <circle cx="16" cy="16" r="4.35"/>
+    <circle cx="16" cy="16" r="2.15" fill="#ffe36a"/>
+  </g>
+  <g fill="#0b5cab">
+    <circle cx="24" cy="16" r="4.35"/>
+    <circle cx="24" cy="16" r="2.15" fill="#3b8ad4"/>
+  </g>
+</svg>

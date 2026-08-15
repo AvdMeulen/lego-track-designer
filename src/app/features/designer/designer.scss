@@ -59,6 +59,13 @@ h2 {
   font-size: 1rem;
 }
 
+.hint {
+  margin: -0.35rem 0 0.6rem;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .actions,
 .fixtures {
   display: flex;

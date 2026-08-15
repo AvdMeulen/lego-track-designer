@@ -21,16 +21,28 @@
     </p>
 
     <div class="actions">
-      <button type="button" class="primary" (click)="generate(false)" [disabled]="store.generating()">
+      <button
+        type="button"
+        class="primary"
+        (click)="generate()"
+        [disabled]="store.generating()"
+        [attr.title]="'designer.generateHint' | t"
+      >
         {{ 'designer.generate' | t }}
       </button>
-      <button type="button" (click)="generate(true)" [disabled]="store.generating()">
-        {{ 'designer.generateAnother' | t }}
+      <button
+        type="button"
+        (click)="rebuild()"
+        [disabled]="store.generating() || !store.canRebuild()"
+        [attr.title]="'designer.rebuildHint' | t"
+      >
+        {{ 'designer.rebuild' | t }}
       </button>
       <button type="button" (click)="exportPng()" [disabled]="store.layout().parts.length === 0">
         {{ 'designer.exportPng' | t }}
       </button>
     </div>
+    <p class="hint">{{ 'designer.generateHelp' | t }}</p>
 
     <a routerLink="/inventory">{{ 'designer.editCollection' | t }}</a>
 

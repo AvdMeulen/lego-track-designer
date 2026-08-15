@@ -28,8 +28,12 @@ export class Designer {
     this.store.updatePreferences({ targetParkingSpots: target });
   }
 
-  generate(another = false): void {
-    this.store.generate(another);
+  generate(): void {
+    this.store.generate();
+  }
+
+  rebuild(): void {
+    this.store.rebuild();
   }
 
   showFixture(id: string): void {

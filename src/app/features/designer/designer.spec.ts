@@ -22,6 +22,7 @@ describe('Designer', () => {
   it('renders generate and export actions', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('Generate');
+    expect(compiled.textContent).toContain('Rebuild');
     expect(compiled.textContent).toContain('Export PNG');
     expect(compiled.querySelector('.piece-list')).toBeTruthy();
     expect(compiled.querySelector('.workspace')).toBeTruthy();

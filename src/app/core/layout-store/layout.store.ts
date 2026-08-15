@@ -2,6 +2,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import {
   DEFAULT_PREFERENCES,
   GenerationPreferences,
+  InventoryItem,
   LAYOUT_STORAGE_KEY,
   TrackLayout,
 } from '../../shared/models/track';
@@ -13,6 +14,15 @@ interface PersistedLayout {
   layout: TrackLayout;
   preferences: GenerationPreferences;
   seed: number;
+  usedInventory?: InventoryItem[];
+}
+
+function inventoryKey(items: InventoryItem[] | null | undefined): string {
+  return (items ?? [])
+    .filter((item) => item.quantity > 0)
+    .sort((a, b) => a.partId.localeCompare(b.partId))
+    .map((item) => `${item.partId}:${item.quantity}`)
+    .join('|');
 }
 
 @Injectable({ providedIn: 'root' })
@@ -24,7 +34,14 @@ export class LayoutStore {
   readonly layout = signal<TrackLayout>(emptyLayout());
   readonly generating = signal(false);
   readonly selectedLabel = signal<number | null>(null);
+  private readonly usedInventory = signal<InventoryItem[] | null>(null);
   private seed = 1;
+
+  readonly canRebuild = computed(
+    () =>
+      this.usedInventory() !== null &&
+      inventoryKey(this.inventory.snapshot()) !== inventoryKey(this.usedInventory()),
+  );
 
   readonly usageSummary = computed(() => {
     const counts = new Map<string, number>();
@@ -40,6 +57,7 @@ export class LayoutStore {
       this.layout.set(saved.layout);
       this.preferences.set({ ...DEFAULT_PREFERENCES, ...saved.preferences });
       this.seed = saved.seed ?? 1;
+      this.usedInventory.set(saved.usedInventory ?? this.inventory.snapshot());
     }
   }
 
@@ -52,22 +70,38 @@ export class LayoutStore {
     this.selectedLabel.set(label);
   }
 
-  generate(another = false): void {
-    this.generating.set(true);
-    this.seed = another ? this.seed + 1 : this.seed;
-    const layout = generateLayout(this.inventory.snapshot(), this.preferences(), {
-      seed: this.seed,
-      timeoutMs: 2200,
-    });
-    this.layout.set(layout);
-    this.selectedLabel.set(null);
-    this.persist();
-    this.generating.set(false);
+  generate(): void {
+    if (this.usedInventory() !== null || this.layout().parts.length > 0) {
+      this.seed += 1;
+    }
+    this.run();
+  }
+
+  rebuild(): void {
+    if (!this.canRebuild()) {
+      return;
+    }
+    this.run();
   }
 
   show(layout: TrackLayout): void {
     this.layout.set(layout);
+    this.usedInventory.set(this.inventory.snapshot());
     this.persist();
+  }
+
+  private run(): void {
+    this.generating.set(true);
+    const used = this.inventory.snapshot();
+    const layout = generateLayout(used, this.preferences(), {
+      seed: this.seed,
+      timeoutMs: 2200,
+    });
+    this.usedInventory.set(used);
+    this.layout.set(layout);
+    this.selectedLabel.set(null);
+    this.persist();
+    this.generating.set(false);
   }
 
   private persist(): void {
@@ -75,6 +109,7 @@ export class LayoutStore {
       layout: this.layout(),
       preferences: this.preferences(),
       seed: this.seed,
+      usedInventory: this.usedInventory() ?? undefined,
     } satisfies PersistedLayout);
   }
 }
