@@ -1,0 +1,17 @@
+<section class="hero">
+  <p class="eyebrow">Boilerplate ready</p>
+  <h1>Design a LEGO City train layout from the tracks you already have.</h1>
+  <p class="lede">
+    This Angular starter is the foundation for an inventory-driven track planner.
+    Feature work starts after the first GitHub remote is connected.
+  </p>
+</section>
+
+<section class="cards">
+  @for (step of steps; track step.title) {
+    <article class="card">
+      <h2>{{ step.title }}</h2>
+      <p>{{ step.text }}</p>
+    </article>
+  }
+</section>

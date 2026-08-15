@@ -1,0 +1,23 @@
+<div class="app-shell">
+  <header class="top-bar">
+    <a class="brand" routerLink="/">
+      <span class="studs" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+      <span class="brand-copy">
+        <strong>{{ title() }}</strong>
+        <small>Plan layouts from the City tracks you own</small>
+      </span>
+    </a>
+
+    <nav class="nav">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Home</a>
+    </nav>
+  </header>
+
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>

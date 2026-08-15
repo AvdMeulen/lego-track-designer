@@ -1,0 +1,38 @@
+:root {
+  --color-bg: #f4efe6;
+  --color-surface: #fffdf8;
+  --color-ink: #1f1a17;
+  --color-muted: #5c534c;
+  --color-red: #c91a1a;
+  --color-yellow: #f5c518;
+  --color-blue: #0b5cab;
+  --color-green: #2d7a3a;
+  --color-line: #e4d8c8;
+  --shadow: 0 12px 32px rgba(31, 26, 23, 0.08);
+  --radius: 18px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  color: var(--color-ink);
+  background:
+    radial-gradient(circle at top left, rgba(245, 197, 24, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(11, 92, 171, 0.12), transparent 24%),
+    var(--color-bg);
+}
+
+a {
+  color: var(--color-blue);
+}
