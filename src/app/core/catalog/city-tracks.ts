@@ -44,15 +44,8 @@ export const CITY_TRACKS: TrackPart[] = [
       { id: 'through', x: 16, y: 0, heading: 0 },
       { id: 'diverge', x: leftDiverge.x, y: leftDiverge.y, heading: CURVE_ANGLE },
     ],
-    footprint: unionRectangles([
-      rectangle(16, 8),
-      [
-        { x: -1, y: -4 },
-        { x: leftDiverge.x + 1, y: -4 },
-        { x: leftDiverge.x + 1, y: leftDiverge.y + 4 },
-        { x: -1, y: 4 },
-      ],
-    ]),
+    footprint: rectangle(16, 8),
+    extraFootprints: [curveSector(CURVE_RADIUS, CURVE_ANGLE, 4, 1, 1)],
   },
   {
     id: 'switch-right',
@@ -66,15 +59,8 @@ export const CITY_TRACKS: TrackPart[] = [
       { id: 'through', x: 16, y: 0, heading: 0 },
       { id: 'diverge', x: rightDiverge.x, y: rightDiverge.y, heading: 360 - CURVE_ANGLE },
     ],
-    footprint: unionRectangles([
-      rectangle(16, 8),
-      [
-        { x: -1, y: -4 },
-        { x: rightDiverge.x + 1, y: 4 },
-        { x: rightDiverge.x + 1, y: rightDiverge.y - 4 },
-        { x: -1, y: -4 },
-      ],
-    ]),
+    footprint: rectangle(16, 8),
+    extraFootprints: [curveSector(CURVE_RADIUS, CURVE_ANGLE, 4, -1, 1)],
   },
   {
     id: 'crossing-90',

@@ -33,6 +33,7 @@ export interface TrackPart {
   legoIds?: string[];
   ports: Port[];
   footprint: Point[];
+  extraFootprints?: Point[][];
   color: string;
   flex?: FlexLimits;
 }

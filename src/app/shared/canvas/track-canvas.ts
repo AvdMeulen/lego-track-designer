@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import {
+  allFootprints,
   boundsOf,
   CURVE_ANGLE,
   CURVE_RADIUS,
@@ -37,7 +38,8 @@ export class TrackCanvas {
       if (part.flexPath?.length) {
         return part.flexPath;
       }
-      return transformPolygon(this.catalog.byId(part.partId).footprint, part);
+      const spec = this.catalog.byId(part.partId);
+      return allFootprints(spec).flatMap((polygon) => transformPolygon(polygon, part));
     });
     const bounds = points.length
       ? boundsOf(points)
@@ -85,14 +87,21 @@ export class TrackCanvas {
         : transformPolygon(spec.footprint, part);
       const points = polygon.map((point) => `${point.x},${point.y}`).join(' ');
       const path = part.flexPath?.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`).join(' ');
-      const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
+      const switchSign = spec.id === 'switch-right' ? -1 : 1;
+      const curvePath =
+        spec.category === 'curve'
+          ? curveArtworkPath()
+          : spec.category === 'switch'
+            ? curveArtworkPath(CURVE_RADIUS, CURVE_ANGLE, 4, switchSign)
+            : '';
+      const showPolygon = spec.category !== 'curve';
       const transform = `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
       const centerLocal =
         spec.category === 'curve' ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2) : polygonCenter(spec.footprint);
       const center = part.flexPath?.length
         ? part.flexPath[Math.floor(part.flexPath.length / 2)]
         : transformPolygon([centerLocal], part)[0];
-      return { part, spec, points, path, curvePath, transform, center };
+      return { part, spec, points, path, curvePath, showPolygon, transform, center };
     }),
   );
 

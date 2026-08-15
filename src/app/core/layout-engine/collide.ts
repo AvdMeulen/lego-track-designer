@@ -1,27 +1,35 @@
 import { PlacedPart, TrackPart } from '../../shared/models/track';
-import { polygonsOverlap, transformPolygon } from './geometry';
+import { allFootprints, polygonsOverlap, transformPolygon } from './geometry';
 
 export function placementCollides(
   candidate: PlacedPart,
   others: PlacedPart[],
   catalog: Record<string, TrackPart>,
-  ignoreInstanceId?: string,
+  ignoreInstanceId?: string | Iterable<string>,
 ): boolean {
-  const part = catalog[candidate.partId];
-  const polygon = candidate.flexPath
-    ? thickenPath(candidate.flexPath, 4)
-    : transformPolygon(part.footprint, candidate);
+  const ignore = new Set(
+    typeof ignoreInstanceId === 'string'
+      ? [ignoreInstanceId]
+      : ignoreInstanceId
+        ? [...ignoreInstanceId]
+        : [],
+  );
+  const polygons = polygonsFor(candidate, catalog);
 
   return others.some((other) => {
-    if (other.instanceId === candidate.instanceId || other.instanceId === ignoreInstanceId) {
+    if (other.instanceId === candidate.instanceId || ignore.has(other.instanceId)) {
       return false;
     }
-    const otherPart = catalog[other.partId];
-    const otherPolygon = other.flexPath
-      ? thickenPath(other.flexPath, 4)
-      : transformPolygon(otherPart.footprint, other);
-    return polygonsOverlap(polygon, otherPolygon);
+    const otherPolygons = polygonsFor(other, catalog);
+    return polygons.some((polygon) => otherPolygons.some((otherPolygon) => polygonsOverlap(polygon, otherPolygon)));
   });
+}
+
+function polygonsFor(part: PlacedPart, catalog: Record<string, TrackPart>) {
+  if (part.flexPath?.length) {
+    return [thickenPath(part.flexPath, 4)];
+  }
+  return allFootprints(catalog[part.partId]).map((polygon) => transformPolygon(polygon, part));
 }
 
 function thickenPath(path: { x: number; y: number }[], width: number) {

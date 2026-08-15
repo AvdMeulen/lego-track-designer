@@ -81,6 +81,54 @@ describe('generateLayout', () => {
     expect(layout.parts.filter((part) => part.partId === 'straight-16').length).toBe(24);
   });
 
+  it('connects a switch diverge as a second track on a loop', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'curve-22', quantity: 16 },
+        { partId: 'straight-16', quantity: 8 },
+        { partId: 'switch-left', quantity: 1 },
+        { partId: 'buffer-stop', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1 },
+      { seed: 1, timeoutMs: 1500 },
+    );
+    const sw = layout.parts.find((part) => part.partId === 'switch-left');
+    expect(sw).toBeTruthy();
+    const used = new Set(
+      layout.connections.flatMap((connection) => {
+        const ports: string[] = [];
+        if (connection.fromInstanceId === sw?.instanceId) {
+          ports.push(connection.fromPortId);
+        }
+        if (connection.toInstanceId === sw?.instanceId) {
+          ports.push(connection.toPortId);
+        }
+        return ports;
+      }),
+    );
+    expect(used.has('stem')).toBeTrue();
+    expect(used.has('through')).toBeTrue();
+    expect(used.has('diverge')).toBeTrue();
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.parkingSpots.length).toBeGreaterThan(0);
+  });
+
+  it('grows two parallel tracks from a double crossover', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'double-crossover', quantity: 1 },
+        { partId: 'straight-16', quantity: 8 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, loopPlusParking: false, preferReversingRoute: false },
+      { seed: 6, timeoutMs: 1500 },
+    );
+    const lanes = new Set(
+      layout.parts.filter((part) => part.partId === 'straight-16').map((part) => Math.round(part.y)),
+    );
+    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
+    expect(lanes.size).toBeGreaterThanOrEqual(2);
+  });
+
   it('accepts a 16-curve circle when parking is set to 0', () => {
     const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], {
       ...DEFAULT_PREFERENCES,

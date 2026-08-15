@@ -141,6 +141,10 @@ export function polygonsOverlap(a: Point[], b: Point[], inset = 0.45): boolean {
   return true;
 }
 
+export function allFootprints(part: { footprint: Point[]; extraFootprints?: Point[][] }): Point[][] {
+  return [part.footprint, ...(part.extraFootprints ?? [])];
+}
+
 export function polygonCenter(points: Point[]): Point {
   const bounds = boundsOf(points);
   return {
