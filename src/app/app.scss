@@ -73,6 +73,13 @@
   color: var(--color-muted);
 }
 
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .nav {
   display: flex;
   gap: 1rem;

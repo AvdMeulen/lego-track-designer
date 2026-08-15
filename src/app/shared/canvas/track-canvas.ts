@@ -12,10 +12,12 @@ import {
   switchArtwork,
   transformPolygon,
 } from '../../core/layout-engine/geometry';
+import { TPipe } from '../../core/i18n/t.pipe';
 import { PlacedPart, TrackLayout } from '../models/track';
 
 @Component({
   selector: 'app-track-canvas',
+  imports: [TPipe],
   templateUrl: './track-canvas.html',
   styleUrl: './track-canvas.scss',
 })

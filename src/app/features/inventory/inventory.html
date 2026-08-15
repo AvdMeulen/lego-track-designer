@@ -1,15 +1,15 @@
 <section class="page">
   <header class="intro">
-    <p class="eyebrow">Collection</p>
-    <h1>Which City tracks do you own?</h1>
-    <p>Set a quantity for each part. The collection is saved in this browser.</p>
-    <p class="total">{{ inventory.totalPieces() }} pieces in the box</p>
+    <p class="eyebrow">{{ 'inventory.eyebrow' | t }}</p>
+    <h1>{{ 'inventory.title' | t }}</h1>
+    <p>{{ 'inventory.lede' | t }}</p>
+    <p class="total">{{ 'inventory.total' | t: { count: inventory.totalPieces() } }}</p>
   </header>
 
   <div class="presets">
     @for (preset of presets; track preset.id) {
       <button type="button" (click)="inventory.applyPreset(preset.quantities)">
-        {{ preset.name }}
+        {{ 'preset.' + preset.id + '.name' | t }}
       </button>
     }
   </div>
@@ -18,10 +18,10 @@
     @for (part of catalog.parts; track part.id) {
       <article class="card">
         <span class="swatch" [style.background]="part.color"></span>
-        <h2>{{ part.name }}</h2>
-        <p>{{ part.hint }}</p>
+        <h2>{{ 'part.' + part.id + '.name' | t }}</h2>
+        <p>{{ 'part.' + part.id + '.hint' | t }}</p>
         @if (part.legoIds?.length) {
-          <small>LEGO {{ part.legoIds?.join(', ') }}</small>
+          <small>{{ 'inventory.lego' | t: { ids: part.legoIds?.join(', ') } }}</small>
         }
         <div class="stepper">
           <button type="button" (click)="inventory.adjust(part.id, -1)" [disabled]="inventory.quantity(part.id) === 0">
@@ -34,5 +34,5 @@
     }
   </div>
 
-  <a class="cta" routerLink="/designer">Design with this collection</a>
+  <a class="cta" routerLink="/designer">{{ 'inventory.cta' | t }}</a>
 </section>

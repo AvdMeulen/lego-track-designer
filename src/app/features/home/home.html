@@ -1,21 +1,18 @@
 <section class="hero">
-  <p class="eyebrow">City track planner</p>
-  <h1>Design a LEGO City train layout from the tracks you already have.</h1>
-  <p class="lede">
-    Enter your collection, generate a buildable network, and see exactly which part sits where.
-    The last design stays in this browser and can be exported as a labeled PNG.
-  </p>
+  <p class="eyebrow">{{ 'home.eyebrow' | t }}</p>
+  <h1>{{ 'home.title' | t }}</h1>
+  <p class="lede">{{ 'home.lede' | t }}</p>
   <div class="actions">
-    <a class="cta" routerLink="/inventory">Set inventory</a>
-    <a class="ghost" routerLink="/designer">Open designer</a>
+    <a class="cta" routerLink="/inventory">{{ 'home.ctaInventory' | t }}</a>
+    <a class="ghost" routerLink="/designer">{{ 'home.ctaDesigner' | t }}</a>
   </div>
 </section>
 
 <section class="cards">
-  @for (step of steps; track step.title) {
+  @for (step of steps; track step) {
     <article class="card">
-      <h2>{{ step.title }}</h2>
-      <p>{{ step.text }}</p>
+      <h2>{{ 'home.step' + step + '.title' | t }}</h2>
+      <p>{{ 'home.step' + step + '.text' | t }}</p>
     </article>
   }
 </section>

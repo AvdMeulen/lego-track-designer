@@ -1,0 +1,4 @@
+<div class="lang" role="group" [attr.aria-label]="'lang.label' | t">
+  <button type="button" [class.active]="i18n.locale() === 'en'" (click)="i18n.setLocale('en')">EN</button>
+  <button type="button" [class.active]="i18n.locale() === 'nl'" (click)="i18n.setLocale('nl')">NL</button>
+</div>

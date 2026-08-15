@@ -407,20 +407,20 @@ export function generateLayout(
         prefs.targetParkingSpots > 0 && (inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0) > 0
           ? addSiding(branched, inventory, catalog)
           : branched;
-      candidates.push(finalize(withSiding, inventory, prefs, 'Rounded loop from curves and straights'));
+      candidates.push(finalize(withSiding, inventory, prefs, 'layout.roundedLoop'));
     }
   }
 
   const parallels = parallelFromCrossover(inventory, catalog, prefs);
   if (parallels) {
-    candidates.push(finalize(parallels, inventory, prefs, 'Parallel tracks from a double crossover'));
+    candidates.push(finalize(parallels, inventory, prefs, 'layout.parallels'));
   }
 
   const lineSeq = pointToPointSequence(inventory);
   if (lineSeq && (!prefs.loopPlusParking || !loopSeq)) {
     const parts = buildSequence(lineSeq, catalog);
     if (parts) {
-      candidates.push(finalize(parts, inventory, prefs, 'Point-to-point route'));
+      candidates.push(finalize(parts, inventory, prefs, 'layout.pointToPoint'));
     }
   }
 
@@ -430,16 +430,16 @@ export function generateLayout(
     const branched = growOpenBranches(seeded, inventory, catalog, prefs);
     const withSiding = addSiding(branched, inventory, catalog);
     const grown = search(inventory, prefs, random, deadline, withSiding);
-    candidates.push(finalize(grown, inventory, prefs, 'Switch-led network'));
+    candidates.push(finalize(grown, inventory, prefs, 'layout.switchLed'));
   }
 
   const searched = search(inventory, prefs, random, deadline);
   if (searched.length) {
-    candidates.push(finalize(searched, inventory, prefs, 'Search layout'));
+    candidates.push(finalize(searched, inventory, prefs, 'layout.search'));
   }
 
   if (candidates.length === 0) {
-    return finalize([], inventory, prefs, 'No pieces to place');
+    return finalize([], inventory, prefs, 'layout.noPieces');
   }
 
   const looped = candidates.filter((layout) => layout.score.routeBonus > 0);
@@ -447,11 +447,11 @@ export function generateLayout(
   pool.sort((a, b) => b.score.total - a.score.total);
   const best = pool[0];
   if (best.parts.length === 0) {
-    best.message = 'Could not place a layout with the current inventory.';
+    best.message = 'layout.couldNotPlace';
   }
   return best;
 }
 
 export function emptyLayout(): TrackLayout {
-  return finalize([], {}, DEFAULT_PREFERENCES, 'No design yet');
+  return finalize([], {}, DEFAULT_PREFERENCES, 'layout.noDesign');
 }

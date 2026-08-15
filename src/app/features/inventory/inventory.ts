@@ -1,12 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog/catalog.service';
+import { TPipe } from '../../core/i18n/t.pipe';
 import { InventoryStore } from '../../core/inventory/inventory.store';
 import { INVENTORY_PRESETS } from '../../core/inventory/presets';
 
 @Component({
   selector: 'app-inventory',
-  imports: [RouterLink],
+  imports: [RouterLink, TPipe],
   templateUrl: './inventory.html',
   styleUrl: './inventory.scss',
 })

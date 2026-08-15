@@ -70,23 +70,23 @@ export function preferenceNotes(
   const unusedFlex = layout.unusedInventory.find((item) => item.partId === 'flex-track')?.quantity ?? 0;
 
   if ((inventory['curve-22'] ?? 0) === 15 && layout.score.routeBonus === 0) {
-    notes.push('15 curves cannot close a loop. The remaining gap is larger than one flex piece.');
+    notes.push('note.fifteenCurves');
   }
   if (prefs.targetParkingSpots > 0 && layout.parkingSpots.length === 0) {
-    notes.push('No spare switch for a siding.');
+    notes.push('note.noSpareSwitch');
   }
   if (prefs.preferReversingRoute && !layout.reverseOptions.some((option) => option.kind !== 'dead-end')) {
     if (switchCount === 0) {
-      notes.push('No reversing route with the current pieces.');
+      notes.push('note.noReverse');
     } else if (!layout.reverseOptions.some((option) => option.kind === 'reversing-loop' || option.kind === 'wye')) {
-      notes.push('No reversing loop or wye; dead-end reverse is available if there is parking.');
+      notes.push('note.noReverseLoop');
     }
   }
   if (prefs.allowFlexCloses && unusedFlex > 0 && layout.unfinishedPorts > 0) {
-    notes.push('Gap too large for flex.');
+    notes.push('note.gapTooLarge');
   }
   if (prefs.targetParkingSpots > layout.parkingSpots.length && layout.parkingSpots.length > 0) {
-    notes.push('Fewer parking spots than requested.');
+    notes.push('note.fewerParking');
   }
   return notes;
 }
@@ -122,7 +122,7 @@ function buildMarks(
         kind: 'reverse',
         x: part.x,
         y: part.y + 8,
-        text: option.kind === 'wye' ? 'Wye' : 'Reverse loop',
+        text: option.kind === 'wye' ? 'mark.wye' : 'mark.reverseLoop',
       });
     }
   }
@@ -132,11 +132,11 @@ function buildMarks(
       continue;
     }
     const point = part.flexPath?.[Math.floor((part.flexPath.length ?? 1) / 2)] ?? part;
-    marks.push({ kind: 'flex', x: point.x, y: point.y - 7, text: 'Flex' });
+    marks.push({ kind: 'flex', x: point.x, y: point.y - 7, text: 'mark.flex' });
   }
 
   for (const port of unfinished) {
-    marks.push({ kind: 'unfinished', x: port.x, y: port.y - 6, text: 'Open' });
+    marks.push({ kind: 'unfinished', x: port.x, y: port.y - 6, text: 'mark.open' });
   }
 
   return marks;

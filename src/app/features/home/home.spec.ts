@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { BrowserStorage } from '../../core/storage/browser-storage';
 import { Home } from './home';
 
 describe('Home', () => {
@@ -8,7 +9,10 @@ describe('Home', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Home],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: BrowserStorage, useValue: { read: () => null, write: () => undefined } },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Home);

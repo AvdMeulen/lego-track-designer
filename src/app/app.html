@@ -7,16 +7,19 @@
         <span></span>
       </span>
       <span class="brand-copy">
-        <strong>{{ title() }}</strong>
-        <small>Plan layouts from the City tracks you own</small>
+        <strong>{{ 'app.title' | t }}</strong>
+        <small>{{ 'app.tagline' | t }}</small>
       </span>
     </a>
 
-    <nav class="nav">
-      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Home</a>
-      <a routerLink="/inventory" routerLinkActive="active">Inventory</a>
-      <a routerLink="/designer" routerLinkActive="active">Designer</a>
-    </nav>
+    <div class="top-actions">
+      <nav class="nav">
+        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">{{ 'nav.home' | t }}</a>
+        <a routerLink="/inventory" routerLinkActive="active">{{ 'nav.inventory' | t }}</a>
+        <a routerLink="/designer" routerLinkActive="active">{{ 'nav.designer' | t }}</a>
+      </nav>
+      <app-language-toggle />
+    </div>
   </header>
 
   <main class="content" [class.immersive]="immersive()">

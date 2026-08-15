@@ -1,17 +1,19 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
+import { I18nService } from './core/i18n/i18n.service';
+import { TPipe } from './core/i18n/t.pipe';
+import { LanguageToggle } from './shared/language-toggle/language-toggle';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TPipe, LanguageToggle],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App {
   private readonly router = inject(Router);
-  protected readonly title = signal('LEGO Track Designer');
   protected readonly immersive = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -22,6 +24,7 @@ export class App {
   );
 
   constructor() {
+    inject(I18nService);
     effect(() => {
       document.body.classList.toggle('immersive', !!this.immersive());
     });

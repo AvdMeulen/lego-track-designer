@@ -8,32 +8,44 @@
   </div>
 
   <aside class="panel float">
-    <p class="eyebrow">Designer</p>
-    <h1>Suggested layout</h1>
-    <p class="status">{{ store.layout().message || 'Generate a design from your collection.' }}</p>
+    <p class="eyebrow">{{ 'designer.eyebrow' | t }}</p>
+    <h1>{{ 'designer.title' | t }}</h1>
+    <p class="status">
+      @if (store.layout().notes.length) {
+        @for (note of store.layout().notes; track note) {
+          {{ note | t }}
+        }
+      } @else {
+        {{ (store.layout().message || 'designer.empty') | t }}
+      }
+    </p>
 
     <div class="actions">
       <button type="button" class="primary" (click)="generate(false)" [disabled]="store.generating()">
-        Generate
+        {{ 'designer.generate' | t }}
       </button>
-      <button type="button" (click)="generate(true)" [disabled]="store.generating()">Generate another</button>
-      <button type="button" (click)="exportPng()" [disabled]="store.layout().parts.length === 0">Export PNG</button>
+      <button type="button" (click)="generate(true)" [disabled]="store.generating()">
+        {{ 'designer.generateAnother' | t }}
+      </button>
+      <button type="button" (click)="exportPng()" [disabled]="store.layout().parts.length === 0">
+        {{ 'designer.exportPng' | t }}
+      </button>
     </div>
 
-    <a routerLink="/inventory">Edit collection</a>
+    <a routerLink="/inventory">{{ 'designer.editCollection' | t }}</a>
 
     <div class="panel-scroll">
       <fieldset>
-        <legend>Preferences</legend>
+        <legend>{{ 'designer.preferences' | t }}</legend>
         <label>
-          Parking spots
+          {{ 'designer.parkingSpots' | t }}
           <select
             [ngModel]="store.preferences().targetParkingSpots"
             (ngModelChange)="setParking('' + $event)"
           >
             <option [ngValue]="0">0</option>
             <option [ngValue]="1">1</option>
-            <option [ngValue]="2">2+</option>
+            <option [ngValue]="2">{{ 'designer.parking2plus' | t }}</option>
           </select>
         </label>
         <label>
@@ -42,7 +54,7 @@
             [ngModel]="store.preferences().preferReversingRoute"
             (ngModelChange)="store.updatePreferences({ preferReversingRoute: $event })"
           />
-          Prefer a reversing route
+          {{ 'designer.preferReverse' | t }}
         </label>
         <label>
           <input
@@ -50,7 +62,7 @@
             [ngModel]="store.preferences().loopPlusParking"
             (ngModelChange)="store.updatePreferences({ loopPlusParking: $event })"
           />
-          Loop plus parking
+          {{ 'designer.loopPlusParking' | t }}
         </label>
         <label>
           <input
@@ -58,7 +70,7 @@
             [ngModel]="store.preferences().allowFlexCloses"
             (ngModelChange)="store.updatePreferences({ allowFlexCloses: $event })"
           />
-          Allow flex gap-closes
+          {{ 'designer.allowFlex' | t }}
         </label>
         <label>
           <input
@@ -66,7 +78,7 @@
             [ngModel]="store.preferences().preferMorePieces"
             (ngModelChange)="store.updatePreferences({ preferMorePieces: $event })"
           />
-          Prefer using more pieces
+          {{ 'designer.preferMorePieces' | t }}
         </label>
         <label>
           <input
@@ -74,49 +86,49 @@
             [ngModel]="store.preferences().compact"
             (ngModelChange)="store.updatePreferences({ compact: $event })"
           />
-          Compact footprint
+          {{ 'designer.compact' | t }}
         </label>
       </fieldset>
 
       @if (store.layout().notes.length) {
         <ul class="notes">
           @for (note of store.layout().notes; track note) {
-            <li>{{ note }}</li>
+            <li>{{ note | t }}</li>
           }
         </ul>
       }
 
-      <h2>Parking and reverse</h2>
+      <h2>{{ 'designer.parkingReverse' | t }}</h2>
       <ul>
         @for (spot of store.layout().parkingSpots; track spot.id) {
-          <li>Parking {{ $index + 1 }} · {{ spot.clearLengthStuds }} studs</li>
+          <li>{{ 'designer.parkingItem' | t: { n: $index + 1, studs: spot.clearLengthStuds } }}</li>
         } @empty {
-          <li>No parking spots</li>
+          <li>{{ 'designer.noParking' | t }}</li>
         }
         @for (option of store.layout().reverseOptions; track option.kind + option.partIds.join('-')) {
-          <li>{{ option.kind }}</li>
+          <li>{{ 'reverse.' + option.kind | t }}</li>
         }
       </ul>
 
-      <h2>Leftover</h2>
+      <h2>{{ 'designer.leftover' | t }}</h2>
       <ul>
         @for (item of store.layout().unusedInventory; track item.partId) {
-          <li>{{ item.quantity }}× {{ catalog.byId(item.partId).name }}</li>
+          <li>{{ item.quantity }}× {{ 'part.' + item.partId + '.name' | t }}</li>
         } @empty {
-          <li>None</li>
+          <li>{{ 'designer.none' | t }}</li>
         }
       </ul>
 
-      <h2>Proof fixtures</h2>
+      <h2>{{ 'designer.fixtures' | t }}</h2>
       <div class="fixtures">
         @for (fixture of fixtures; track fixture.id) {
-          <button type="button" (click)="showFixture(fixture.id)">{{ fixture.id }}</button>
+          <button type="button" (click)="showFixture(fixture.id)">{{ 'fixture.' + fixture.id | t }}</button>
         }
       </div>
     </div>
 
     <section class="piece-box">
-      <h2>Piece list</h2>
+      <h2>{{ 'designer.pieceList' | t }}</h2>
       <ul class="piece-list">
         @for (part of store.layout().parts; track part.instanceId) {
           <li
@@ -124,19 +136,24 @@
             (click)="store.select(part.label)"
           >
             <strong>{{ part.label }}</strong>
-            {{ catalog.byId(part.partId).name }}
+            {{ 'part.' + part.partId + '.name' | t }}
           </li>
         } @empty {
-          <li>No parts placed yet.</li>
+          <li>{{ 'designer.noParts' | t }}</li>
         }
       </ul>
     </section>
   </aside>
 
   <p class="meta float">
-    Drag to pan · scroll to zoom ·
-    {{ store.layout().parkingSpots.length }} parking ·
-    {{ store.layout().reverseOptions.length }} reverse options ·
-    {{ store.layout().unfinishedPorts }} unfinished connectors
+    {{
+      'designer.meta'
+        | t
+          : {
+              parking: store.layout().parkingSpots.length,
+              reverse: store.layout().reverseOptions.length,
+              open: store.layout().unfinishedPorts,
+            }
+    }}
   </p>
 </section>

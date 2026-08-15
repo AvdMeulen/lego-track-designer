@@ -45,7 +45,7 @@ describe('layout analysis', () => {
       { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, allowFlexCloses: true },
       { 'switch-left': 0, 'flex-track': 1 },
     );
-    expect(notes.some((note) => note.includes('No spare switch for a siding'))).toBeTrue();
-    expect(notes.some((note) => note.includes('Gap too large for flex'))).toBeTrue();
+    expect(notes.some((note) => note.includes('note.noSpareSwitch'))).toBeTrue();
+    expect(notes.some((note) => note.includes('note.gapTooLarge'))).toBeTrue();
   });
 });

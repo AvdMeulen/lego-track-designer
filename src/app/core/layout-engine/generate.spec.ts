@@ -24,7 +24,7 @@ describe('generateLayout', () => {
       { seed: 2, timeoutMs: 1500 },
     );
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBeGreaterThan(0);
-    expect(layout.message).toContain('15 curves');
+    expect(layout.message).toContain('note.fifteenCurves');
   });
 
   it('uses 8 curves and 8 straights as a connected network', () => {

@@ -3,7 +3,7 @@
   [class.dragging]="dragging()"
   [attr.viewBox]="view().box"
   role="img"
-  aria-label="LEGO City track layout"
+  [attr.aria-label]="'canvas.aria' | t"
   (pointerdown)="onPointerDown($event)"
   (pointermove)="onPointerMove($event)"
   (pointerup)="onPointerUp()"
@@ -64,6 +64,6 @@
       [class.open]="mark.kind === 'unfinished'"
       [attr.x]="mark.x"
       [attr.y]="mark.y"
-    >{{ mark.text }}</text>
+    >{{ mark.text | t }}</text>
   }
 </svg>

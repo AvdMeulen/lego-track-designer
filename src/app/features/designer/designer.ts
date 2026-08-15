@@ -3,13 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import { exportSvgElementToPng } from '../../core/export/png-export';
+import { TPipe } from '../../core/i18n/t.pipe';
 import { allFixtures } from '../../core/layout-engine/fixtures';
 import { LayoutStore } from '../../core/layout-store/layout.store';
 import { TrackCanvas } from '../../shared/canvas/track-canvas';
 
 @Component({
   selector: 'app-designer',
-  imports: [FormsModule, RouterLink, TrackCanvas],
+  imports: [FormsModule, RouterLink, TrackCanvas, TPipe],
   templateUrl: './designer.html',
   styleUrl: './designer.scss',
 })
