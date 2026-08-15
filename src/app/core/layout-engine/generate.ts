@@ -14,6 +14,7 @@ import {
   attachPart,
   CROSSOVER_LENGTH,
   CURVE_ANGLE,
+  degToRad,
   distance,
   headingDelta,
   normalizeHeading,
@@ -113,7 +114,7 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
   const reverse = prefs.preferReversingRoute
     ? layout.reverseOptions.filter((option) => option.kind !== 'dead-end').length * 10
     : 0;
-  const pieces = prefs.preferMorePieces ? Math.min(layout.parts.length, 80) * 2 : 0;
+  const pieces = prefs.preferMorePieces ? layout.parts.length * 2 : 0;
   const compact = prefs.compact ? layout.score.compactness * 10 : 0;
   const spread =
     prefs.compact || layout.score.routeBonus === 0
@@ -124,12 +125,19 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
   const unused = unusedRigidCount(layout) * 4 + unusedSpecialCount(layout) * 22;
   const parkLength = (layout.parkingSpots.reduce((sum, spot) => sum + spot.clearLengthStuds, 0) / 16) * 3;
   const longPark = layout.parkingSpots.filter((spot) => spot.clearLengthStuds >= PARK_STRAIGHTS * 16).length * 20;
-  const extraPark = Math.max(0, layout.parkingSpots.length - Math.max(prefs.targetParkingSpots, 1)) * 10;
+  const extraPark = Math.max(0, layout.parkingSpots.length - Math.max(prefs.targetParkingSpots, 1)) * 18;
+  const passing = Math.max(0, closedDivergeCount(layout) - layout.parkingSpots.length) * 22;
   const tentacle = layout.parkingSpots.reduce(
     (sum, spot) => sum + Math.max(0, spot.clearLengthStuds / 16 - 8) * 10,
     0,
   );
-  const boxy = prefs.compact ? 0 : Math.max(0, cardinalStraightRatio(layout.parts) - 0.55) * 40;
+  const headings = new Set(
+    layout.parts
+      .filter((part) => part.partId === 'straight-16')
+      .map((part) => Math.round(normalizeHeading(part.rotation) / 22.5) % 8),
+  );
+  const variety = headings.size >= 3 ? (headings.size - 2) * 10 : 0;
+  const boxy = prefs.compact ? 0 : Math.max(0, cardinalStraightRatio(layout.parts) - 0.4) * 70;
   return (
     40 -
     parkingDelta * 10 +
@@ -141,11 +149,13 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
     specials +
     parkLength +
     longPark +
-    closedDivergeCount(layout) * 14 -
+    closedDivergeCount(layout) * 8 +
+    passing -
     unused -
     extraPark -
     tentacle -
-    boxy -
+    boxy +
+    variety -
     adjacentSwitchPairs(layout) * 28 -
     layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 16 : 3) -
     layout.score.flexPenalty * 6
@@ -245,17 +255,38 @@ function rectangleSides(straights: number, spread: boolean, neededRun: number): 
   return [long, short, long, short];
 }
 
-function sidesToSequence(sides: number[], curvesPerCorner = 4): SeqItem[] {
+function sequenceWithBumps(
+  sides: number[],
+  curvesPerCorner: number | number[],
+  extras: SeqItem[][][] = [],
+): SeqItem[] {
   const sequence: SeqItem[] = [];
-  for (const count of sides) {
-    for (let i = 0; i < count; i += 1) {
+  for (let side = 0; side < sides.length; side += 1) {
+    const bumps = extras[side] ?? [];
+    const count = sides[side];
+    const chunk = bumps.length ? Math.floor(count / (bumps.length + 1)) : count;
+    let placed = 0;
+    for (const bump of bumps) {
+      for (let i = 0; i < chunk; i += 1) {
+        sequence.push({ partId: 'straight-16' });
+        placed += 1;
+      }
+      sequence.push(...bump);
+    }
+    for (let i = placed; i < count; i += 1) {
       sequence.push({ partId: 'straight-16' });
     }
-    for (let i = 0; i < curvesPerCorner; i += 1) {
+    const corners =
+      typeof curvesPerCorner === 'number' ? curvesPerCorner : (curvesPerCorner[side] ?? 4);
+    for (let i = 0; i < corners; i += 1) {
       sequence.push({ partId: 'curve-22' });
     }
   }
   return sequence;
+}
+
+function sidesToSequence(sides: number[], curvesPerCorner = 4): SeqItem[] {
+  return sequenceWithBumps(sides, curvesPerCorner);
 }
 
 function freePort(
@@ -307,19 +338,8 @@ function rectangleLoopSequence(straights: number, neededRun = 0, spread = false)
 }
 
 function octagonSequence(straights: number): SeqItem[] | null {
-  const n = Math.max(0, straights - (straights % 2));
-  if (n < 8) {
-    return null;
-  }
-  const base = Math.floor(n / 8);
-  let rem = n - base * 8;
-  const sides = Array.from({ length: 8 }, () => base);
-  for (let pair = 0; rem >= 2 && pair < 4; pair += 1) {
-    sides[pair] += 1;
-    sides[pair + 4] += 1;
-    rem -= 2;
-  }
-  return sidesToSequence(sides, 2);
+  const sides = octagonSides(straights);
+  return sides ? sidesToSequence(sides, 2) : null;
 }
 
 function jogItems(leftFirst: boolean): SeqItem[] {
@@ -354,26 +374,29 @@ function wobbleRingSequence(
   spread: boolean,
 ): SeqItem[] {
   const sides = rectangleSides(straights, spread, neededRun);
-  const fullPairs = Math.min(2, Math.floor(Math.max(0, extraCurves) / 16));
-  const jogPairs = Math.min(2 - fullPairs, Math.floor(Math.max(0, extraCurves - fullPairs * 16) / 8));
+  const fullPairs = Math.min(4, Math.floor(Math.max(0, extraCurves) / 16));
+  const jogPairs = Math.min(4, Math.floor(Math.max(0, extraCurves - fullPairs * 16) / 8));
   if (fullPairs === 0 && jogPairs === 0) {
     return sidesToSequence(sides);
   }
   const startLong = random() >= 0.35;
   const pairs: Array<{ sides: [number, number]; kind: 'wobble' | 'jog' | 'sbend'; leftFirst: boolean }> = [];
-  if (fullPairs >= 1) {
-    pairs.push({ sides: startLong ? [0, 2] : [1, 3], kind: 'wobble', leftFirst: random() >= 0.5 });
+  for (let i = 0; i < fullPairs; i += 1) {
+    pairs.push({
+      sides: (startLong ? i : i + 1) % 2 === 0 ? [0, 2] : [1, 3],
+      kind: 'wobble',
+      leftFirst: random() >= 0.5,
+    });
   }
-  if (fullPairs >= 2) {
-    pairs.push({ sides: startLong ? [1, 3] : [0, 2], kind: 'wobble', leftFirst: random() >= 0.5 });
-  }
-  if (jogPairs >= 1) {
-    const used = new Set(pairs.flatMap((pair) => pair.sides));
-    const next: [number, number] = used.has(0) ? [1, 3] : [0, 2];
-    pairs.push({ sides: next, kind: 'jog', leftFirst: random() >= 0.5 });
+  for (let i = 0; i < jogPairs; i += 1) {
+    pairs.push({
+      sides: i % 2 === 0 ? [1, 3] : [0, 2],
+      kind: 'jog',
+      leftFirst: random() >= 0.5,
+    });
   }
   const usedCurves = fullPairs * 16 + jogPairs * 8;
-  const sPairs = Math.min(4, Math.floor(Math.max(0, extraCurves - usedCurves) / 4));
+  const sPairs = Math.min(12, Math.floor(Math.max(0, extraCurves - usedCurves) / 4));
   for (let i = 0; i < sPairs; i += 1) {
     pairs.push({
       sides: i % 2 === 0 ? [0, 2] : [1, 3],
@@ -392,27 +415,127 @@ function wobbleRingSequence(
     extras[pair.sides[0]].push(items);
     extras[pair.sides[1]].push(items);
   }
-  const sequence: SeqItem[] = [];
-  for (let side = 0; side < 4; side += 1) {
-    const bumps = extras[side];
-    const count = sides[side];
-    const chunk = bumps.length ? Math.floor(count / (bumps.length + 1)) : count;
-    let placed = 0;
-    for (const bump of bumps) {
-      for (let i = 0; i < chunk; i += 1) {
-        sequence.push({ partId: 'straight-16' });
-        placed += 1;
-      }
-      sequence.push(...bump);
-    }
-    for (let i = placed; i < count; i += 1) {
-      sequence.push({ partId: 'straight-16' });
-    }
-    for (let i = 0; i < 4; i += 1) {
-      sequence.push({ partId: 'curve-22' });
+  return sequenceWithBumps(sides, 4, extras);
+}
+
+function octagonSides(straights: number, neededRun = 0): number[] | null {
+  const n = Math.max(0, straights - (straights % 2));
+  if (n < 8) {
+    return null;
+  }
+  const base = Math.floor(n / 8);
+  let rem = n - base * 8;
+  const sides = Array.from({ length: 8 }, () => base);
+  for (let pair = 0; rem >= 2 && pair < 4; pair += 1) {
+    sides[pair] += 1;
+    sides[pair + 4] += 1;
+    rem -= 2;
+  }
+  if (neededRun > 0 && Math.max(...sides) < neededRun && n >= neededRun * 2) {
+    const extra = neededRun - sides[0];
+    if (extra > 0 && sides[2] >= extra) {
+      sides[0] += extra;
+      sides[4] += extra;
+      sides[2] -= extra;
+      sides[6] -= extra;
     }
   }
-  return sequence;
+  return sides;
+}
+
+function bumpItems(kind: 'wobble' | 'jog' | 'sbend', leftFirst: boolean): SeqItem[] {
+  if (kind === 'wobble') {
+    return wobbleItems(leftFirst);
+  }
+  return kind === 'jog' ? jogItems(leftFirst) : sBendItems(leftFirst);
+}
+
+function oppositeBumps(
+  sideCount: number,
+  extraCurves: number,
+  random: () => number,
+  maxWobbles = 2,
+): SeqItem[][][] {
+  const extras = Array.from({ length: sideCount }, () => [] as SeqItem[][]);
+  if (sideCount < 2 || sideCount % 2 !== 0) {
+    return extras;
+  }
+  const pairs = sideCount / 2;
+  const fullPairs = Math.min(maxWobbles, pairs, Math.floor(Math.max(0, extraCurves) / 16));
+  const jogPairs = Math.min(pairs, Math.floor(Math.max(0, extraCurves - fullPairs * 16) / 8));
+  const used = fullPairs * 16 + jogPairs * 8;
+  const sPairs = Math.min(pairs * 2, Math.floor(Math.max(0, extraCurves - used) / 4));
+  const add = (kind: 'wobble' | 'jog' | 'sbend', hint: number) => {
+    const slot = pairs <= 1 ? 0 : 1 + (hint % (pairs - 1));
+    const items = bumpItems(kind, random() >= 0.5);
+    extras[slot].push(items);
+    extras[slot + pairs].push(items);
+  };
+  for (let i = 0; i < fullPairs; i += 1) {
+    add('wobble', i);
+  }
+  for (let i = 0; i < jogPairs; i += 1) {
+    add('jog', i + 1);
+  }
+  for (let i = 0; i < sPairs; i += 1) {
+    add('sbend', i);
+  }
+  return extras;
+}
+
+function wobbleOctagonSequence(
+  straights: number,
+  extraCurves: number,
+  random: () => number,
+  neededRun: number,
+): SeqItem[] | null {
+  const sides = octagonSides(straights, neededRun);
+  if (!sides) {
+    return null;
+  }
+  return sequenceWithBumps(sides, 2, oppositeBumps(8, extraCurves, random, 2));
+}
+
+function partitionTurns(total: number, sides: number, random: () => number): number[] {
+  const corners = Array.from({ length: sides }, () => 1);
+  let left = total - sides;
+  let guard = 0;
+  while (left > 0 && guard < 80) {
+    const index = Math.floor(random() * sides);
+    if (corners[index] < 4) {
+      corners[index] += 1;
+      left -= 1;
+    }
+    guard += 1;
+  }
+  return corners;
+}
+
+function irregularRingSequence(
+  straights: number,
+  extraCurves: number,
+  random: () => number,
+  neededRun: number,
+): SeqItem[] | null {
+  const n = Math.max(0, straights - (straights % 2));
+  if (n < 6) {
+    return null;
+  }
+  const sideCount = 5 + Math.floor(random() * 4);
+  const corners = partitionTurns(16, sideCount, random);
+  const sides = splitInt(n, sideCount, random, 0);
+  if (neededRun > 0 && Math.max(...sides) < neededRun && n >= neededRun) {
+    const longest = sides.indexOf(Math.max(...sides));
+    for (let i = 0; i < sides.length && sides[longest] < neededRun; i += 1) {
+      if (i === longest || sides[i] <= 0) {
+        continue;
+      }
+      const take = Math.min(sides[i], neededRun - sides[longest]);
+      sides[i] -= take;
+      sides[longest] += take;
+    }
+  }
+  return sequenceWithBumps(sides, corners, oppositeBumps(sideCount, extraCurves, random, 2));
 }
 
 function loopCloses(parts: PlacedPart[], catalog: Record<string, TrackPart>): boolean {
@@ -444,14 +567,16 @@ function collectRings(
   if (curves < 16) {
     return [];
   }
-  const extra = curves - 16;
+  const switches = (inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0);
+  const extra = Math.max(0, curves - 16 - (switches >= 2 ? 8 : 0));
+  const stock = reservedStraights > 0 ? reserved : all;
   const attempts: Array<SeqItem[] | null> = [
-    wobbleRingSequence(reserved, extra, random, neededRun, spread),
-    wobbleRingSequence(reserved, extra, random, neededRun, false),
-    rectangleLoopSequence(reserved, neededRun, spread),
-    octagonSequence(reserved),
-    classicOvalSequence(reserved),
-    wobbleRingSequence(all, extra, random, neededRun, spread),
+    wobbleOctagonSequence(stock, extra, random, neededRun),
+    irregularRingSequence(stock, extra, random, neededRun),
+    wobbleRingSequence(stock, extra, random, neededRun, spread),
+    octagonSequence(stock),
+    rectangleLoopSequence(stock, neededRun, spread),
+    classicOvalSequence(stock),
   ];
   const rings: PlacedPart[][] = [];
   for (const sequence of attempts) {
@@ -523,17 +648,18 @@ function insertSwitchesIntoLoop(
   if (queue.length === 0) {
     return result;
   }
-  const minGap = 3;
+  const n = result.length;
+  const minGap = 2;
   const taken = new Set<number>();
   const picks: number[] = [];
   const takeAt = (index: number) => {
-    const next = (index + 1) % result.length;
+    const next = (index + 1) % n;
     if (
       result[index]?.partId === 'straight-16' &&
       result[next]?.partId === 'straight-16' &&
       !taken.has(index) &&
       !taken.has(next) &&
-      picks.every((pick) => circularGap(pick, index, result.length) >= minGap)
+      picks.every((pick) => circularGap(pick, index, n) >= minGap)
     ) {
       picks.push(index);
       taken.add(index);
@@ -542,19 +668,54 @@ function insertSwitchesIntoLoop(
     }
     return false;
   };
-  const runs = straightRuns(result).sort((a, b) => b.length - a.length);
-  for (const run of runs) {
+  const slots: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    if (result[i].partId === 'straight-16' && result[(i + 1) % n].partId === 'straight-16') {
+      slots.push(i);
+    }
+  }
+  const groups = new Map<number, number[]>();
+  for (const slot of slots) {
+    const heading = Math.round(normalizeHeading(result[slot].rotation) / 22.5);
+    const list = groups.get(heading) ?? [];
+    list.push(slot);
+    groups.set(heading, list);
+  }
+  const pairGroups = [...groups.values()]
+    .map((group) => [...group].sort((a, b) => a - b))
+    .flatMap((group) => {
+      const clusters: number[][] = [];
+      let current: number[] = [];
+      for (const slot of group) {
+        if (current.length === 0 || slot === current[current.length - 1] + 1) {
+          current.push(slot);
+        } else {
+          clusters.push(current);
+          current = [slot];
+        }
+      }
+      if (current.length) {
+        clusters.push(current);
+      }
+      return clusters.filter((cluster) => cluster.length >= 2);
+    });
+  const longPairs = pairGroups.filter((group) => group.length >= 3);
+  const usablePairs = (longPairs.length ? longPairs : pairGroups).sort((a, b) => b.length - a.length);
+  const pairSlots: Array<[number, number]> = [];
+  for (const group of usablePairs) {
     if (picks.length + 1 >= queue.length) {
       break;
     }
-    if (run.length >= 5) {
-      takeAt(run.start);
-      takeAt(run.start + run.length - 2);
+    const first = group[0];
+    const last = group[group.length - 1];
+    if (takeAt(first) && takeAt(last)) {
+      pairSlots.push([first, last]);
     }
   }
-  if (picks.length < 2) {
+  if (picks.length === 0) {
+    const runs = straightRuns(result).sort((a, b) => b.length - a.length);
     for (const run of runs) {
-      if (picks.length >= queue.length) {
+      if (picks.length >= Math.min(2, queue.length)) {
         break;
       }
       if (run.length >= 2) {
@@ -562,10 +723,31 @@ function insertSwitchesIntoLoop(
       }
     }
   }
+  const assigned = new Map<number, string>();
+  const leftover = [...queue];
+  const takeType = (partId: string) => {
+    const index = leftover.indexOf(partId);
+    if (index < 0) {
+      return leftover.shift();
+    }
+    leftover.splice(index, 1);
+    return partId;
+  };
+  const center = centroidOf(result);
+  for (const [first, last] of pairSlots) {
+    const heading = result[first].rotation;
+    const hx = Math.cos(degToRad(heading));
+    const hy = Math.sin(degToRad(heading));
+    const centerIsLeft = hx * (center.y - result[first].y) - hy * (center.x - result[first].x) > 0;
+    const firstType = centerIsLeft ? 'switch-right' : 'switch-left';
+    const lastType = firstType === 'switch-left' ? 'switch-right' : 'switch-left';
+    assigned.set(first, takeType(firstType) ?? firstType);
+    assigned.set(last, takeType(lastType) ?? lastType);
+  }
   const remove = new Set<number>();
-  picks.slice(0, queue.length).forEach((target, index) => {
-    result[target] = { ...result[target], partId: queue[index] };
-    remove.add((target + 1) % result.length);
+  picks.slice(0, queue.length).forEach((target) => {
+    result[target] = { ...result[target], partId: assigned.get(target) ?? takeType(queue[0]) ?? 'switch-left' };
+    remove.add((target + 1) % n);
   });
   return result.filter((_, index) => !remove.has(index));
 }
@@ -704,36 +886,59 @@ function facePassingSwitches(
 ): PlacedPart[] {
   const switches = parts.filter((part) => catalog[part.partId]?.category === 'switch');
   const used = new Set<string>();
+  const center = centroidOf(parts);
   let result = parts;
   for (const first of switches) {
     if (used.has(first.instanceId)) {
       continue;
     }
-    const partner = switches.find(
-      (item) =>
-        item.instanceId !== first.instanceId &&
-        !used.has(item.instanceId) &&
-        headingDelta(first.rotation, item.rotation) < 25 &&
-        distance(first, item) >= SWITCH_LENGTH * 2.5,
-    );
+    const partner = switches.find((item) => {
+      if (item.instanceId === first.instanceId || used.has(item.instanceId)) {
+        return false;
+      }
+      const aligned =
+        headingDelta(first.rotation, item.rotation) < 25 ||
+        headingDelta(first.rotation, item.rotation + 180) < 25;
+      return aligned && distance(first, item) >= SWITCH_LENGTH * 2;
+    });
     if (!partner) {
       continue;
     }
     used.add(first.instanceId);
     used.add(partner.instanceId);
-    const flipped = flipSwitchInPlace(partner);
-    if (switchesTouch(first, flipped, catalog)) {
-      continue;
+    const poses = [
+      [first, partner],
+      [first, flipSwitchInPlace(partner)],
+      [flipSwitchInPlace(first), partner],
+      [flipSwitchInPlace(first), flipSwitchInPlace(partner)],
+    ];
+    let best: { trial: PlacedPart[]; score: number } | null = null;
+    for (const [a, b] of poses) {
+      if (switchesTouch(a, b, catalog)) {
+        continue;
+      }
+      const trial = result.map((part) => {
+        if (part.instanceId === first.instanceId) {
+          return a;
+        }
+        return part.instanceId === partner.instanceId ? b : part;
+      });
+      if (!mainlineCloses(trial, catalog)) {
+        continue;
+      }
+      const from = worldPorts(catalog[a.partId], a).find((port) => port.id === 'diverge');
+      const to = worldPorts(catalog[b.partId], b).find((port) => port.id === 'diverge');
+      if (!from || !to) {
+        continue;
+      }
+      const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+      const score = distance(from, to) - distance(mid, center) * 0.2;
+      if (!best || score < best.score) {
+        best = { trial, score };
+      }
     }
-    const trial = result.map((part) => (part.instanceId === partner.instanceId ? flipped : part));
-    if (!mainlineCloses(trial, catalog)) {
-      continue;
-    }
-    const from = worldPorts(catalog[first.partId], first).find((port) => port.id === 'diverge');
-    const before = worldPorts(catalog[partner.partId], partner).find((port) => port.id === 'diverge');
-    const after = worldPorts(catalog[flipped.partId], flipped).find((port) => port.id === 'diverge');
-    if (from && before && after && distance(from, after) <= distance(from, before)) {
-      result = trial;
+    if (best) {
+      result = best.trial;
     }
   }
   return result;
@@ -907,6 +1112,47 @@ function growToward(
   return portsConnect(current, target) ? result : parts;
 }
 
+function buildPassingLane(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  catalog: Record<string, TrackPart>,
+): PlacedPart[] | null {
+  const maxStraights = Math.min(10, remainingInventory(inventory, parts)['straight-16'] ?? 0);
+  const guessed = Math.max(0, Math.min(maxStraights, Math.round(distance(start, target) / 16) - 1));
+  const mids = [...new Set([guessed, guessed - 1, guessed + 1, guessed - 2, 0, 2, 4, 6].filter(
+    (mid) => mid >= 0 && mid <= maxStraights,
+  ))];
+  const ends: Array<[string, string]> = [
+    ['b', 'b'],
+    ['a', 'a'],
+    ['b', 'a'],
+    ['a', 'b'],
+  ];
+  for (const [first, last] of ends) {
+    for (const mid of mids) {
+      const sequence: SeqItem[] = [
+        { partId: 'curve-22', portId: first },
+        ...Array.from({ length: mid }, () => ({ partId: 'straight-16' })),
+        { partId: 'curve-22', portId: last },
+      ];
+      const built = attachSequenceFrom(parts, start, sequence, target, inventory, catalog, 'par');
+      if (built) {
+        return built;
+      }
+    }
+  }
+  for (const mid of mids.filter((item) => item > 0)) {
+    const sequence: SeqItem[] = Array.from({ length: mid }, () => ({ partId: 'straight-16' }));
+    const built = attachSequenceFrom(parts, start, sequence, target, inventory, catalog, 'par');
+    if (built) {
+      return built;
+    }
+  }
+  return null;
+}
+
 function connectOpenDiverges(
   parts: PlacedPart[],
   inventory: Record<string, number>,
@@ -924,18 +1170,25 @@ function connectOpenDiverges(
     if (!pair) {
       break;
     }
+    const joined = (item: PlacedPart[]) =>
+      !openPorts(item, catalog).some(
+        (port) => port.instanceId === pair[1].instanceId && port.id === pair[1].id,
+      );
+    const lane =
+      buildPassingLane(result, pair[0], pair[1], inventory, catalog) ??
+      buildPassingLane(result, pair[1], pair[0], inventory, catalog);
+    if (lane && joined(lane)) {
+      result = lane;
+      continue;
+    }
     const direct = growToward(result, pair[0], pair[1], inventory, catalog, random);
+    if (joined(direct)) {
+      result = direct;
+      continue;
+    }
     const kicked = turnThenGrow(result, pair[0], pair[1], inventory, catalog, random, 2);
-    const next =
-      switchOpens(direct, catalog).filter((port) => port.id === 'diverge').length <=
-      switchOpens(kicked, catalog).filter((port) => port.id === 'diverge').length
-        ? direct
-        : kicked;
-    const joined = !openPorts(next, catalog).some(
-      (port) => port.instanceId === pair[1].instanceId && port.id === pair[1].id,
-    );
-    if (joined) {
-      result = next;
+    if (joined(kicked)) {
+      result = kicked;
       continue;
     }
     break;
@@ -1553,14 +1806,12 @@ function decorateLoop(
     reorientSwitchesForSidings(insertSwitchesIntoLoop(result, inventory), catalog),
     catalog,
   );
-  const keepOpen = Math.max(0, prefs.targetParkingSpots);
-  result = connectOpenDiverges(result, inventory, catalog, random, keepOpen);
+  result = connectOpenDiverges(result, inventory, catalog, random, 0);
   result = joinCrossoverOpens(result, inventory, catalog, random);
   result = balloonCrossover(result, inventory, catalog);
-  result = connectLeftoverBranches(result, inventory, catalog, random, keepOpen);
-  const leftover = switchOpens(result, catalog).length;
-  if (leftover > 0) {
-    result = addParkingSidings(result, inventory, catalog, Math.max(prefs.targetParkingSpots, leftover));
+  result = connectLeftoverBranches(result, inventory, catalog, random, prefs.targetParkingSpots);
+  if (prefs.targetParkingSpots > 0 && switchOpens(result, catalog).length > 0) {
+    result = addParkingSidings(result, inventory, catalog, prefs.targetParkingSpots);
   }
   return result;
 }
@@ -1650,11 +1901,14 @@ function search(
 function reservedStraightsFor(inventory: Record<string, number>, prefs: GenerationPreferences): number {
   const switches = (inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0);
   const parking = prefs.targetParkingSpots * PARK_STRAIGHTS;
-  const returning = switches >= 2 ? 12 : 0;
+  const passing = switches >= 2 ? 8 : 0;
   const crossover = (inventory['double-crossover'] ?? 0) > 0 ? 4 : 0;
-  const neededOnLoop = switches * 2 + ((inventory['double-crossover'] ?? 0) > 0 ? 3 : 0);
+  const neededOnLoop = Math.max(
+    4,
+    switches * 2 + ((inventory['double-crossover'] ?? 0) > 0 ? 3 : 0),
+  );
   const available = inventory['straight-16'] ?? 0;
-  return Math.min(parking + returning + crossover, Math.max(0, available - neededOnLoop));
+  return Math.min(parking + passing + crossover, Math.max(0, available - neededOnLoop));
 }
 
 export function generateLayout(
@@ -1675,7 +1929,7 @@ export function generateLayout(
   const spread = !prefs.compact;
   const collected = collectRings(inventory, catalog, random, reserved, neededRun, spread)
     .sort((a, b) => b.length - a.length)
-    .slice(0, 3);
+    .slice(0, 2);
   const reserveCurves =
     ((inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0) >= 2 ? 12 : 4) +
     ((inventory['double-crossover'] ?? 0) > 0 ? 8 : 0);
@@ -1688,8 +1942,11 @@ export function generateLayout(
     reserveCurves,
     (inventory['double-crossover'] ?? 0) > 0,
   );
-  const rings =
-    wandered && loopCloses(wandered, catalog) ? [wandered, ...collected.slice(0, 1)] : collected;
+  const rings: PlacedPart[][] = [];
+  if (wandered && loopCloses(wandered, catalog)) {
+    rings.push(wandered);
+  }
+  rings.push(...collected);
   for (const ring of rings) {
     const decorated = decorateLoop(ring, inventory, catalog, prefs, random);
     candidates.push(finalize(decorated, inventory, prefs, 'layout.variedLoop'));

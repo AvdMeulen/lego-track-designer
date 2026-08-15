@@ -243,6 +243,36 @@ describe('generateLayout', () => {
     expect(closedDiverges.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('rejoins switch pairs instead of turning every switch into parking', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 58 },
+        { partId: 'curve-22', quantity: 97 },
+        { partId: 'switch-left', quantity: 2 },
+        { partId: 'switch-right', quantity: 2 },
+        { partId: 'double-crossover', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { seed: 17, timeoutMs: 2500 },
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.parkingSpots.length).toBeLessThanOrEqual(2);
+    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBeGreaterThan(70);
+    const unusedCurves = layout.unusedInventory.find((item) => item.partId === 'curve-22')?.quantity ?? 0;
+    expect(unusedCurves).toBeLessThan(25);
+    const switchIds = layout.parts
+      .filter((part) => part.partId.startsWith('switch-'))
+      .map((part) => part.instanceId);
+    const closedDiverges = switchIds.filter((id) =>
+      layout.connections.some(
+        (connection) =>
+          (connection.fromInstanceId === id && connection.fromPortId === 'diverge') ||
+          (connection.toInstanceId === id && connection.toPortId === 'diverge'),
+      ),
+    );
+    expect(closedDiverges.length - layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('uses opposite-curve S-bends instead of only 90-degree corners', () => {
     const layout = generateLayout(
       [
