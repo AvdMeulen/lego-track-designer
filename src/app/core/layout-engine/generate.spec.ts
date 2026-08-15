@@ -79,7 +79,7 @@ describe('generateLayout', () => {
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
     const curves = layout.parts.filter((part) => part.partId === 'curve-22').length;
     const straights = layout.parts.filter((part) => part.partId === 'straight-16').length;
-    expect(curves).toBeGreaterThanOrEqual(16);
+    expect(curves).toBeGreaterThan(16);
     expect(straights).toBe(24);
     expect(layout.unusedInventory.find((item) => item.partId === 'straight-16')).toBeFalsy();
   });
@@ -145,6 +145,20 @@ describe('generateLayout', () => {
     expect(lanes.size).toBeGreaterThanOrEqual(2);
   });
 
+  it('still closes after wandering instead of staying rectangular', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 20 },
+        { partId: 'curve-22', quantity: 32 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, preferReversingRoute: false },
+      { seed: 11, timeoutMs: 2000 },
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
+    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBeGreaterThan(16);
+  });
+
   it('closes a loop when the straight count is not a multiple of four', () => {
     const layout = generateLayout(
       [
@@ -174,9 +188,10 @@ describe('generateLayout', () => {
     const curves = layout.parts.filter((part) => part.partId === 'curve-22').length;
     const straights = layout.parts.filter((part) => part.partId === 'straight-16').length;
     expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(curves).toBeGreaterThanOrEqual(16);
+    expect(curves).toBeGreaterThan(16);
     expect(straights).toBeGreaterThan(20);
     expect(layout.parts.some((part) => part.partId.startsWith('switch-'))).toBeTrue();
+    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
   });
 
   it('accepts a 16-curve circle when parking is set to 0', () => {
