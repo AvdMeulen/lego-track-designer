@@ -10,6 +10,7 @@ import {
   polygonCenter,
   portsConnect,
   switchArtwork,
+  switchBranchOutline,
   switchDivergeEnd,
   worldPort,
 } from './geometry';
@@ -57,6 +58,20 @@ describe('geometry', () => {
     expect(art.rails.length).toBe(0);
     expect(art.beds[0]).toContain(`h ${SWITCH_LENGTH}`);
     expect(art.beds[0]).toContain('v 8');
+  });
+
+  it('keeps the switch branch a constant-width S that reaches the diverge port', () => {
+    const diverge = switchDivergeEnd(1);
+    const outline = switchBranchOutline(1);
+    const nearest = Math.min(...outline.map((point) => Math.hypot(point.x - diverge.x, point.y - diverge.y)));
+    const maxY = Math.max(...outline.map((point) => point.y));
+    expect(nearest).toBeLessThan(4.2);
+    expect(maxY).toBeGreaterThan(diverge.y);
+    expect(outline.some((point) => Math.hypot(point.x, point.y - 4) < 0.2)).toBeTrue();
+    expect(outline.some((point) => Math.hypot(point.x, point.y + 4) < 0.2)).toBeTrue();
+
+    const right = switchBranchOutline(-1);
+    expect(Math.min(...right.map((point) => point.y))).toBeLessThan(switchDivergeEnd(-1).y);
   });
 
   it('completes a City switch to a 16-stud parallel with one curve and one straight', () => {

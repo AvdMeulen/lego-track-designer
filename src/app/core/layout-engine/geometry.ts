@@ -260,38 +260,63 @@ export function switchBranchFootprints(sign = 1): Point[][] {
   return [first, second];
 }
 
+/** Continuous 8-stud-wide S-branch: first-outer joins second-inner after the inflection. */
+export function switchBranchOutline(sign = 1, half = 4, steps = 16): Point[] {
+  const mid = curveEnd(CURVE_RADIUS, SWITCH_OUT_ANGLE, sign);
+  const firstOuter: Point[] = [];
+  const firstInner: Point[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const rad = degToRad((SWITCH_OUT_ANGLE * i) / steps);
+    const sin = Math.sin(rad);
+    const cos = Math.cos(rad);
+    const y = sign * CURVE_RADIUS * (1 - cos);
+    firstOuter.push({
+      x: (CURVE_RADIUS + half) * sin,
+      y: y - sign * half * cos,
+    });
+    firstInner.push({
+      x: (CURVE_RADIUS - half) * sin,
+      y: y + sign * half * cos,
+    });
+  }
+  const xform = (point: Point) => addPoints(mid, rotatePoint(point, sign * SWITCH_OUT_ANGLE));
+  const secondSign = -sign;
+  const secondOuter: Point[] = [];
+  const secondInner: Point[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const rad = degToRad((SWITCH_RETURN_ANGLE * i) / steps);
+    const sin = Math.sin(rad);
+    const cos = Math.cos(rad);
+    const y = secondSign * CURVE_RADIUS * (1 - cos);
+    secondOuter.push(
+      xform({
+        x: (CURVE_RADIUS + half) * sin,
+        y: y - secondSign * half * cos,
+      }),
+    );
+    secondInner.push(
+      xform({
+        x: (CURVE_RADIUS - half) * sin,
+        y: y + secondSign * half * cos,
+      }),
+    );
+  }
+  return [
+    ...firstOuter,
+    ...secondInner.slice(1),
+    ...secondOuter.slice().reverse(),
+    ...firstInner.slice(0, -1).reverse(),
+  ];
+}
+
+function pointsToPath(points: Point[]): string {
+  return `${points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')} Z`;
+}
+
 export function switchArtwork(sign = 1): { beds: string[]; rails: string[] } {
   const half = 4;
-  const mid = curveEnd(CURVE_RADIUS, SWITCH_OUT_ANGLE, sign);
-  const sweepOut = sign >= 0 ? 1 : 0;
-  const sweepBack = sign >= 0 ? 0 : 1;
-  const [outerStart, outerMid, , innerStart] = curveSector(
-    CURVE_RADIUS,
-    SWITCH_OUT_ANGLE,
-    half,
-    sign,
-    1,
-  );
-  const second = curveSector(CURVE_RADIUS, SWITCH_RETURN_ANGLE, half, -sign, 1);
-  const xform = (point: Point) => addPoints(mid, rotatePoint(point, sign * SWITCH_OUT_ANGLE));
-  const outerEnd = xform(second[1]);
-  const innerEnd = xform(second[2]);
-  const innerJoin = xform(second[3]);
-  const outerR = CURVE_RADIUS + half;
-  const innerR = CURVE_RADIUS - half;
   return {
-    beds: [
-      rectPath(0, -half, SWITCH_LENGTH, half * 2),
-      [
-        `M ${outerStart.x} ${outerStart.y}`,
-        `A ${outerR} ${outerR} 0 0 ${sweepOut} ${outerMid.x} ${outerMid.y}`,
-        `A ${outerR} ${outerR} 0 0 ${sweepBack} ${outerEnd.x} ${outerEnd.y}`,
-        `L ${innerEnd.x} ${innerEnd.y}`,
-        `A ${innerR} ${innerR} 0 0 ${sweepOut} ${innerJoin.x} ${innerJoin.y}`,
-        `A ${innerR} ${innerR} 0 0 ${sweepBack} ${innerStart.x} ${innerStart.y}`,
-        'Z',
-      ].join(' '),
-    ],
+    beds: [rectPath(0, -half, SWITCH_LENGTH, half * 2), pointsToPath(switchBranchOutline(sign, half))],
     rails: [],
   };
 }
