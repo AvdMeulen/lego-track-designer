@@ -194,6 +194,54 @@ describe('generateLayout', () => {
     expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
   });
 
+  it('keeps switches apart and only leaves parking ends', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 58 },
+        { partId: 'curve-22', quantity: 97 },
+        { partId: 'switch-left', quantity: 2 },
+        { partId: 'switch-right', quantity: 2 },
+        { partId: 'double-crossover', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true },
+      { seed: 14, timeoutMs: 2500 },
+    );
+    const switchIds = new Set(
+      layout.parts.filter((part) => part.partId.startsWith('switch-')).map((part) => part.instanceId),
+    );
+    const adjacent = layout.connections.some(
+      (connection) => switchIds.has(connection.fromInstanceId) && switchIds.has(connection.toInstanceId),
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(adjacent).toBeFalse();
+    expect(layout.unfinishedPorts).toBeLessThanOrEqual(1);
+    expect(layout.parkingSpots.length).toBeLessThanOrEqual(3);
+  });
+
+  it('uses opposite-curve S-bends instead of only 90-degree corners', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 24 },
+        { partId: 'curve-22', quantity: 40 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, preferReversingRoute: false },
+      { seed: 11, timeoutMs: 2000 },
+    );
+    const turns: number[] = [];
+    for (const connection of layout.connections) {
+      const from = layout.parts.find((part) => part.instanceId === connection.fromInstanceId);
+      const to = layout.parts.find((part) => part.instanceId === connection.toInstanceId);
+      if (from?.partId !== 'curve-22' || to?.partId !== 'curve-22') {
+        continue;
+      }
+      const fromTurn = connection.fromPortId === 'a' ? 1 : -1;
+      const toTurn = connection.toPortId === 'b' ? 1 : -1;
+      turns.push(fromTurn * toTurn);
+    }
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(turns.some((turn) => turn < 0)).toBeTrue();
+  });
+
   it('accepts a 16-curve circle when parking is set to 0', () => {
     const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], {
       ...DEFAULT_PREFERENCES,
