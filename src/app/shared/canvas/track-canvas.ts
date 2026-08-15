@@ -1,6 +1,14 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { CatalogService } from '../../core/catalog/catalog.service';
-import { boundsOf, CURVE_ANGLE, CURVE_RADIUS, curveArtworkPath, curveEnd, transformPolygon } from '../../core/layout-engine/geometry';
+import {
+  boundsOf,
+  CURVE_ANGLE,
+  CURVE_RADIUS,
+  curveArtworkPath,
+  curveEnd,
+  polygonCenter,
+  transformPolygon,
+} from '../../core/layout-engine/geometry';
 import { PlacedPart, TrackLayout } from '../models/track';
 
 @Component({
@@ -79,7 +87,8 @@ export class TrackCanvas {
       const path = part.flexPath?.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`).join(' ');
       const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
       const transform = `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
-      const centerLocal = spec.category === 'curve' ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2) : { x: 0, y: 0 };
+      const centerLocal =
+        spec.category === 'curve' ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2) : polygonCenter(spec.footprint);
       const center = part.flexPath?.length
         ? part.flexPath[Math.floor(part.flexPath.length / 2)]
         : transformPolygon([centerLocal], part)[0];

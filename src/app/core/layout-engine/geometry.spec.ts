@@ -1,5 +1,5 @@
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
-import { attachPart, CURVE_ANGLE, CURVE_RADIUS, curveSector, headingDelta, portsConnect, worldPort } from './geometry';
+import { attachPart, CURVE_ANGLE, CURVE_RADIUS, curveSector, headingDelta, polygonCenter, portsConnect, worldPort } from './geometry';
 
 describe('geometry', () => {
   it('connects ports that face each other', () => {
@@ -36,5 +36,11 @@ describe('geometry', () => {
     for (const point of sector.slice(-6)) {
       expect(Math.hypot(point.x - center.x, point.y - center.y)).toBeCloseTo(CURVE_RADIUS - 4, 5);
     }
+  });
+
+  it('centers a straight label in the middle of the piece', () => {
+    const center = polygonCenter(CITY_TRACKS_BY_ID['straight-16'].footprint);
+    expect(center.x).toBeCloseTo(8, 5);
+    expect(center.y).toBeCloseTo(0, 5);
   });
 });

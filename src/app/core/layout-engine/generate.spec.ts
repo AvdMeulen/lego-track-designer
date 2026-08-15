@@ -66,6 +66,21 @@ describe('generateLayout', () => {
     expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
   });
 
+  it('closes a rounded loop even when extra curves remain', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'curve-22', quantity: 24 },
+        { partId: 'straight-16', quantity: 24 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, preferReversingRoute: false },
+      { seed: 1, timeoutMs: 1500 },
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
+    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBe(16);
+    expect(layout.parts.filter((part) => part.partId === 'straight-16').length).toBe(24);
+  });
+
   it('accepts a 16-curve circle when parking is set to 0', () => {
     const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], {
       ...DEFAULT_PREFERENCES,

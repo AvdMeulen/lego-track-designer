@@ -141,6 +141,14 @@ export function polygonsOverlap(a: Point[], b: Point[], inset = 0.45): boolean {
   return true;
 }
 
+export function polygonCenter(points: Point[]): Point {
+  const bounds = boundsOf(points);
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  };
+}
+
 export function boundsOf(points: Point[]): { minX: number; minY: number; maxX: number; maxY: number } {
   return points.reduce(
     (bounds, point) => ({

@@ -106,7 +106,7 @@ function buildSequence(sequence: string[], catalog: Record<string, TrackPart>): 
     const part = catalog[sequence[i]];
     const opens = openPorts(parts, catalog);
     if (opens.length === 0) {
-      return null;
+      return parts;
     }
     const head = opens[opens.length - 1];
     const pose = attachPart(part, part.ports[0].id, head);
@@ -121,7 +121,6 @@ function roundedLoopSequence(inventory: Record<string, number>): string[] | null
   if (curves < 16) {
     return null;
   }
-  const extraCurves = curves - 16;
   const perSide = Math.floor(straights / 4);
   const leftoverStraights = straights % 4;
   const sequence: string[] = [];
@@ -132,9 +131,6 @@ function roundedLoopSequence(inventory: Record<string, number>): string[] | null
     for (let i = 0; i < 4; i += 1) {
       sequence.push('curve-22');
     }
-  }
-  for (let i = 0; i < extraCurves; i += 1) {
-    sequence.push('curve-22');
   }
   return sequence;
 }
