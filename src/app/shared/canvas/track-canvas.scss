@@ -41,9 +41,23 @@
 }
 
 .part.selected polygon,
-.part.selected path {
+.part.selected path.body {
   stroke: #c91a1a;
   stroke-width: 1.1;
+}
+
+.part path.rail {
+  fill: none;
+  stroke: #1f1a17;
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.part.selected path.rail {
+  stroke: #c91a1a;
+  opacity: 0.85;
 }
 
 .badge {

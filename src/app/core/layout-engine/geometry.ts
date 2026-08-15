@@ -220,6 +220,44 @@ export function curveArtworkPath(
   ].join(' ');
 }
 
+function rectPath(x: number, y: number, width: number, height: number): string {
+  return `M ${x} ${y} h ${width} v ${height} h ${-width} Z`;
+}
+
+function thickenSegment(a: Point, b: Point, halfWidth: number): string {
+  const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const nx = (-(b.y - a.y) / length) * halfWidth;
+  const ny = ((b.x - a.x) / length) * halfWidth;
+  return [
+    `M ${a.x + nx} ${a.y + ny}`,
+    `L ${b.x + nx} ${b.y + ny}`,
+    `L ${b.x - nx} ${b.y - ny}`,
+    `L ${a.x - nx} ${a.y - ny}`,
+    'Z',
+  ].join(' ');
+}
+
+export function switchArtwork(sign = 1): { beds: string[]; rails: string[] } {
+  const end = curveEnd(CURVE_RADIUS, CURVE_ANGLE, sign);
+  const sweep = sign >= 0 ? 1 : 0;
+  return {
+    beds: [rectPath(0, -3, 16, 6), curveArtworkPath(CURVE_RADIUS, CURVE_ANGLE, 3, sign)],
+    rails: [`M 0 0 H 16`, `M 0 0 A ${CURVE_RADIUS} ${CURVE_RADIUS} 0 0 ${sweep} ${end.x} ${end.y}`],
+  };
+}
+
+export function crossoverArtwork(): { beds: string[]; rails: string[] } {
+  return {
+    beds: [
+      rectPath(-16, -3, 32, 6),
+      rectPath(-16, 5, 32, 6),
+      thickenSegment({ x: -16, y: 0 }, { x: 16, y: 8 }, 2.3),
+      thickenSegment({ x: -16, y: 8 }, { x: 16, y: 0 }, 2.3),
+    ],
+    rails: ['M -16 0 H 16', 'M -16 8 H 16', 'M -16 0 L 16 8', 'M -16 8 L 16 0'],
+  };
+}
+
 export function rectangle(width: number, height: number, originX = 0, originY = -height / 2): Point[] {
   return [
     { x: originX, y: originY },

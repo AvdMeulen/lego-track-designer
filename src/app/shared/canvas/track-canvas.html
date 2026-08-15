@@ -43,6 +43,12 @@
         @if (item.curvePath) {
           <path class="body" [attr.transform]="item.transform" [attr.d]="item.curvePath" [attr.fill]="item.spec.color" />
         }
+        @for (d of item.beds; track $index) {
+          <path class="body" [attr.transform]="item.transform" [attr.d]="d" [attr.fill]="item.spec.color" />
+        }
+        @for (d of item.rails; track $index) {
+          <path class="rail" [attr.transform]="item.transform" [attr.d]="d" />
+        }
       }
       <circle [attr.cx]="item.center.x" [attr.cy]="item.center.y" r="3.2" class="badge" />
       <text [attr.x]="item.center.x" [attr.y]="item.center.y" class="label">{{ item.part.label }}</text>

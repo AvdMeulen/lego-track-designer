@@ -5,9 +5,11 @@ import {
   boundsOf,
   CURVE_ANGLE,
   CURVE_RADIUS,
+  crossoverArtwork,
   curveArtworkPath,
   curveEnd,
   polygonCenter,
+  switchArtwork,
   transformPolygon,
 } from '../../core/layout-engine/geometry';
 import { PlacedPart, TrackLayout } from '../models/track';
@@ -87,21 +89,25 @@ export class TrackCanvas {
         : transformPolygon(spec.footprint, part);
       const points = polygon.map((point) => `${point.x},${point.y}`).join(' ');
       const path = part.flexPath?.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`).join(' ');
-      const switchSign = spec.id === 'switch-right' ? -1 : 1;
-      const curvePath =
-        spec.category === 'curve'
-          ? curveArtworkPath()
-          : spec.category === 'switch'
-            ? curveArtworkPath(CURVE_RADIUS, CURVE_ANGLE, 4, switchSign)
-            : '';
-      const showPolygon = spec.category !== 'curve';
+      const special =
+        spec.category === 'switch'
+          ? switchArtwork(spec.id === 'switch-right' ? -1 : 1)
+          : spec.category === 'double-crossover'
+            ? crossoverArtwork()
+            : { beds: [] as string[], rails: [] as string[] };
+      const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
+      const showPolygon = spec.category !== 'curve' && special.beds.length === 0;
       const transform = `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
       const centerLocal =
-        spec.category === 'curve' ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2) : polygonCenter(spec.footprint);
+        spec.category === 'curve'
+          ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2)
+          : spec.category === 'double-crossover'
+            ? { x: 0, y: 4 }
+            : polygonCenter(spec.footprint);
       const center = part.flexPath?.length
         ? part.flexPath[Math.floor(part.flexPath.length / 2)]
         : transformPolygon([centerLocal], part)[0];
-      return { part, spec, points, path, curvePath, showPolygon, transform, center };
+      return { part, spec, points, path, curvePath, beds: special.beds, rails: special.rails, showPolygon, transform, center };
     }),
   );
 

@@ -1,5 +1,16 @@
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
-import { attachPart, CURVE_ANGLE, CURVE_RADIUS, curveSector, headingDelta, polygonCenter, portsConnect, worldPort } from './geometry';
+import {
+  attachPart,
+  crossoverArtwork,
+  CURVE_ANGLE,
+  CURVE_RADIUS,
+  curveSector,
+  headingDelta,
+  polygonCenter,
+  portsConnect,
+  switchArtwork,
+  worldPort,
+} from './geometry';
 
 describe('geometry', () => {
   it('connects ports that face each other', () => {
@@ -36,6 +47,18 @@ describe('geometry', () => {
     for (const point of sector.slice(-6)) {
       expect(Math.hypot(point.x - center.x, point.y - center.y)).toBeCloseTo(CURVE_RADIUS - 4, 5);
     }
+  });
+
+  it('draws a switch as a through bed plus a diverge', () => {
+    const art = switchArtwork(1);
+    expect(art.beds.length).toBe(2);
+    expect(art.rails.length).toBe(2);
+  });
+
+  it('draws a crossover as two parallels and an X', () => {
+    const art = crossoverArtwork();
+    expect(art.beds.length).toBe(4);
+    expect(art.rails.length).toBe(4);
   });
 
   it('centers a straight label in the middle of the piece', () => {
