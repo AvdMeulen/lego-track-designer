@@ -84,15 +84,6 @@ export function doubleCrossoverFixture(): TrackLayout {
   return analyzeLayout(parts, catalog, [], 'fixture.double-crossover');
 }
 
-export function bufferFixture(): TrackLayout {
-  const parts: PlacedPart[] = [
-    { instanceId: 'st1', partId: 'straight-16', label: 1, x: 0, y: 0, rotation: 0 },
-  ];
-  const end = worldPorts(catalog['straight-16'], parts[0]).find((port) => port.id === 'b')!;
-  parts.push(attachTo('buffer-stop', 'b1', 2, end, 'a'));
-  return analyzeLayout(parts, catalog, [], 'fixture.buffer');
-}
-
 export function flexGapFixture(): TrackLayout {
   const parts: PlacedPart[] = [
     { instanceId: 'st1', partId: 'straight-16', label: 1, x: 0, y: 0, rotation: 0 },
@@ -103,7 +94,7 @@ export function flexGapFixture(): TrackLayout {
 }
 
 export function pointToPointFixture(): TrackLayout {
-  const sequence = ['buffer-stop', 'straight-16', 'curve-22', 'straight-16', 'curve-22', 'straight-16', 'buffer-stop'];
+  const sequence = ['straight-16', 'curve-22', 'straight-16', 'curve-22', 'straight-16'];
   const parts = grow(sequence);
   return analyzeLayout(parts, catalog, [], 'fixture.point-to-point');
 }
@@ -122,10 +113,7 @@ export function reversingLoopFixture(): TrackLayout {
     const ports = worldPorts(catalog[partId], next);
     head = ports.find((port) => port.id !== 'a') ?? ports[ports.length - 1];
   });
-  const siding = attachTo('straight-16', 'sid1', parts.length + 1, diverge, 'a');
-  parts.push(siding);
-  const sidingEnd = worldPorts(catalog['straight-16'], siding).find((port) => port.id === 'b')!;
-  parts.push(attachTo('buffer-stop', 'buf1', parts.length + 1, sidingEnd, 'a'));
+  parts.push(attachTo('straight-16', 'sid1', parts.length + 1, diverge, 'a'));
   return analyzeLayout(parts, catalog, [], 'fixture.reverse-loop');
 }
 
@@ -152,10 +140,7 @@ export function parkingSidingFixture(): TrackLayout {
   const stem = ports.find((port) => port.id === 'stem')!;
   parts.push(attachTo('straight-16', 'main1', 2, through, 'a'));
   parts.push(attachTo('straight-16', 'main2', 3, stem, 'a'));
-  const siding = attachTo('straight-16', 'sid1', 4, diverge, 'a');
-  parts.push(siding);
-  const sidingEnd = worldPorts(catalog['straight-16'], siding).find((port) => port.id === 'b')!;
-  parts.push(attachTo('buffer-stop', 'buf1', 5, sidingEnd, 'a'));
+  parts.push(attachTo('straight-16', 'sid1', 4, diverge, 'a'));
   return analyzeLayout(parts, catalog, [], 'fixture.parking');
 }
 
@@ -166,7 +151,6 @@ export function allFixtures(): { id: string; layout: TrackLayout }[] {
     { id: 'switch-left', layout: switchFixture('left') },
     { id: 'crossing', layout: crossingFixture() },
     { id: 'double-crossover', layout: doubleCrossoverFixture() },
-    { id: 'buffer', layout: bufferFixture() },
     { id: 'flex', layout: flexGapFixture() },
     { id: 'parking', layout: parkingSidingFixture() },
     { id: 'point-to-point', layout: pointToPointFixture() },

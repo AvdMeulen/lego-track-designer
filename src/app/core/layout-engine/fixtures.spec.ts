@@ -2,7 +2,6 @@ import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { openPorts } from './connections';
 import { canCloseWithFlex } from './flex-closer';
 import {
-  bufferFixture,
   circleFixture,
   crossingFixture,
   doubleCrossoverFixture,
@@ -54,12 +53,6 @@ describe('fixtures', () => {
     expect(Math.abs(left[0].y - left[1].y)).toBe(8);
   });
 
-  it('terminates a straight with a buffer', () => {
-    const layout = bufferFixture();
-    expect(layout.parts.some((part) => part.partId === 'buffer-stop')).toBeTrue();
-    expect(layout.parkingSpots.length).toBeGreaterThan(0);
-  });
-
   it('closes a near-miss gap with one flex piece', () => {
     const layout = flexGapFixture();
     expect(layout.parts.some((part) => part.partId === 'flex-track')).toBeTrue();
@@ -78,9 +71,10 @@ describe('fixtures', () => {
     expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
   });
 
-  it('labels two parking ends on a point-to-point run', () => {
+  it('builds a connected point-to-point run', () => {
     const layout = pointToPointFixture();
-    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(2);
+    expect(layout.parts.length).toBe(5);
+    expect(layout.connections.length).toBe(4);
   });
 
   it('closes a balloon through a switch as a reversing loop', () => {

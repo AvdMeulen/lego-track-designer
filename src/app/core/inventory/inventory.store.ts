@@ -45,6 +45,10 @@ export class InventoryStore {
     this.storage.write(INVENTORY_STORAGE_KEY, next);
   }
 
+  clear(): void {
+    this.applyPreset({});
+  }
+
   snapshot(): InventoryItem[] {
     return this.items().filter((item) => item.quantity > 0);
   }

@@ -19,18 +19,6 @@ export const INVENTORY_PRESETS: InventoryPreset[] = [
     quantities: { 'curve-22': 8, 'straight-16': 8 },
   },
   {
-    id: 'set-60238',
-    name: 'Switch Tracks 60238',
-    description: 'Left and right switch plus four curves.',
-    quantities: { 'switch-left': 1, 'switch-right': 1, 'curve-22': 4 },
-  },
-  {
-    id: 'set-7996',
-    name: 'Double Crossover 7996',
-    description: 'Assembled double crossover.',
-    quantities: { 'double-crossover': 1 },
-  },
-  {
     id: 'yard',
     name: 'Yard starter',
     description: 'Loop pieces, one switch, parking, and flex margin.',
@@ -38,7 +26,6 @@ export const INVENTORY_PRESETS: InventoryPreset[] = [
       'curve-22': 12,
       'straight-16': 6,
       'switch-left': 1,
-      'buffer-stop': 2,
       'flex-track': 2,
     },
   },

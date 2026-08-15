@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import { TPipe } from '../../core/i18n/t.pipe';
@@ -15,4 +15,10 @@ export class Inventory {
   protected readonly catalog = inject(CatalogService);
   protected readonly inventory = inject(InventoryStore);
   protected readonly presets = INVENTORY_PRESETS;
+  protected readonly confirmingReset = signal(false);
+
+  protected resetCollection(): void {
+    this.inventory.clear();
+    this.confirmingReset.set(false);
+  }
 }

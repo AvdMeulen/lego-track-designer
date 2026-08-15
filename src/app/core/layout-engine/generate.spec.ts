@@ -39,12 +39,11 @@ describe('generateLayout', () => {
     expect(layout.parts.length).toBeGreaterThanOrEqual(8);
   });
 
-  it('creates a parking siding from a switch, straight, and buffer', () => {
+  it('creates a parking siding from a switch and a straight', () => {
     const layout = generateLayout(
       [
         { partId: 'switch-left', quantity: 1 },
         { partId: 'straight-16', quantity: 3 },
-        { partId: 'buffer-stop', quantity: 1 },
       ],
       { ...DEFAULT_PREFERENCES, targetParkingSpots: 1 },
       { seed: 4, timeoutMs: 1500 },
@@ -52,18 +51,17 @@ describe('generateLayout', () => {
     expect(layout.parkingSpots.length).toBeGreaterThan(0);
   });
 
-  it('builds a point-to-point with two dead-end parking spots', () => {
+  it('builds a connected point-to-point route', () => {
     const layout = generateLayout(
       [
-        { partId: 'buffer-stop', quantity: 2 },
         { partId: 'straight-16', quantity: 4 },
         { partId: 'curve-22', quantity: 4 },
       ],
-      { ...DEFAULT_PREFERENCES, loopPlusParking: false, targetParkingSpots: 2 },
+      { ...DEFAULT_PREFERENCES, loopPlusParking: false, targetParkingSpots: 0 },
       { seed: 5, timeoutMs: 1500 },
     );
-    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
-    expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
+    expect(layout.parts.length).toBeGreaterThanOrEqual(4);
+    expect(layout.connections.length).toBeGreaterThan(0);
   });
 
   it('closes a rounded loop even when extra curves remain', () => {
@@ -87,7 +85,6 @@ describe('generateLayout', () => {
         { partId: 'curve-22', quantity: 16 },
         { partId: 'straight-16', quantity: 8 },
         { partId: 'switch-left', quantity: 1 },
-        { partId: 'buffer-stop', quantity: 1 },
       ],
       { ...DEFAULT_PREFERENCES, targetParkingSpots: 1 },
       { seed: 1, timeoutMs: 1500 },

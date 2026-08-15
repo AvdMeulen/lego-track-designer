@@ -1,30 +1,30 @@
 {
-  "source": "LDraw / community City RC track geometry. R40 curves, 16-stud straights, 8-stud parallel spacing for 7996.",
+  "source": "LDraw / community City RC track geometry. R40 curves, 16-stud straights, 8-stud parallel spacing for 7996-1.",
   "units": "studs",
   "parts": [
     {
       "id": "straight-16",
       "name": "Straight 16",
       "category": "straight",
-      "legoIds": ["85976"]
+      "legoIds": ["6070018"]
     },
     {
       "id": "curve-22",
       "name": "Curve 22.5°",
       "category": "curve",
-      "legoIds": ["85977"]
+      "legoIds": ["4279717"]
     },
     {
       "id": "switch-left",
       "name": "Left switch",
       "category": "switch",
-      "legoIds": ["85968"]
+      "legoIds": ["6085213"]
     },
     {
       "id": "switch-right",
       "name": "Right switch",
       "category": "switch",
-      "legoIds": ["53407"]
+      "legoIds": ["6085188"]
     },
     {
       "id": "crossing-90",
@@ -35,20 +35,13 @@
     {
       "id": "double-crossover",
       "name": "Double crossover",
-      "category": "double-crossover",
-      "legoIds": ["60128", "7996"]
-    },
-    {
-      "id": "buffer-stop",
-      "name": "Buffer stop",
-      "category": "buffer",
-      "legoIds": ["4022"]
+      "category": "double-crossover"
     },
     {
       "id": "flex-track",
       "name": "Flexible track",
       "category": "flex",
-      "legoIds": ["53401"],
+      "legoIds": ["4535745"],
       "flex": {
         "lengthStuds": 16,
         "minChordStuds": 6,

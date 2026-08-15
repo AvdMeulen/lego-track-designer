@@ -27,10 +27,7 @@ export function analyzeLayout(
   const reverseOptions = findReverseOptions(parts, catalog, graph, parkingSpots);
   const opens = openPorts(parts, catalog);
   const parkingEnds = new Set(parkingSpots.map((spot) => spot.endInstanceId));
-  const unfinished = opens.filter((port) => {
-    const part = catalog[parts.find((item) => item.instanceId === port.instanceId)?.partId ?? ''];
-    return part?.category !== 'buffer' && !parkingEnds.has(port.instanceId);
-  });
+  const unfinished = opens.filter((port) => !parkingEnds.has(port.instanceId));
   const marks = buildMarks(parts, parkingSpots, reverseOptions, unfinished);
   const score = {
     total: 0,
@@ -163,20 +160,16 @@ function findParkingSpots(
   const spots: ParkingSpot[] = [];
 
   for (const part of parts) {
-    const category = catalog[part.partId]?.category;
     const degree = graph.get(part.instanceId)?.length ?? 0;
-    const isEnd = category === 'buffer' || degree === 1;
-    if (!isEnd) {
+    if (degree !== 1) {
       continue;
     }
     const { length, switchId } = walkClearLength(part.instanceId, graph, byId, catalog);
-    const siding = !!switchId && length >= 16;
-    const bufferedEnd = category === 'buffer';
-    if (siding || bufferedEnd) {
+    if (switchId && length >= 16) {
       spots.push({
         id: `park-${part.instanceId}`,
         endInstanceId: part.instanceId,
-        clearLengthStuds: Math.max(length, bufferedEnd ? 16 : length),
+        clearLengthStuds: length,
         switchInstanceId: switchId,
       });
     }

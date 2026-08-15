@@ -10,7 +10,7 @@ import {
 import { placementCollides } from './collide';
 import { detectConnections, remainingInventory, unusedItems } from './connections';
 import { closeWithFlex } from './flex-closer';
-import { attachPart, WorldPort, worldPorts } from './geometry';
+import { attachPart, WorldPort } from './geometry';
 import { openPorts } from './connections';
 
 export interface GenerateOptions {
@@ -25,7 +25,6 @@ const RIGID_ORDER = [
   'switch-right',
   'crossing-90',
   'double-crossover',
-  'buffer-stop',
 ];
 
 function rng(seed: number): () => number {
@@ -155,17 +154,11 @@ function pointToPointSequence(inventory: Record<string, number>): string[] | nul
     return null;
   }
   const sequence: string[] = [];
-  if ((inventory['buffer-stop'] ?? 0) > 0) {
-    sequence.push('buffer-stop');
-  }
   for (let i = 0; i < straights; i += 1) {
     sequence.push('straight-16');
   }
   for (let i = 0; i < Math.min(curves, 8); i += 1) {
     sequence.push('curve-22');
-  }
-  if ((inventory['buffer-stop'] ?? 0) > 1) {
-    sequence.push('buffer-stop');
   }
   return sequence.length ? sequence : null;
 }
@@ -204,13 +197,9 @@ function growOpenBranches(
   parts: PlacedPart[],
   inventory: Record<string, number>,
   catalog: Record<string, TrackPart>,
-  prefs: GenerationPreferences,
 ): PlacedPart[] {
   const result = [...parts];
   const prefer = ['straight-16', 'curve-22', 'switch-left', 'switch-right'];
-  if (prefs.targetParkingSpots > 0) {
-    prefer.push('buffer-stop');
-  }
 
   let progress = true;
   while (progress) {
@@ -265,7 +254,7 @@ function parallelFromCrossover(
   const start: PlacedPart[] = [
     { instanceId: 'dc1', partId: 'double-crossover', label: 1, x: 0, y: 0, rotation: 0 },
   ];
-  return growOpenBranches(start, inventory, catalog, prefs);
+  return growOpenBranches(start, inventory, catalog);
 }
 
 function addSiding(
@@ -299,23 +288,6 @@ function addSiding(
     return parts;
   }
   result.push(placed);
-  if ((left['buffer-stop'] ?? 0) > 0) {
-    const end = worldPorts(straight, placed).find((port) => port.id === 'b');
-    if (end) {
-      const buffer = tryAttach(
-        catalog['buffer-stop'],
-        'a',
-        end,
-        result,
-        catalog,
-        `buf-${result.length + 1}`,
-        result.length + 1,
-      );
-      if (buffer) {
-        result.push(buffer);
-      }
-    }
-  }
   return result;
 }
 
@@ -402,7 +374,7 @@ export function generateLayout(
     const parts = buildSequence(loopSeq, catalog);
     if (parts) {
       const withSwitches = insertSwitchesIntoLoop(parts, inventory);
-      const branched = growOpenBranches(withSwitches, inventory, catalog, prefs);
+      const branched = growOpenBranches(withSwitches, inventory, catalog);
       const withSiding =
         prefs.targetParkingSpots > 0 && (inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0) > 0
           ? addSiding(branched, inventory, catalog)
@@ -427,7 +399,7 @@ export function generateLayout(
   if ((inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0) > 0) {
     const switchId = (inventory['switch-left'] ?? 0) > 0 ? 'switch-left' : 'switch-right';
     const seeded: PlacedPart[] = [{ instanceId: 's1', partId: switchId, label: 1, x: 0, y: 0, rotation: 0 }];
-    const branched = growOpenBranches(seeded, inventory, catalog, prefs);
+    const branched = growOpenBranches(seeded, inventory, catalog);
     const withSiding = addSiding(branched, inventory, catalog);
     const grown = search(inventory, prefs, random, deadline, withSiding);
     candidates.push(finalize(grown, inventory, prefs, 'layout.switchLed'));

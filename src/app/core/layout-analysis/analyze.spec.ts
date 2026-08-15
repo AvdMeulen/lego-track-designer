@@ -8,18 +8,16 @@ import {
 import { preferenceNotes } from './analyze';
 
 describe('layout analysis', () => {
-  it('marks a buffered siding as parking and dead-end reverse', () => {
+  it('marks an open siding as parking and dead-end reverse', () => {
     const layout = parkingSidingFixture();
     expect(layout.parkingSpots.some((spot) => spot.clearLengthStuds >= 16)).toBeTrue();
     expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
     expect(layout.marks.some((mark) => mark.kind === 'parking')).toBeTrue();
   });
 
-  it('finds two parking ends on a point-to-point layout', () => {
+  it('does not treat a point-to-point run as parking', () => {
     const layout = pointToPointFixture();
-    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(2);
-    const deadEnds = layout.reverseOptions.filter((option) => option.kind === 'dead-end');
-    expect(deadEnds.length).toBeGreaterThanOrEqual(2);
+    expect(layout.parkingSpots.length).toBe(0);
   });
 
   it('detects a reversing loop when a switch sits on a cycle', () => {

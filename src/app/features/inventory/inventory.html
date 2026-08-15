@@ -12,6 +12,17 @@
         {{ 'preset.' + preset.id + '.name' | t }}
       </button>
     }
+    @if (!confirmingReset()) {
+      <button type="button" class="reset" (click)="confirmingReset.set(true)">
+        {{ 'inventory.reset' | t }}
+      </button>
+    } @else {
+      <span class="reset-confirm">
+        {{ 'inventory.resetConfirm' | t }}
+        <button type="button" (click)="confirmingReset.set(false)">{{ 'inventory.resetCancel' | t }}</button>
+        <button type="button" class="reset" (click)="resetCollection()">{{ 'inventory.resetYes' | t }}</button>
+      </span>
+    }
   </div>
 
   <div class="grid">
@@ -21,7 +32,7 @@
         <h2>{{ 'part.' + part.id + '.name' | t }}</h2>
         <p>{{ 'part.' + part.id + '.hint' | t }}</p>
         @if (part.legoIds?.length) {
-          <small>{{ 'inventory.lego' | t: { ids: part.legoIds?.join(', ') } }}</small>
+          <small>{{ 'inventory.lego' | t: { ids: part.legoIds?.join(', ') ?? '' } }}</small>
         }
         <div class="stepper">
           <button type="button" (click)="inventory.adjust(part.id, -1)" [disabled]="inventory.quantity(part.id) === 0">

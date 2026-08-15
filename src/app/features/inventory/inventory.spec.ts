@@ -26,5 +26,8 @@ describe('Inventory', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('Straight 16');
     expect(compiled.textContent).toContain('Flexible track');
+    expect(compiled.textContent).not.toContain('Buffer stop');
+    expect(compiled.textContent).toContain('Reset collection');
+    expect(compiled.textContent).toContain('pieces in the collection');
   });
 });

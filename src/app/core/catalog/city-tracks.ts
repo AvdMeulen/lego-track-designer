@@ -11,7 +11,7 @@ export const CITY_TRACKS: TrackPart[] = [
     name: 'Straight 16',
     category: 'straight',
     hint: 'Standard 16-stud City straight.',
-    legoIds: ['85976'],
+    legoIds: ['6070018'],
     color: '#0b5cab',
     ports: [
       { id: 'a', x: 0, y: 0, heading: 180 },
@@ -24,7 +24,7 @@ export const CITY_TRACKS: TrackPart[] = [
     name: 'Curve 22.5°',
     category: 'curve',
     hint: '16 curves make a circle on an R40 centerline.',
-    legoIds: ['85977'],
+    legoIds: ['4279717'],
     color: '#f5c518',
     ports: [
       { id: 'a', x: 0, y: 0, heading: 180 },
@@ -37,7 +37,7 @@ export const CITY_TRACKS: TrackPart[] = [
     name: 'Left switch',
     category: 'switch',
     hint: 'Through route plus an R40 diverge to the left.',
-    legoIds: ['85968'],
+    legoIds: ['6085213'],
     color: '#2d7a3a',
     ports: [
       { id: 'stem', x: 0, y: 0, heading: 180 },
@@ -52,7 +52,7 @@ export const CITY_TRACKS: TrackPart[] = [
     name: 'Right switch',
     category: 'switch',
     hint: 'Through route plus an R40 diverge to the right.',
-    legoIds: ['53407'],
+    legoIds: ['6085188'],
     color: '#1f7a4d',
     ports: [
       { id: 'stem', x: 0, y: 0, heading: 180 },
@@ -81,8 +81,7 @@ export const CITY_TRACKS: TrackPart[] = [
     id: 'double-crossover',
     name: 'Double crossover',
     category: 'double-crossover',
-    hint: 'Assembled 7996. Joins two parallel tracks 8 studs apart.',
-    legoIds: ['60128', '7996'],
+    hint: 'Set 7996-1. Joins two parallel tracks 8 studs apart.',
     color: '#6b3fa0',
     ports: [
       { id: 'a', x: -16, y: 0, heading: 180 },
@@ -93,21 +92,11 @@ export const CITY_TRACKS: TrackPart[] = [
     footprint: rectangle(32, 16, -16, -4),
   },
   {
-    id: 'buffer-stop',
-    name: 'Buffer stop',
-    category: 'buffer',
-    hint: 'Marks a parking end.',
-    legoIds: ['4022'],
-    color: '#1f1a17',
-    ports: [{ id: 'a', x: 0, y: 0, heading: 180 }],
-    footprint: rectangle(4, 8),
-  },
-  {
     id: 'flex-track',
     name: 'Flexible track',
     category: 'flex',
     hint: 'Fills a small gap when rigid pieces almost meet.',
-    legoIds: ['53401'],
+    legoIds: ['4535745'],
     color: '#e67a17',
     ports: [
       { id: 'a', x: 0, y: 0, heading: 180 },

@@ -28,4 +28,17 @@ describe('InventoryStore', () => {
     expect(store.totalPieces()).toBe(16);
     expect(memory.read<Record<string, number>>(INVENTORY_STORAGE_KEY)?.['curve-22']).toBe(16);
   });
+
+  it('clears the collection', () => {
+    const memory = new MemoryStorage();
+    TestBed.configureTestingModule({
+      providers: [{ provide: BrowserStorage, useValue: memory }],
+    });
+    const store = TestBed.inject(InventoryStore);
+    store.setQuantity('curve-22', 16);
+    store.setQuantity('straight-16', 4);
+    store.clear();
+    expect(store.totalPieces()).toBe(0);
+    expect(store.quantity('curve-22')).toBe(0);
+  });
 });

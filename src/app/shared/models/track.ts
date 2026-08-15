@@ -4,7 +4,6 @@ export type PartCategory =
   | 'switch'
   | 'crossing'
   | 'double-crossover'
-  | 'buffer'
   | 'flex';
 
 export interface Point {
