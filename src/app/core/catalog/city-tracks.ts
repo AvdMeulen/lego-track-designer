@@ -1,5 +1,5 @@
 import { TrackPart } from '../../shared/models/track';
-import { CURVE_ANGLE, CURVE_RADIUS, curveEnd, rectangle, unionRectangles } from '../layout-engine/geometry';
+import { CURVE_ANGLE, CURVE_RADIUS, curveEnd, curveSector, rectangle, unionRectangles } from '../layout-engine/geometry';
 
 const curve = curveEnd();
 const leftDiverge = curveEnd(CURVE_RADIUS, CURVE_ANGLE, 1);
@@ -30,12 +30,7 @@ export const CITY_TRACKS: TrackPart[] = [
       { id: 'a', x: 0, y: 0, heading: 180 },
       { id: 'b', x: curve.x, y: curve.y, heading: CURVE_ANGLE },
     ],
-    footprint: [
-      { x: -1, y: -4 },
-      { x: curve.x + 1, y: -4 },
-      { x: curve.x + 1, y: curve.y + 4 },
-      { x: -1, y: 4 },
-    ],
+    footprint: curveSector(CURVE_RADIUS, CURVE_ANGLE, 4, 1, 1),
   },
   {
     id: 'switch-left',

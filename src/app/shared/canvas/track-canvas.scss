@@ -11,6 +11,9 @@
   background: #fffdf8;
   cursor: grab;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 .canvas.dragging {
@@ -30,7 +33,8 @@
   cursor: pointer;
 }
 
-.part polygon {
+.part polygon,
+.part path.body {
   fill-opacity: 0.88;
   stroke: #1f1a17;
   stroke-width: 0.35;

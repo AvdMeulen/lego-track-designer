@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { CatalogService } from '../../core/catalog/catalog.service';
-import { boundsOf, transformPolygon } from '../../core/layout-engine/geometry';
+import { boundsOf, CURVE_ANGLE, CURVE_RADIUS, curveArtworkPath, curveEnd, transformPolygon } from '../../core/layout-engine/geometry';
 import { PlacedPart, TrackLayout } from '../models/track';
 
 @Component({
@@ -77,10 +77,13 @@ export class TrackCanvas {
         : transformPolygon(spec.footprint, part);
       const points = polygon.map((point) => `${point.x},${point.y}`).join(' ');
       const path = part.flexPath?.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`).join(' ');
+      const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
+      const transform = `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
+      const centerLocal = spec.category === 'curve' ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2) : { x: 0, y: 0 };
       const center = part.flexPath?.length
         ? part.flexPath[Math.floor(part.flexPath.length / 2)]
-        : { x: part.x, y: part.y };
-      return { part, spec, points, path, center };
+        : transformPolygon([centerLocal], part)[0];
+      return { part, spec, points, path, curvePath, transform, center };
     }),
   );
 
@@ -99,6 +102,8 @@ export class TrackCanvas {
   }
 
   onPointerDown(event: PointerEvent): void {
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
     (event.currentTarget as SVGSVGElement).setPointerCapture(event.pointerId);
     this.dragging.set(true);
     this.moved = false;
@@ -129,6 +134,10 @@ export class TrackCanvas {
 
   onPointerUp(): void {
     this.dragging.set(false);
+  }
+
+  onContextMenu(event: Event): void {
+    event.preventDefault();
   }
 
   onWheel(event: WheelEvent): void {

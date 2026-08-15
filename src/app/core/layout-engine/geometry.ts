@@ -161,6 +161,53 @@ export function curveEnd(radius = CURVE_RADIUS, angle = CURVE_ANGLE, sign = 1): 
   };
 }
 
+/** Constant-width ring segment along an R40 centerline, not a bounding wedge. */
+export function curveSector(
+  radius = CURVE_RADIUS,
+  angle = CURVE_ANGLE,
+  halfWidth = 4,
+  sign = 1,
+  steps = 1,
+): Point[] {
+  const outer: Point[] = [];
+  const inner: Point[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const rad = degToRad((angle * i) / steps);
+    const sin = Math.sin(rad);
+    const cos = Math.cos(rad);
+    const y = sign * radius * (1 - cos);
+    outer.push({
+      x: (radius + halfWidth) * sin,
+      y: y - sign * halfWidth * cos,
+    });
+    inner.push({
+      x: (radius - halfWidth) * sin,
+      y: y + sign * halfWidth * cos,
+    });
+  }
+  return [...outer, ...inner.reverse()];
+}
+
+export function curveArtworkPath(
+  radius = CURVE_RADIUS,
+  angle = CURVE_ANGLE,
+  halfWidth = 4,
+  sign = 1,
+): string {
+  const [outerStart, outerEnd, innerEnd, innerStart] = curveSector(radius, angle, halfWidth, sign, 1);
+  const outerR = radius + halfWidth;
+  const innerR = radius - halfWidth;
+  const sweep = sign >= 0 ? 1 : 0;
+  const back = sign >= 0 ? 0 : 1;
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerR} ${outerR} 0 0 ${sweep} ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerR} ${innerR} 0 0 ${back} ${innerStart.x} ${innerStart.y}`,
+    'Z',
+  ].join(' ');
+}
+
 export function rectangle(width: number, height: number, originX = 0, originY = -height / 2): Point[] {
   return [
     { x: originX, y: originY },

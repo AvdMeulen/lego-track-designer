@@ -8,6 +8,7 @@
   (pointermove)="onPointerMove($event)"
   (pointerup)="onPointerUp()"
   (pointercancel)="onPointerUp()"
+  (contextmenu)="onContextMenu($event)"
   (wheel)="onWheel($event)"
 >
   <rect
@@ -35,6 +36,8 @@
     >
       @if (item.path) {
         <path [attr.d]="item.path" [attr.stroke]="item.spec.color" fill="none" stroke-width="6" stroke-linecap="round" />
+      } @else if (item.curvePath) {
+        <path class="body" [attr.transform]="item.transform" [attr.d]="item.curvePath" [attr.fill]="item.spec.color" />
       } @else {
         <polygon [attr.points]="item.points" [attr.fill]="item.spec.color" />
       }
