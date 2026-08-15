@@ -13,6 +13,7 @@ Open [http://localhost:4200](http://localhost:4200).
 | `npm run build` | Production build |
 | `npm test` | Unit tests (watch) |
 | `npm run test:ci` | Headless Chrome, single run |
+| `npm run build:pages` | Production build with the GitHub Pages base href |
 
 ## Pages
 
@@ -24,4 +25,7 @@ Inventory and the last layout are stored in this browser. Export PNG for a porta
 
 ## GitHub
 
-https://github.com/AvdMeulen/lego-track-designer
+- Repository: https://github.com/AvdMeulen/lego-track-designer
+- Live site: https://avdmeulen.github.io/lego-track-designer/
+
+Pushes to `main` run CI and publish the production build to GitHub Pages. The Pages workflow sets `--base-href /lego-track-designer/` and copies `index.html` to `404.html` so Angular routes reload correctly.

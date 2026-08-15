@@ -1,5 +1,7 @@
 # LEGO Track Designer
 
+Live site: https://avdmeulen.github.io/lego-track-designer/
+
 Visualization-first Angular app for planning **LEGO City** train layouts from the pieces you own.
 
 Record your collection, generate a network (loops, parking dead-ends, reversing routes), see **which part sits where**, keep the design after refresh, and export a labeled PNG.
