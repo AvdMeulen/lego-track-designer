@@ -58,7 +58,7 @@ export function switchFixture(side: 'left' | 'right' = 'left'): TrackLayout {
   const through = switchPorts.find((port) => port.id === 'through')!;
   const diverge = switchPorts.find((port) => port.id === 'diverge')!;
   parts.push(attachTo('straight-16', 'st1', 2, through, 'a'));
-  parts.push(attachTo('curve-22', 'c1', 3, diverge, 'a'));
+  parts.push(attachTo('curve-22', 'c1', 3, diverge, 'b'));
   return analyzeLayout(parts, catalog, [], `fixture.switch-${side}`);
 }
 
@@ -105,7 +105,28 @@ export function reversingLoopFixture(): TrackLayout {
   ];
   const through = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'through')!;
   const diverge = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'diverge')!;
-  const loop = ['curve-22', 'curve-22', 'curve-22', 'curve-22', 'straight-16', 'curve-22', 'curve-22', 'curve-22', 'curve-22', 'straight-16', 'curve-22', 'curve-22', 'curve-22', 'curve-22', 'straight-16', 'curve-22', 'curve-22', 'curve-22', 'curve-22'];
+  const loop = [
+    'curve-22',
+    'curve-22',
+    'curve-22',
+    'curve-22',
+    'straight-16',
+    'curve-22',
+    'curve-22',
+    'curve-22',
+    'curve-22',
+    'straight-16',
+    'straight-16',
+    'curve-22',
+    'curve-22',
+    'curve-22',
+    'curve-22',
+    'straight-16',
+    'curve-22',
+    'curve-22',
+    'curve-22',
+    'curve-22',
+  ];
   let head = through;
   loop.forEach((partId, index) => {
     const next = attachTo(partId, `loop${index + 1}`, index + 2, head, 'a');

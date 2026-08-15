@@ -31,7 +31,7 @@ describe('fixtures', () => {
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
   });
 
-  it('places a switch diverge on the R40 path', () => {
+  it('places a switch diverge on the City S-curve path', () => {
     const layout = switchFixture('left');
     const sw = layout.parts[0];
     const diverge = worldPorts(CITY_TRACKS_BY_ID['switch-left'], sw).find((port) => port.id === 'diverge');
@@ -46,11 +46,13 @@ describe('fixtures', () => {
     expect(layout.parts.length).toBe(5);
   });
 
-  it('models the double crossover on 8-stud parallels', () => {
+  it('models the double crossover on 16-stud parallels', () => {
     const layout = doubleCrossoverFixture();
     const ports = worldPorts(CITY_TRACKS_BY_ID['double-crossover'], layout.parts[0]);
     const left = ports.filter((port) => port.x < 0);
-    expect(Math.abs(left[0].y - left[1].y)).toBe(8);
+    expect(Math.abs(left[0].y - left[1].y)).toBe(16);
+    const xs = [...new Set(ports.map((port) => port.x))].sort((a, b) => a - b);
+    expect(xs[1] - xs[0]).toBe(48);
   });
 
   it('closes a near-miss gap with one flex piece', () => {

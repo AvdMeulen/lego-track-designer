@@ -4,6 +4,14 @@ export const CONNECT_TOLERANCE = 0.35;
 export const HEADING_TOLERANCE = 4;
 export const CURVE_RADIUS = 40;
 export const CURVE_ANGLE = 22.5;
+/** City switch through-route length (set 60238 / 53407). */
+export const SWITCH_LENGTH = 32;
+/** Outward S-bend of a City switch: arctan(3/4) from the 24-32-40 triangle. */
+export const SWITCH_OUT_ANGLE = (Math.atan(0.75) * 180) / Math.PI;
+export const SWITCH_RETURN_ANGLE = SWITCH_OUT_ANGLE - CURVE_ANGLE;
+/** Assembled 7996-1: two 24×24 halves (60128) joined end to end. */
+export const CROSSOVER_LENGTH = 48;
+export const CROSSOVER_SPACING = 16;
 
 export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -237,24 +245,89 @@ function thickenSegment(a: Point, b: Point, halfWidth: number): string {
   ].join(' ');
 }
 
-export function switchArtwork(sign = 1): { beds: string[]; rails: string[] } {
-  const end = curveEnd(CURVE_RADIUS, CURVE_ANGLE, sign);
+export function switchDivergeEnd(sign = 1): Point {
+  const mid = curveEnd(CURVE_RADIUS, SWITCH_OUT_ANGLE, sign);
+  const back = curveEnd(CURVE_RADIUS, SWITCH_RETURN_ANGLE, -sign);
+  return addPoints(mid, rotatePoint(back, sign * SWITCH_OUT_ANGLE));
+}
+
+export function switchBranchFootprints(sign = 1): Point[][] {
+  const mid = curveEnd(CURVE_RADIUS, SWITCH_OUT_ANGLE, sign);
+  const first = curveSector(CURVE_RADIUS, SWITCH_OUT_ANGLE, 4, sign, 8);
+  const second = curveSector(CURVE_RADIUS, SWITCH_RETURN_ANGLE, 4, -sign, 8).map((point) =>
+    addPoints(mid, rotatePoint(point, sign * SWITCH_OUT_ANGLE)),
+  );
+  return [first, second];
+}
+
+function transformedCurvePath(
+  radius: number,
+  angle: number,
+  halfWidth: number,
+  sign: number,
+  origin: Point,
+  rotation: number,
+): string {
+  const [outerStart, outerEnd, innerEnd, innerStart] = curveSector(radius, angle, halfWidth, sign, 1);
+  const xform = (point: Point) => addPoints(origin, rotatePoint(point, rotation));
+  const start = xform(outerStart);
+  const end = xform(outerEnd);
+  const innerFar = xform(innerEnd);
+  const innerNear = xform(innerStart);
+  const outerR = radius + halfWidth;
+  const innerR = radius - halfWidth;
   const sweep = sign >= 0 ? 1 : 0;
+  const back = sign >= 0 ? 0 : 1;
+  return [
+    `M ${start.x} ${start.y}`,
+    `A ${outerR} ${outerR} 0 0 ${sweep} ${end.x} ${end.y}`,
+    `L ${innerFar.x} ${innerFar.y}`,
+    `A ${innerR} ${innerR} 0 0 ${back} ${innerNear.x} ${innerNear.y}`,
+    'Z',
+  ].join(' ');
+}
+
+export function switchArtwork(sign = 1): { beds: string[]; rails: string[] } {
+  const mid = curveEnd(CURVE_RADIUS, SWITCH_OUT_ANGLE, sign);
+  const end = switchDivergeEnd(sign);
+  const sweepOut = sign >= 0 ? 1 : 0;
+  const sweepBack = sign >= 0 ? 0 : 1;
   return {
-    beds: [rectPath(0, -3, 16, 6), curveArtworkPath(CURVE_RADIUS, CURVE_ANGLE, 3, sign)],
-    rails: [`M 0 0 H 16`, `M 0 0 A ${CURVE_RADIUS} ${CURVE_RADIUS} 0 0 ${sweep} ${end.x} ${end.y}`],
+    beds: [
+      rectPath(0, -3, SWITCH_LENGTH, 6),
+      curveArtworkPath(CURVE_RADIUS, SWITCH_OUT_ANGLE, 3, sign),
+      transformedCurvePath(
+        CURVE_RADIUS,
+        SWITCH_RETURN_ANGLE,
+        3,
+        -sign,
+        mid,
+        sign * SWITCH_OUT_ANGLE,
+      ),
+    ],
+    rails: [
+      `M 0 0 H ${SWITCH_LENGTH}`,
+      `M 0 0 A ${CURVE_RADIUS} ${CURVE_RADIUS} 0 0 ${sweepOut} ${mid.x} ${mid.y} A ${CURVE_RADIUS} ${CURVE_RADIUS} 0 0 ${sweepBack} ${end.x} ${end.y}`,
+    ],
   };
 }
 
 export function crossoverArtwork(): { beds: string[]; rails: string[] } {
+  const half = CROSSOVER_LENGTH / 2;
+  const lane = CROSSOVER_SPACING;
   return {
     beds: [
-      rectPath(-16, -3, 32, 6),
-      rectPath(-16, 5, 32, 6),
-      thickenSegment({ x: -16, y: 0 }, { x: 16, y: 8 }, 2.3),
-      thickenSegment({ x: -16, y: 8 }, { x: 16, y: 0 }, 2.3),
+      rectPath(-half, -3, CROSSOVER_LENGTH, 6),
+      rectPath(-half, lane - 3, CROSSOVER_LENGTH, 6),
+      thickenSegment({ x: -half, y: 0 }, { x: half, y: lane }, 2.3),
+      thickenSegment({ x: -half, y: lane }, { x: half, y: 0 }, 2.3),
     ],
-    rails: ['M -16 0 H 16', 'M -16 8 H 16', 'M -16 0 L 16 8', 'M -16 8 L 16 0'],
+    rails: [
+      `M ${-half} 0 H ${half}`,
+      `M ${-half} ${lane} H ${half}`,
+      `M ${-half} 0 L ${half} ${lane}`,
+      `M ${-half} ${lane} L ${half} 0`,
+    ],
   };
 }
 

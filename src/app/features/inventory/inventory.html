@@ -6,12 +6,7 @@
     <p class="total">{{ 'inventory.total' | t: { count: inventory.totalPieces() } }}</p>
   </header>
 
-  <div class="presets">
-    @for (preset of presets; track preset.id) {
-      <button type="button" (click)="inventory.applyPreset(preset.quantities)">
-        {{ 'preset.' + preset.id + '.name' | t }}
-      </button>
-    }
+  <div class="actions">
     @if (!confirmingReset()) {
       <button type="button" class="reset" (click)="confirmingReset.set(true)">
         {{ 'inventory.reset' | t }}

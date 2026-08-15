@@ -104,7 +104,7 @@ export class TrackCanvas {
         spec.category === 'curve'
           ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2)
           : spec.category === 'double-crossover'
-            ? { x: 0, y: 4 }
+            ? { x: 0, y: 8 }
             : polygonCenter(spec.footprint);
       const center = part.flexPath?.length
         ? part.flexPath[Math.floor(part.flexPath.length / 2)]

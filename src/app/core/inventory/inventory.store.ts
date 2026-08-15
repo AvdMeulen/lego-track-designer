@@ -36,17 +36,13 @@ export class InventoryStore {
     this.setQuantity(partId, this.quantity(partId) + delta);
   }
 
-  applyPreset(preset: Record<string, number>): void {
+  clear(): void {
     const next: Record<string, number> = {};
     for (const part of this.catalog.parts) {
-      next[part.id] = preset[part.id] ?? 0;
+      next[part.id] = 0;
     }
     this.quantities.set(next);
     this.storage.write(INVENTORY_STORAGE_KEY, next);
-  }
-
-  clear(): void {
-    this.applyPreset({});
   }
 
   snapshot(): InventoryItem[] {

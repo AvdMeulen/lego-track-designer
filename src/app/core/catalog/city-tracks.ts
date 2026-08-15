@@ -1,9 +1,21 @@
 import { TrackPart } from '../../shared/models/track';
-import { CURVE_ANGLE, CURVE_RADIUS, curveEnd, curveSector, rectangle, unionRectangles } from '../layout-engine/geometry';
+import {
+  CURVE_ANGLE,
+  CURVE_RADIUS,
+  CROSSOVER_LENGTH,
+  CROSSOVER_SPACING,
+  SWITCH_LENGTH,
+  curveEnd,
+  curveSector,
+  rectangle,
+  switchBranchFootprints,
+  switchDivergeEnd,
+  unionRectangles,
+} from '../layout-engine/geometry';
 
 const curve = curveEnd();
-const leftDiverge = curveEnd(CURVE_RADIUS, CURVE_ANGLE, 1);
-const rightDiverge = curveEnd(CURVE_RADIUS, CURVE_ANGLE, -1);
+const leftDiverge = switchDivergeEnd(1);
+const rightDiverge = switchDivergeEnd(-1);
 
 export const CITY_TRACKS: TrackPart[] = [
   {
@@ -36,31 +48,31 @@ export const CITY_TRACKS: TrackPart[] = [
     id: 'switch-left',
     name: 'Left switch',
     category: 'switch',
-    hint: 'Through route plus an R40 diverge to the left.',
+    hint: '32-stud through plus an S-curve branch. Add a curve to run parallel.',
     legoIds: ['6085213'],
     color: '#2d7a3a',
     ports: [
       { id: 'stem', x: 0, y: 0, heading: 180 },
-      { id: 'through', x: 16, y: 0, heading: 0 },
+      { id: 'through', x: SWITCH_LENGTH, y: 0, heading: 0 },
       { id: 'diverge', x: leftDiverge.x, y: leftDiverge.y, heading: CURVE_ANGLE },
     ],
-    footprint: rectangle(16, 8),
-    extraFootprints: [curveSector(CURVE_RADIUS, CURVE_ANGLE, 4, 1, 1)],
+    footprint: rectangle(SWITCH_LENGTH, 8),
+    extraFootprints: switchBranchFootprints(1),
   },
   {
     id: 'switch-right',
     name: 'Right switch',
     category: 'switch',
-    hint: 'Through route plus an R40 diverge to the right.',
+    hint: '32-stud through plus an S-curve branch. Add a curve to run parallel.',
     legoIds: ['6085188'],
     color: '#1f7a4d',
     ports: [
       { id: 'stem', x: 0, y: 0, heading: 180 },
-      { id: 'through', x: 16, y: 0, heading: 0 },
+      { id: 'through', x: SWITCH_LENGTH, y: 0, heading: 0 },
       { id: 'diverge', x: rightDiverge.x, y: rightDiverge.y, heading: 360 - CURVE_ANGLE },
     ],
-    footprint: rectangle(16, 8),
-    extraFootprints: [curveSector(CURVE_RADIUS, CURVE_ANGLE, 4, -1, 1)],
+    footprint: rectangle(SWITCH_LENGTH, 8),
+    extraFootprints: switchBranchFootprints(-1),
   },
   {
     id: 'crossing-90',
@@ -81,15 +93,15 @@ export const CITY_TRACKS: TrackPart[] = [
     id: 'double-crossover',
     name: 'Double crossover',
     category: 'double-crossover',
-    hint: 'Set 7996-1. Joins two parallel tracks 8 studs apart.',
+    hint: 'Two 60128 halves from set 7996-1. Assembled 48×24 studs; parallel tracks 16 studs apart.',
     color: '#6b3fa0',
     ports: [
-      { id: 'a', x: -16, y: 0, heading: 180 },
-      { id: 'b', x: 16, y: 0, heading: 0 },
-      { id: 'c', x: -16, y: 8, heading: 180 },
-      { id: 'd', x: 16, y: 8, heading: 0 },
+      { id: 'a', x: -CROSSOVER_LENGTH / 2, y: 0, heading: 180 },
+      { id: 'b', x: CROSSOVER_LENGTH / 2, y: 0, heading: 0 },
+      { id: 'c', x: -CROSSOVER_LENGTH / 2, y: CROSSOVER_SPACING, heading: 180 },
+      { id: 'd', x: CROSSOVER_LENGTH / 2, y: CROSSOVER_SPACING, heading: 0 },
     ],
-    footprint: rectangle(32, 16, -16, -4),
+    footprint: rectangle(CROSSOVER_LENGTH, CROSSOVER_SPACING + 8, -CROSSOVER_LENGTH / 2, -4),
   },
   {
     id: 'flex-track',

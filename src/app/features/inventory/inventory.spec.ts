@@ -29,5 +29,7 @@ describe('Inventory', () => {
     expect(compiled.textContent).not.toContain('Buffer stop');
     expect(compiled.textContent).toContain('Reset collection');
     expect(compiled.textContent).toContain('pieces in the collection');
+    expect(compiled.textContent).not.toContain('16-curve circle');
+    expect(compiled.textContent).not.toContain('Yard starter');
   });
 });

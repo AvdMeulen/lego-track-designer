@@ -4,11 +4,13 @@ import {
   crossoverArtwork,
   CURVE_ANGLE,
   CURVE_RADIUS,
+  SWITCH_LENGTH,
   curveSector,
   headingDelta,
   polygonCenter,
   portsConnect,
   switchArtwork,
+  switchDivergeEnd,
   worldPort,
 } from './geometry';
 
@@ -49,10 +51,32 @@ describe('geometry', () => {
     }
   });
 
-  it('draws a switch as a through bed plus a diverge', () => {
+  it('draws a switch as a 32-stud straight plus an S-curve branch', () => {
     const art = switchArtwork(1);
-    expect(art.beds.length).toBe(2);
+    expect(art.beds.length).toBe(3);
     expect(art.rails.length).toBe(2);
+    expect(art.rails[0]).toContain(`H ${SWITCH_LENGTH}`);
+  });
+
+  it('completes a City switch to a 16-stud parallel with one curve and one straight', () => {
+    const sw = CITY_TRACKS_BY_ID['switch-left'];
+    const placed = { instanceId: 's1', x: 0, y: 0, rotation: 0 };
+    const through = worldPort(sw, placed, 'through');
+    const diverge = worldPort(sw, placed, 'diverge');
+    expect(through.x).toBe(SWITCH_LENGTH);
+    expect(diverge.heading).toBeCloseTo(CURVE_ANGLE, 5);
+    expect(switchDivergeEnd(1).x).toBeCloseTo(32.68, 1);
+    expect(switchDivergeEnd(1).y).toBeCloseTo(12.97, 1);
+
+    const straightPose = attachPart(CITY_TRACKS_BY_ID['straight-16'], 'a', through);
+    const curvePose = attachPart(CITY_TRACKS_BY_ID['curve-22'], 'b', diverge);
+    const straightEnd = worldPort(CITY_TRACKS_BY_ID['straight-16'], { ...straightPose, instanceId: 'st' }, 'b');
+    const curveEndPort = worldPort(CITY_TRACKS_BY_ID['curve-22'], { ...curvePose, instanceId: 'c' }, 'a');
+    expect(straightEnd.x).toBeCloseTo(48, 1);
+    expect(straightEnd.y).toBeCloseTo(0, 1);
+    expect(curveEndPort.x).toBeCloseTo(48, 1);
+    expect(curveEndPort.y).toBeCloseTo(16, 1);
+    expect(headingDelta(straightEnd.heading, curveEndPort.heading)).toBeLessThan(1);
   });
 
   it('draws a crossover as two parallels and an X', () => {

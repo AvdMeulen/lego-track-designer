@@ -3,7 +3,6 @@ import { RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog/catalog.service';
 import { TPipe } from '../../core/i18n/t.pipe';
 import { InventoryStore } from '../../core/inventory/inventory.store';
-import { INVENTORY_PRESETS } from '../../core/inventory/presets';
 
 @Component({
   selector: 'app-inventory',
@@ -14,7 +13,6 @@ import { INVENTORY_PRESETS } from '../../core/inventory/presets';
 export class Inventory {
   protected readonly catalog = inject(CatalogService);
   protected readonly inventory = inject(InventoryStore);
-  protected readonly presets = INVENTORY_PRESETS;
   protected readonly confirmingReset = signal(false);
 
   protected resetCollection(): void {

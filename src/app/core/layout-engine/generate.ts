@@ -174,23 +174,34 @@ function insertSwitchesIntoLoop(
 ): PlacedPart[] {
   const result = parts.map((part) => ({ ...part }));
   const switchIds = (['switch-left', 'switch-right'] as const).filter((id) => (inventory[id] ?? 0) > 0);
-  const straightIndexes = result
-    .map((part, index) => (part.partId === 'straight-16' ? index : -1))
-    .filter((index) => index >= 0);
-  if (switchIds.length === 0 || straightIndexes.length === 0) {
+  const taken = new Set<number>();
+  const pairs: number[] = [];
+  for (let i = 0; i < result.length; i += 1) {
+    const next = (i + 1) % result.length;
+    if (
+      result[i].partId === 'straight-16' &&
+      result[next].partId === 'straight-16' &&
+      !taken.has(i) &&
+      !taken.has(next)
+    ) {
+      pairs.push(i);
+      taken.add(i);
+      taken.add(next);
+    }
+  }
+  if (switchIds.length === 0 || pairs.length === 0) {
     return result;
   }
 
   const picks =
-    switchIds.length > 1 && straightIndexes.length > 1
-      ? [straightIndexes[0], straightIndexes[Math.floor(straightIndexes.length / 2)]]
-      : [straightIndexes[0]];
-
+    switchIds.length > 1 && pairs.length > 1 ? [pairs[0], pairs[Math.floor(pairs.length / 2)]] : [pairs[0]];
+  const remove = new Set<number>();
   switchIds.slice(0, picks.length).forEach((id, index) => {
     const target = picks[index];
     result[target] = { ...result[target], partId: id };
+    remove.add((target + 1) % result.length);
   });
-  return result;
+  return result.filter((_, index) => !remove.has(index));
 }
 
 function growOpenBranches(
@@ -220,15 +231,23 @@ function growOpenBranches(
           continue;
         }
         const part = catalog[type];
-        const placed = tryAttach(
-          part,
-          part.ports[0].id,
-          open,
-          result,
-          catalog,
-          `br${result.length + 1}`,
-          result.length + 1,
-        );
+        const locals =
+          open.id === 'diverge' && part.category === 'curve' ? [...part.ports].reverse() : part.ports;
+        let placed: PlacedPart | null = null;
+        for (const local of locals) {
+          placed = tryAttach(
+            part,
+            local.id,
+            open,
+            result,
+            catalog,
+            `br${result.length + 1}`,
+            result.length + 1,
+          );
+          if (placed) {
+            break;
+          }
+        }
         if (placed) {
           result.push(placed);
           progress = true;
