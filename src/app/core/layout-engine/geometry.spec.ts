@@ -51,11 +51,12 @@ describe('geometry', () => {
     }
   });
 
-  it('draws a switch as a 32-stud straight plus an S-curve branch', () => {
+  it('draws a switch as one 8-stud-wide through bed and one S-curve branch', () => {
     const art = switchArtwork(1);
-    expect(art.beds.length).toBe(3);
-    expect(art.rails.length).toBe(2);
-    expect(art.rails[0]).toContain(`H ${SWITCH_LENGTH}`);
+    expect(art.beds.length).toBe(2);
+    expect(art.rails.length).toBe(0);
+    expect(art.beds[0]).toContain(`h ${SWITCH_LENGTH}`);
+    expect(art.beds[0]).toContain('v 8');
   });
 
   it('completes a City switch to a 16-stud parallel with one curve and one straight', () => {
@@ -79,10 +80,11 @@ describe('geometry', () => {
     expect(headingDelta(straightEnd.heading, curveEndPort.heading)).toBeLessThan(1);
   });
 
-  it('draws a crossover as two parallels and an X', () => {
+  it('draws a crossover as two 8-stud parallels and an X', () => {
     const art = crossoverArtwork();
     expect(art.beds.length).toBe(4);
-    expect(art.rails.length).toBe(4);
+    expect(art.rails.length).toBe(0);
+    expect(art.beds[0]).toContain('v 8');
   });
 
   it('centers a straight label in the middle of the piece', () => {

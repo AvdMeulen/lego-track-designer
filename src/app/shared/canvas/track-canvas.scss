@@ -40,6 +40,10 @@
   stroke-width: 0.35;
 }
 
+.part path.body.overlay {
+  stroke: none;
+}
+
 .part.selected polygon,
 .part.selected path.body {
   stroke: #c91a1a;

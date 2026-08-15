@@ -69,6 +69,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.allowFlex': 'Allow flex gap-closes',
     'designer.preferMorePieces': 'Prefer using more pieces',
     'designer.compact': 'Compact footprint',
+    'designer.useWholeRoom': 'Use the whole room',
     'designer.parkingReverse': 'Parking and reverse',
     'designer.parkingItem': 'Parking {n} · {studs} studs',
     'designer.noParking': 'No parking spots',
@@ -96,6 +97,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'note.gapTooLarge': 'Gap too large for flex.',
     'note.fewerParking': 'Fewer parking spots than requested.',
 
+    'layout.variedLoop': 'Varied loop with sidings',
     'layout.roundedLoop': 'Rounded loop from curves and straights',
     'layout.parallels': 'Parallel tracks from a double crossover',
     'layout.pointToPoint': 'Point-to-point route',
@@ -186,6 +188,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.allowFlex': 'Flex-gaten toestaan',
     'designer.preferMorePieces': 'Liever meer stukken gebruiken',
     'designer.compact': 'Compacte voetafdruk',
+    'designer.useWholeRoom': 'Gebruik de hele kamer',
     'designer.parkingReverse': 'Parkeren en keren',
     'designer.parkingItem': 'Parkeren {n} · {studs} noppen',
     'designer.noParking': 'Geen parkeerplekken',
@@ -213,6 +216,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'note.gapTooLarge': 'Gat te groot voor flex.',
     'note.fewerParking': 'Minder parkeerplekken dan gevraagd.',
 
+    'layout.variedLoop': 'Wisselende lus met zijsporen',
     'layout.roundedLoop': 'Afgeronde lus van bochten en rechte stukken',
     'layout.parallels': 'Parallelle banen vanuit een dubbele kruising',
     'layout.pointToPoint': 'Punt-tot-puntroute',

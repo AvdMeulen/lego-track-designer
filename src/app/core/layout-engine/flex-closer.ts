@@ -35,6 +35,9 @@ export function canCloseWithFlex(
   if (chord < limits.minChordStuds || chord > limits.lengthStuds) {
     return false;
   }
+  if (headingDelta(a.heading, b.heading + 180) > 12) {
+    return false;
+  }
   const dir = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
   const error = headingDelta(a.heading, dir) + headingDelta(b.heading, dir + 180);
   return error <= limits.maxBendDegrees;

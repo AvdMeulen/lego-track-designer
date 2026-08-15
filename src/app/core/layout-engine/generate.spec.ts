@@ -23,8 +23,10 @@ describe('generateLayout', () => {
       DEFAULT_PREFERENCES,
       { seed: 2, timeoutMs: 1500 },
     );
+    expect(layout.parts.filter((part) => part.partId === 'flex-track').length).toBe(0);
+    expect(layout.score.routeBonus).toBe(0);
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBeGreaterThan(0);
-    expect(layout.message).toContain('note.fifteenCurves');
+    expect(layout.notes.join(' ')).toContain('note.fifteenCurves');
   });
 
   it('uses 8 curves and 8 straights as a connected network', () => {
@@ -64,7 +66,7 @@ describe('generateLayout', () => {
     expect(layout.connections.length).toBeGreaterThan(0);
   });
 
-  it('closes a rounded loop even when extra curves remain', () => {
+  it('uses extra curves in a closed loop instead of leaving them unused', () => {
     const layout = generateLayout(
       [
         { partId: 'curve-22', quantity: 24 },
@@ -75,8 +77,25 @@ describe('generateLayout', () => {
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
-    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBe(16);
-    expect(layout.parts.filter((part) => part.partId === 'straight-16').length).toBe(24);
+    const curves = layout.parts.filter((part) => part.partId === 'curve-22').length;
+    const straights = layout.parts.filter((part) => part.partId === 'straight-16').length;
+    expect(curves).toBeGreaterThanOrEqual(16);
+    expect(straights).toBe(24);
+    expect(layout.unusedInventory.find((item) => item.partId === 'straight-16')).toBeFalsy();
+  });
+
+  it('builds a long straight parking siding from a switch', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'curve-22', quantity: 16 },
+        { partId: 'straight-16', quantity: 16 },
+        { partId: 'switch-left', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: false },
+      { seed: 1, timeoutMs: 1500 },
+    );
+    expect(layout.parkingSpots.length).toBeGreaterThan(0);
+    expect(Math.max(...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeGreaterThanOrEqual(80);
   });
 
   it('connects a switch diverge as a second track on a loop', () => {

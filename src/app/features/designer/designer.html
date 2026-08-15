@@ -107,10 +107,10 @@
         <label>
           <input
             type="checkbox"
-            [ngModel]="store.preferences().compact"
-            (ngModelChange)="store.updatePreferences({ compact: $event })"
+            [ngModel]="!store.preferences().compact"
+            (ngModelChange)="store.updatePreferences({ compact: !$event })"
           />
-          {{ 'designer.compact' | t }}
+          {{ 'designer.useWholeRoom' | t }}
         </label>
       </fieldset>
 

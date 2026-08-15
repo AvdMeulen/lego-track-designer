@@ -260,55 +260,39 @@ export function switchBranchFootprints(sign = 1): Point[][] {
   return [first, second];
 }
 
-function transformedCurvePath(
-  radius: number,
-  angle: number,
-  halfWidth: number,
-  sign: number,
-  origin: Point,
-  rotation: number,
-): string {
-  const [outerStart, outerEnd, innerEnd, innerStart] = curveSector(radius, angle, halfWidth, sign, 1);
-  const xform = (point: Point) => addPoints(origin, rotatePoint(point, rotation));
-  const start = xform(outerStart);
-  const end = xform(outerEnd);
-  const innerFar = xform(innerEnd);
-  const innerNear = xform(innerStart);
-  const outerR = radius + halfWidth;
-  const innerR = radius - halfWidth;
-  const sweep = sign >= 0 ? 1 : 0;
-  const back = sign >= 0 ? 0 : 1;
-  return [
-    `M ${start.x} ${start.y}`,
-    `A ${outerR} ${outerR} 0 0 ${sweep} ${end.x} ${end.y}`,
-    `L ${innerFar.x} ${innerFar.y}`,
-    `A ${innerR} ${innerR} 0 0 ${back} ${innerNear.x} ${innerNear.y}`,
-    'Z',
-  ].join(' ');
-}
-
 export function switchArtwork(sign = 1): { beds: string[]; rails: string[] } {
+  const half = 4;
   const mid = curveEnd(CURVE_RADIUS, SWITCH_OUT_ANGLE, sign);
-  const end = switchDivergeEnd(sign);
   const sweepOut = sign >= 0 ? 1 : 0;
   const sweepBack = sign >= 0 ? 0 : 1;
+  const [outerStart, outerMid, , innerStart] = curveSector(
+    CURVE_RADIUS,
+    SWITCH_OUT_ANGLE,
+    half,
+    sign,
+    1,
+  );
+  const second = curveSector(CURVE_RADIUS, SWITCH_RETURN_ANGLE, half, -sign, 1);
+  const xform = (point: Point) => addPoints(mid, rotatePoint(point, sign * SWITCH_OUT_ANGLE));
+  const outerEnd = xform(second[1]);
+  const innerEnd = xform(second[2]);
+  const innerJoin = xform(second[3]);
+  const outerR = CURVE_RADIUS + half;
+  const innerR = CURVE_RADIUS - half;
   return {
     beds: [
-      rectPath(0, -3, SWITCH_LENGTH, 6),
-      curveArtworkPath(CURVE_RADIUS, SWITCH_OUT_ANGLE, 3, sign),
-      transformedCurvePath(
-        CURVE_RADIUS,
-        SWITCH_RETURN_ANGLE,
-        3,
-        -sign,
-        mid,
-        sign * SWITCH_OUT_ANGLE,
-      ),
+      rectPath(0, -half, SWITCH_LENGTH, half * 2),
+      [
+        `M ${outerStart.x} ${outerStart.y}`,
+        `A ${outerR} ${outerR} 0 0 ${sweepOut} ${outerMid.x} ${outerMid.y}`,
+        `A ${outerR} ${outerR} 0 0 ${sweepBack} ${outerEnd.x} ${outerEnd.y}`,
+        `L ${innerEnd.x} ${innerEnd.y}`,
+        `A ${innerR} ${innerR} 0 0 ${sweepOut} ${innerJoin.x} ${innerJoin.y}`,
+        `A ${innerR} ${innerR} 0 0 ${sweepBack} ${innerStart.x} ${innerStart.y}`,
+        'Z',
+      ].join(' '),
     ],
-    rails: [
-      `M 0 0 H ${SWITCH_LENGTH}`,
-      `M 0 0 A ${CURVE_RADIUS} ${CURVE_RADIUS} 0 0 ${sweepOut} ${mid.x} ${mid.y} A ${CURVE_RADIUS} ${CURVE_RADIUS} 0 0 ${sweepBack} ${end.x} ${end.y}`,
-    ],
+    rails: [],
   };
 }
 
@@ -317,17 +301,12 @@ export function crossoverArtwork(): { beds: string[]; rails: string[] } {
   const lane = CROSSOVER_SPACING;
   return {
     beds: [
-      rectPath(-half, -3, CROSSOVER_LENGTH, 6),
-      rectPath(-half, lane - 3, CROSSOVER_LENGTH, 6),
-      thickenSegment({ x: -half, y: 0 }, { x: half, y: lane }, 2.3),
-      thickenSegment({ x: -half, y: lane }, { x: half, y: 0 }, 2.3),
+      rectPath(-half, -4, CROSSOVER_LENGTH, 8),
+      rectPath(-half, lane - 4, CROSSOVER_LENGTH, 8),
+      thickenSegment({ x: -half, y: 0 }, { x: half, y: lane }, 4),
+      thickenSegment({ x: -half, y: lane }, { x: half, y: 0 }, 4),
     ],
-    rails: [
-      `M ${-half} 0 H ${half}`,
-      `M ${-half} ${lane} H ${half}`,
-      `M ${-half} 0 L ${half} ${lane}`,
-      `M ${-half} ${lane} L ${half} 0`,
-    ],
+    rails: [],
   };
 }
 
