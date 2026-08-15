@@ -17,9 +17,9 @@ src/app/
   core/catalog/            Eight City parts
   core/inventory/          Quantities, presets, localStorage
   core/layout-store/       Current design + preferences
-  core/layout-engine/      Geometry, collide, fixtures, search, flex closer
+  core/layout-engine/      Geometry, collide, generate, fixtures, flex closer
   core/layout-analysis/    Parking, reverse options, cycles
-  core/export/             SVG to PNG
+  core/export/             SVG to PNG, JSON snapshot import/export
   core/storage/            localStorage adapter
   features/home/
   features/inventory/
@@ -28,16 +28,16 @@ src/app/
 
 ## Data flow
 
-Catalog → inventory page → inventory store → designer → rigid search → flex closer → layout store → analysis → labeled canvas → PNG export.
+Catalog → inventory page → inventory store → designer → `generateLayout` → flex closer → layout store → analysis → labeled canvas → PNG or JSON snapshot.
 
 ## Engine
 
-1. Constructive rounded loop when 16 curves are available.
-2. Point-to-point when a closed loop is not possible.
-3. Switch-led sidings for parking.
-4. Timed backtracking for leftover rigid pieces.
-5. Flex closer for leftover near-miss ports only.
+Closed rings first (octagon / irregular / wobble, plus a wander-home attempt), then decoration: random arc, crossover, switch pairs, passing lanes, at most `targetParkingSpots` sidings. Score picks among those candidates. Point-to-point and switch-led search run only when nothing looped. Flex closes a leftover near-miss only.
+
+Details, instance-id prefixes, and snapshot-driven rules: [GENERATOR.md](GENERATOR.md).
 
 ## Testing
 
-Golden tests live next to the engine: 16-curve circle, oval fixture, 15-curve refusal, switch/crossing/crossover fixtures, parking siding, flex accept/refuse.
+Golden fixtures live next to geometry (`fixtures.spec.ts`): 16-curve circle, oval, 15-curve refusal, switch/crossing/crossover, flex accept/refuse.
+
+Generator regressions live in `generate.spec.ts`: parking sidings, S-bends, large-collection seeds 14–18 (no adjacent switches, no tentacle, passing lanes, unused curves, off-box shape). Snapshot parse/build is in `export/snapshot.spec.ts`.

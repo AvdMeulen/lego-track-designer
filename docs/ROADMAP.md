@@ -24,6 +24,10 @@ Graph analysis for parking spots, dead-end reverse, reversing loop, wye.
 
 Set presets, richer silhouettes/colors, GitHub Actions CI.
 
+## Slice F — Shareable layouts and generator quality (done)
+
+JSON snapshot import/export. Switch artwork as one S. Generator prefers closed loops with passing lanes, one parking siding, leftover curves spent on wobbles / octagons / a random arc — not a box with four dead-ends. Lessons: [GENERATOR.md](GENERATOR.md).
+
 ## Later
 
-3D bricks, train animation, switch-lever states, PDF print, chaining several flex pieces, third-party crossovers.
+Richer room-scale shapes, using the double crossover more often, 3D bricks, train animation, switch-lever states, PDF print, chaining several flex pieces, third-party crossovers.

@@ -19,9 +19,9 @@ Open [http://localhost:4200](http://localhost:4200).
 
 - `/` home
 - `/inventory` collection and presets
-- `/designer` generate, inspect numbered parts, export PNG
+- `/designer` generate, inspect numbered parts, export PNG or JSON, import a snapshot
 
-Inventory and the last layout are stored in this browser. Export PNG for a portable snapshot.
+Inventory and the last layout are stored in this browser. Export PNG for a printable plan. Export or copy JSON (`lego-track-designer.snapshot`) to share a seed, inventory, preferences, and the exact layout — useful when iterating on the generator. Import the same file (or paste) to restore it.
 
 ## GitHub
 

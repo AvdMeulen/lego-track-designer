@@ -4,7 +4,7 @@ Live site: https://avdmeulen.github.io/lego-track-designer/
 
 Visualization-first Angular app for planning **LEGO City** train layouts from the pieces you own.
 
-Record your collection, generate a network (loops, parking dead-ends, reversing routes), see **which part sits where**, keep the design after refresh, and export a labeled PNG.
+Record your collection, generate a network (loops, passing lanes, parking sidings, reversing routes), see **which part sits where**, keep the design after refresh, and export a labeled PNG or a JSON snapshot.
 
 Flexible tracks are used only to close a small remaining gap.
 
@@ -34,6 +34,7 @@ npm run build
 | [docs/PRODUCT.md](docs/PRODUCT.md) | Product goal |
 | [docs/DOMAIN.md](docs/DOMAIN.md) | Track model |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code shape |
+| [docs/GENERATOR.md](docs/GENERATOR.md) | How layouts are built, and lessons from snapshots |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Slices |
 
 ## Catalog

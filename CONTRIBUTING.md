@@ -35,4 +35,4 @@ npm run build
 
 ## Documentation
 
-If a change alters product behavior, folder structure, or setup steps, update the matching file in `docs/`.
+If a change alters product behavior, folder structure, or setup steps, update the matching file in `docs/`. Generator behavior and snapshot-driven rules belong in [docs/GENERATOR.md](docs/GENERATOR.md).
