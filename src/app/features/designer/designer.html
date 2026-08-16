@@ -74,9 +74,9 @@
 
     <div class="panel-scroll">
       <fieldset>
-        <legend>{{ 'designer.preferences' | t }}</legend>
+        <legend>{{ 'designer.parkingSpots' | t }}</legend>
         <label>
-          {{ 'designer.parkingSpots' | t }}
+          {{ 'designer.parkingSpotsHint' | t }}
           <select
             [ngModel]="store.preferences().targetParkingSpots"
             (ngModelChange)="setParking('' + $event)"
@@ -85,46 +85,6 @@
             <option [ngValue]="1">1</option>
             <option [ngValue]="2">{{ 'designer.parking2plus' | t }}</option>
           </select>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            [ngModel]="store.preferences().preferReversingRoute"
-            (ngModelChange)="store.updatePreferences({ preferReversingRoute: $event })"
-          />
-          {{ 'designer.preferReverse' | t }}
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            [ngModel]="store.preferences().loopPlusParking"
-            (ngModelChange)="store.updatePreferences({ loopPlusParking: $event })"
-          />
-          {{ 'designer.loopPlusParking' | t }}
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            [ngModel]="store.preferences().allowFlexCloses"
-            (ngModelChange)="store.updatePreferences({ allowFlexCloses: $event })"
-          />
-          {{ 'designer.allowFlex' | t }}
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            [ngModel]="store.preferences().preferMorePieces"
-            (ngModelChange)="store.updatePreferences({ preferMorePieces: $event })"
-          />
-          {{ 'designer.preferMorePieces' | t }}
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            [ngModel]="!store.preferences().compact"
-            (ngModelChange)="store.updatePreferences({ compact: !$event })"
-          />
-          {{ 'designer.useWholeRoom' | t }}
         </label>
       </fieldset>
 

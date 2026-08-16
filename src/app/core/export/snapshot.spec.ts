@@ -47,4 +47,22 @@ describe('designer snapshot', () => {
     expect(parsed?.inventory).toEqual([{ partId: 'switch-left', quantity: 2 }]);
     expect(parsed?.layout.parts.length).toBe(0);
   });
+
+  it('keeps only parking from older preference blobs', () => {
+    const parsed = parseSnapshot({
+      kind: SNAPSHOT_KIND,
+      version: 1,
+      seed: 2,
+      inventory: [{ partId: 'curve-22', quantity: 16 }],
+      preferences: {
+        targetParkingSpots: 0,
+        preferReversingRoute: false,
+        preferMorePieces: false,
+        compact: true,
+        loopPlusParking: false,
+        allowFlexCloses: false,
+      },
+    });
+    expect(parsed?.preferences).toEqual({ targetParkingSpots: 0 });
+  });
 });

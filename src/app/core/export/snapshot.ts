@@ -1,8 +1,8 @@
 import {
-  DEFAULT_PREFERENCES,
   GenerationPreferences,
   InventoryItem,
   TrackLayout,
+  normalizePreferences,
 } from '../../shared/models/track';
 
 export const SNAPSHOT_KIND = 'lego-track-designer.snapshot';
@@ -52,7 +52,7 @@ export function buildSnapshot(input: {
     version: SNAPSHOT_VERSION,
     exportedAt: new Date().toISOString(),
     seed: input.seed,
-    preferences: { ...DEFAULT_PREFERENCES, ...input.preferences },
+    preferences: normalizePreferences(input.preferences),
     inventory,
     layout: input.layout,
     summary: {
@@ -81,7 +81,7 @@ export function parseSnapshot(raw: unknown): DesignerSnapshot | null {
     return null;
   }
   const inventory = normalizeInventory(value.inventory);
-  const preferences = { ...DEFAULT_PREFERENCES, ...(value.preferences ?? {}) };
+  const preferences = normalizePreferences(value.preferences);
   const layout = isLayout(value.layout) ? value.layout : emptyImportedLayout();
   return buildSnapshot({
     seed: Number.isFinite(value.seed) ? Number(value.seed) : 1,

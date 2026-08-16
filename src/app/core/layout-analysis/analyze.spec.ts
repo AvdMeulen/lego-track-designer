@@ -1,4 +1,3 @@
-import { DEFAULT_PREFERENCES } from '../../shared/models/track';
 import {
   parkingSidingFixture,
   pointToPointFixture,
@@ -40,7 +39,7 @@ describe('layout analysis', () => {
         unfinishedPorts: 2,
         unusedInventory: [{ partId: 'flex-track', quantity: 1 }],
       },
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, allowFlexCloses: true },
+      { targetParkingSpots: 1 },
       { 'switch-left': 0, 'flex-track': 1 },
     );
     expect(notes.some((note) => note.includes('note.noSpareSwitch'))).toBeTrue();

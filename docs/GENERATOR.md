@@ -8,7 +8,7 @@ The engine lives in `src/app/core/layout-engine/generate.ts`. Analysis (parking,
 
 Typical test collection: 58× `straight-16`, 97× `curve-22`, 2 left + 2 right switches, 1 double crossover.
 
-Preferences that match how the app is used: `targetParkingSpots: 1`, `preferReversingRoute`, `preferMorePieces`, `loopPlusParking`, `allowFlexCloses`, `compact: false`.
+The only user setting is `targetParkingSpots` (0, 1, or 2). Rare pieces (switches, crossover, crossing) are always used. With parking off, every pair of switches becomes an alternate route; an odd leftover switch stays on the loop without a siding.
 
 Expect:
 
@@ -28,12 +28,13 @@ Expect:
    - `wanderHomeLoop`: place freely, then home to the start port
 3. For each closed ring, **place features**:
    - `wanderReplaceArc` — cut one unprotected arc and grow it at random (`rnd*`)
-   - one facing pair on a run of at least 10 straights, plus **one** spare switch when parking is requested
-   - try the crossover **between** that pair and join both diverges to its open ports; **revert the crossover** if those ports stay empty
-   - otherwise `buildPassingLane` between the pair; keep `targetParkingSpots` diverges open
+   - first try a route pair on **two different runs** (`rte*`) and join them with a corner chord / `growToward`
+   - if that pair does not close, fall back to the facing pair on one long straight and `buildPassingLane`
+   - try the crossover and join diverges to its open ports; **revert the crossover** if those ports stay empty
+   - keep `targetParkingSpots` diverges open for parking
    - add **exactly** `targetParkingSpots` sidings and lengthen that siding with leftovers (do not start a second stub)
 4. Also try a crossover-only parallel fixture and, if nothing looped, point-to-point or switch-led search.
-5. Score all candidates. Prefer closed loops when `loopPlusParking` is on.
+5. Score all candidates. Prefer a closed loop when one exists. Always spend specials and as many pieces as will join.
 
 Flex runs last, and only to close a small leftover gap. Fifteen curves must not close with flex.
 
@@ -44,7 +45,8 @@ Flex runs last, and only to close a small leftover gap. Fifteen curves must not 
 | `p*` | Sequence-built ring |
 | `w*` | Wander-home loop |
 | `rnd*` | Random replacement arc |
-| `par*` | Passing-lane pieces |
+| `rte*` | Alternate-route switch pair on two different runs |
+| `par*` | Passing-lane or chord pieces |
 | `sid*` | Parking siding |
 | `xo*` | Double crossover |
 | `ret*` | Grow/retry pieces (kept only if they join) |
@@ -58,7 +60,9 @@ A snapshot that is only `p1…pN` plus four `sid*` chains is the old “wobbly r
 - **Double crossover:** 48 studs long (three straights), parallel routes 16 studs apart.
 - Ports connect within 0.35 studs and ~180° heading. Footprints may touch at faces, not overlap.
 
-## Passing lanes
+## Alternate routes, then passing lanes
+
+Prefer two switches on **different runs** (`rte*`), diverges pointing inward, joined by a corner chord or `growToward`. That is a second route through the interior, not a clone beside one straight. If those diverges stay open, fall back to a passing pair on one long run.
 
 A useful passing loop needs **opposite-hand** switches on the **same** long run, far apart, facing each other on the **outside** of the loop.
 
@@ -90,7 +94,7 @@ A wobbly rectangle can still win on piece count. Scoring therefore penalizes a h
 
 ## Scoring (what we optimize)
 
-Rewarded: closed loop, more pieces (no 80-piece cap), reversing loops/wyes, specials used, parking length near the target, **passing** (closed diverges minus parking spots), **span between aligned switches**, heading variety.
+Rewarded: closed loop, more pieces, reversing loops/wyes, **specials used**, parking length when parking is requested, rejoined switch pairs, heading variety.
 
 Penalized: unused rigid/special pieces, extra parking beyond the target, tentacle sidings longer than eight straights, boxy cardinal ratio, adjacent switches, unfinished ports on a loop, flex.
 

@@ -2,6 +2,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import {
   DEFAULT_PREFERENCES,
   GenerationPreferences,
+  normalizePreferences,
   InventoryItem,
   LAYOUT_STORAGE_KEY,
   TrackLayout,
@@ -56,7 +57,7 @@ export class LayoutStore {
     const saved = this.storage.read<PersistedLayout>(LAYOUT_STORAGE_KEY);
     if (saved?.layout) {
       this.layout.set(saved.layout);
-      this.preferences.set({ ...DEFAULT_PREFERENCES, ...saved.preferences });
+      this.preferences.set(normalizePreferences(saved.preferences));
       this.seed = saved.seed ?? 1;
       this.usedInventory.set(saved.usedInventory ?? this.inventory.snapshot());
     }
@@ -109,7 +110,7 @@ export class LayoutStore {
 
   importSnapshot(snapshot: DesignerSnapshot): void {
     this.inventory.replaceAll(snapshot.inventory);
-    this.preferences.set({ ...DEFAULT_PREFERENCES, ...snapshot.preferences });
+    this.preferences.set(normalizePreferences(snapshot.preferences));
     this.layout.set(snapshot.layout);
     this.seed = snapshot.seed;
     this.usedInventory.set(snapshot.inventory);

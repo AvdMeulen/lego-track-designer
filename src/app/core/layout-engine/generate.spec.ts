@@ -35,7 +35,7 @@ describe('generateLayout', () => {
         { partId: 'curve-22', quantity: 8 },
         { partId: 'straight-16', quantity: 8 },
       ],
-      { ...DEFAULT_PREFERENCES, loopPlusParking: false, targetParkingSpots: 0 },
+      { targetParkingSpots: 0 },
       { seed: 3, timeoutMs: 1500 },
     );
     expect(layout.parts.length).toBeGreaterThanOrEqual(8);
@@ -59,7 +59,7 @@ describe('generateLayout', () => {
         { partId: 'straight-16', quantity: 4 },
         { partId: 'curve-22', quantity: 4 },
       ],
-      { ...DEFAULT_PREFERENCES, loopPlusParking: false, targetParkingSpots: 0 },
+      { targetParkingSpots: 0 },
       { seed: 5, timeoutMs: 1500 },
     );
     expect(layout.parts.length).toBeGreaterThanOrEqual(4);
@@ -72,7 +72,7 @@ describe('generateLayout', () => {
         { partId: 'curve-22', quantity: 24 },
         { partId: 'straight-16', quantity: 24 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, preferReversingRoute: false },
+      { targetParkingSpots: 0 },
       { seed: 1, timeoutMs: 1500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -91,7 +91,7 @@ describe('generateLayout', () => {
         { partId: 'straight-16', quantity: 16 },
         { partId: 'switch-left', quantity: 1 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: false },
+      { targetParkingSpots: 1 },
       { seed: 1, timeoutMs: 1500 },
     );
     expect(layout.parkingSpots.length).toBeGreaterThan(0);
@@ -135,7 +135,7 @@ describe('generateLayout', () => {
         { partId: 'double-crossover', quantity: 1 },
         { partId: 'straight-16', quantity: 8 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, loopPlusParking: false, preferReversingRoute: false },
+      { targetParkingSpots: 0 },
       { seed: 6, timeoutMs: 1500 },
     );
     const lanes = new Set(
@@ -151,7 +151,7 @@ describe('generateLayout', () => {
         { partId: 'straight-16', quantity: 20 },
         { partId: 'curve-22', quantity: 32 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, preferReversingRoute: false },
+      { targetParkingSpots: 0 },
       { seed: 11, timeoutMs: 2000 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -165,7 +165,7 @@ describe('generateLayout', () => {
         { partId: 'straight-16', quantity: 17 },
         { partId: 'curve-22', quantity: 16 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, preferReversingRoute: false },
+      { targetParkingSpots: 0 },
       { seed: 1, timeoutMs: 1500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -202,7 +202,7 @@ describe('generateLayout', () => {
         { partId: 'switch-right', quantity: 2 },
         { partId: 'double-crossover', quantity: 1 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true },
+      { targetParkingSpots: 1 },
       { seed: 14, timeoutMs: 2500 },
     );
     const switchIds = new Set(
@@ -227,7 +227,7 @@ describe('generateLayout', () => {
         { partId: 'switch-right', quantity: 2 },
         { partId: 'double-crossover', quantity: 1 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true },
+      { targetParkingSpots: 1 },
       { seed: 15, timeoutMs: 2500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -253,7 +253,7 @@ describe('generateLayout', () => {
         { partId: 'switch-right', quantity: 2 },
         { partId: 'double-crossover', quantity: 1 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { targetParkingSpots: 1 },
       { seed: 17, timeoutMs: 2500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -293,7 +293,7 @@ describe('generateLayout', () => {
         { partId: 'switch-right', quantity: 2 },
         { partId: 'double-crossover', quantity: 1 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { targetParkingSpots: 1 },
       { seed: 18, timeoutMs: 2500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -327,7 +327,7 @@ describe('generateLayout', () => {
         { partId: 'switch-right', quantity: 2 },
         { partId: 'double-crossover', quantity: 1 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { targetParkingSpots: 1 },
       { seed: 21, timeoutMs: 2500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -351,7 +351,7 @@ describe('generateLayout', () => {
         { partId: 'switch-right', quantity: 2 },
         { partId: 'double-crossover', quantity: 1 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { targetParkingSpots: 1 },
       { seed: 22, timeoutMs: 2500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
@@ -372,7 +372,7 @@ describe('generateLayout', () => {
         { partId: 'straight-16', quantity: 24 },
         { partId: 'curve-22', quantity: 40 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 0, preferReversingRoute: false },
+      { targetParkingSpots: 0 },
       { seed: 11, timeoutMs: 2000 },
     );
     const turns: number[] = [];
@@ -391,11 +391,7 @@ describe('generateLayout', () => {
   });
 
   it('accepts a 16-curve circle when parking is set to 0', () => {
-    const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], {
-      ...DEFAULT_PREFERENCES,
-      targetParkingSpots: 0,
-      preferReversingRoute: false,
-    });
+    const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], { targetParkingSpots: 0 });
     expect(layout.parkingSpots.length).toBe(0);
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
   });

@@ -94,11 +94,6 @@ export interface LayoutScore {
 
 export interface GenerationPreferences {
   targetParkingSpots: 0 | 1 | 2;
-  preferReversingRoute: boolean;
-  preferMorePieces: boolean;
-  compact: boolean;
-  loopPlusParking: boolean;
-  allowFlexCloses: boolean;
 }
 
 export interface TrackLayout {
@@ -116,12 +111,15 @@ export interface TrackLayout {
 
 export const DEFAULT_PREFERENCES: GenerationPreferences = {
   targetParkingSpots: 1,
-  preferReversingRoute: true,
-  preferMorePieces: true,
-  compact: false,
-  loopPlusParking: true,
-  allowFlexCloses: true,
 };
+
+export function normalizePreferences(raw?: unknown): GenerationPreferences {
+  const spots =
+    raw && typeof raw === 'object' && 'targetParkingSpots' in raw
+      ? Number((raw as { targetParkingSpots: unknown }).targetParkingSpots)
+      : DEFAULT_PREFERENCES.targetParkingSpots;
+  return { targetParkingSpots: spots >= 2 ? 2 : spots >= 1 ? 1 : 0 };
+}
 
 export const INVENTORY_STORAGE_KEY = 'lego-track-designer.inventory.v1';
 export const LAYOUT_STORAGE_KEY = 'lego-track-designer.layout.v1';

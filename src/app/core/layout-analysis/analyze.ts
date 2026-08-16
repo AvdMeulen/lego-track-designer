@@ -63,7 +63,6 @@ export function preferenceNotes(
   inventory: Record<string, number>,
 ): string[] {
   const notes: string[] = [];
-  const switchCount = (inventory['switch-left'] ?? 0) + (inventory['switch-right'] ?? 0);
   const unusedFlex = layout.unusedInventory.find((item) => item.partId === 'flex-track')?.quantity ?? 0;
 
   if ((inventory['curve-22'] ?? 0) === 15 && layout.score.routeBonus === 0) {
@@ -72,14 +71,7 @@ export function preferenceNotes(
   if (prefs.targetParkingSpots > 0 && layout.parkingSpots.length === 0) {
     notes.push('note.noSpareSwitch');
   }
-  if (prefs.preferReversingRoute && !layout.reverseOptions.some((option) => option.kind !== 'dead-end')) {
-    if (switchCount === 0) {
-      notes.push('note.noReverse');
-    } else if (!layout.reverseOptions.some((option) => option.kind === 'reversing-loop' || option.kind === 'wye')) {
-      notes.push('note.noReverseLoop');
-    }
-  }
-  if (prefs.allowFlexCloses && unusedFlex > 0 && layout.unfinishedPorts > 0) {
+  if (unusedFlex > 0 && layout.unfinishedPorts > 0) {
     notes.push('note.gapTooLarge');
   }
   if (prefs.targetParkingSpots > layout.parkingSpots.length && layout.parkingSpots.length > 0) {
