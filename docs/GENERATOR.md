@@ -8,7 +8,7 @@ The engine lives in `src/app/core/layout-engine/generate.ts`. Analysis (parking,
 
 Typical test collection: 58× `straight-16`, 97× `curve-22`, 2 left + 2 right switches, 1 double crossover.
 
-The only user setting is `targetParkingSpots` (0, 1, or 2). Rare pieces (switches, crossover, crossing) are always used. With parking off, every pair of switches becomes an alternate route; an odd leftover switch stays on the loop without a siding.
+The only user setting is `targetParkingSpots` (0, 1, or 2). Rare pieces (switches, crossover, crossing) are used when they form a closed feature. An unused switch in inventory is better than an open split. With parking off, every pair of switches becomes an alternate route; an odd leftover switch stays on the loop without a siding.
 
 Expect:
 
@@ -32,6 +32,7 @@ Expect:
    - if that pair does not close, fall back to the facing pair on one long straight and `buildPassingLane`
    - try the crossover and join diverges to its open ports; **revert the crossover** if those ports stay empty
    - keep `targetParkingSpots` diverges open for parking
+   - **revert** any leftover open switch to two straights (`fix*`) so only parking may stay open
    - add **exactly** `targetParkingSpots` sidings and lengthen that siding with leftovers (do not start a second stub)
 4. Also try a crossover-only parallel fixture and, if nothing looped, point-to-point or switch-led search.
 5. Score all candidates. Prefer a closed loop when one exists. Always spend specials and as many pieces as will join.
@@ -50,6 +51,7 @@ Flex runs last, and only to close a small leftover gap. Fifteen curves must not 
 | `sid*` | Parking siding |
 | `xo*` | Double crossover |
 | `ret*` | Grow/retry pieces (kept only if they join) |
+| `fix*` | Open switch put back to two straights |
 
 A snapshot that is only `p1…pN` plus four `sid*` chains is the old “wobbly rectangle + four parkings” failure mode.
 
@@ -116,12 +118,13 @@ Large-collection tests in `generate.spec.ts` (timeout ~2500 ms):
 
 | Seed | Guard |
 | --- | --- |
-| 14 | Switches not adjacent; parking ends capped |
+| 14 | Switches not adjacent; no open ports except parking; parking ends capped |
 | 15 | No long diagonal dead-end from a diverge |
 | 17 | At least one rejoined passing pair; not every switch is parking; most curves used; switch gap ≥ 96 studs |
 | 18 | Long passing lane (`par*` ≥ 4 pieces) and a wandered or multi-heading shape |
 | 21 | Exactly one parking; crossover only if both tracks close; leftover straights+curves < 17 |
 | 22 | One parking ≥ 80 studs; useful passing lane; no dangling crossover ports |
+| 27 | No open switch splits except the parking siding |
 
 Smaller fixtures still cover the 16-curve circle, the 15-curve flex refusal, a single-switch parking siding, and S-bends on extra curves.
 
@@ -132,4 +135,5 @@ Smaller fixtures still cover the 16-curve circle, the 15-curve flex refusal, a s
 - Keep `growToward` / passing / crossover joins honest: fewer open ports is not enough; the intended target port must close.
 - Do not steal the long switch run to feed wobbles or parking.
 - Prefer one passing loop + one parking over four parkings or two unfinished diverges.
+- No open switch splits except the parking siding. If a route pair does not close, put those switches back to straights.
 - A random stretch is valuable only if the loop still closes and the switch sides stay long.

@@ -212,7 +212,7 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
     boxy +
     variety -
     adjacentSwitchPairs(layout) * 28 -
-    layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 16 : 3) -
+    layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 36 : 3) -
     layout.score.flexPenalty * 6
   );
 }
@@ -883,7 +883,7 @@ function insertSwitchesIntoLoop(
       }
     }
   }
-  const wanted = queue.length;
+  const wanted = Math.min(queue.length, pairSlots.length * 2 + Math.max(wantSingle, 0));
   if (picks.length < wanted) {
     const runs = straightRuns(result).sort((a, b) => b.length - a.length);
     for (const run of runs) {
@@ -2486,6 +2486,40 @@ function layoutRng(parts: PlacedPart[]): () => number {
   return rng(hash >>> 0);
 }
 
+function revertOpenSwitchDiverges(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  catalog: Record<string, TrackPart>,
+  keepOpen: number,
+): PlacedPart[] {
+  const opens = switchOpens(parts, catalog).filter((port) => port.id === 'diverge');
+  if (opens.length <= keepOpen) {
+    return parts;
+  }
+  const revertIds = new Set(opens.slice(keepOpen).map((port) => port.instanceId));
+  const kept = parts.filter((part) => !revertIds.has(part.instanceId));
+  if ((remainingInventory(inventory, kept)['straight-16'] ?? 0) < revertIds.size * 2) {
+    return parts;
+  }
+  const next = [...kept];
+  for (const part of parts) {
+    if (!revertIds.has(part.instanceId)) {
+      continue;
+    }
+    const offset = rotatePoint({ x: 16, y: 0 }, part.rotation);
+    next.push({ ...part, partId: 'straight-16', instanceId: `fix${part.instanceId}a` });
+    next.push({
+      instanceId: `fix${part.instanceId}b`,
+      partId: 'straight-16',
+      label: part.label,
+      x: part.x + offset.x,
+      y: part.y + offset.y,
+      rotation: part.rotation,
+    });
+  }
+  return mainlineCloses(next, catalog) ? next : parts;
+}
+
 function leftoverTrack(parts: PlacedPart[], inventory: Record<string, number>): number {
   const left = remainingInventory(inventory, parts);
   return (left['straight-16'] ?? 0) + (left['curve-22'] ?? 0);
@@ -2532,6 +2566,7 @@ function decorateFeatures(
   }
   result = connectOpenDiverges(result, inventory, catalog, random, wantPark);
   result = connectLeftoverBranches(result, inventory, catalog, random, wantPark);
+  result = revertOpenSwitchDiverges(result, inventory, catalog, wantPark);
   if (wantPark > 0 && switchOpens(result, catalog).length > 0) {
     result = addParkingSidings(result, inventory, catalog, wantPark);
   }
@@ -2697,15 +2732,16 @@ export function generateLayout(
   const parallels = parallelFromCrossover(inventory, catalog);
   if (parallels) {
     const plan = switchPlan(inventory, prefs.targetParkingSpots);
+    const switched = revertOpenSwitchDiverges(
+      insertSwitchesIntoLoop(parallels, inventory, plan.maxPairs, plan.wantSingle),
+      inventory,
+      catalog,
+      prefs.targetParkingSpots,
+    );
     const withPark =
       prefs.targetParkingSpots > 0
-        ? addParkingSidings(
-            insertSwitchesIntoLoop(parallels, inventory, plan.maxPairs, plan.wantSingle),
-            inventory,
-            catalog,
-            prefs.targetParkingSpots,
-          )
-        : insertSwitchesIntoLoop(parallels, inventory, plan.maxPairs, plan.wantSingle);
+        ? addParkingSidings(switched, inventory, catalog, prefs.targetParkingSpots)
+        : switched;
     candidates.push(finalize(withPark, inventory, prefs, 'layout.parallels'));
   }
 

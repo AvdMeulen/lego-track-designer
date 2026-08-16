@@ -213,7 +213,7 @@ describe('generateLayout', () => {
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(adjacent).toBeFalse();
-    expect(layout.unfinishedPorts).toBeLessThanOrEqual(4);
+    expect(layout.unfinishedPorts).toBe(0);
     expect(layout.parkingSpots.length).toBeLessThanOrEqual(2);
     expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(224);
   });
@@ -364,6 +364,23 @@ describe('generateLayout', () => {
     if (layout.parts.some((part) => part.partId === 'double-crossover')) {
       expect(layout.unfinishedPorts).toBe(0);
     }
+  });
+
+  it('leaves no open switch splits except the parking siding', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 58 },
+        { partId: 'curve-22', quantity: 97 },
+        { partId: 'switch-left', quantity: 2 },
+        { partId: 'switch-right', quantity: 2 },
+        { partId: 'double-crossover', quantity: 1 },
+      ],
+      { targetParkingSpots: 1 },
+      { seed: 27, timeoutMs: 2500 },
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.parkingSpots.length).toBe(1);
+    expect(layout.unfinishedPorts).toBe(0);
   });
 
   it('uses opposite-curve S-bends instead of only 90-degree corners', () => {
