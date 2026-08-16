@@ -1267,10 +1267,8 @@ function buildPassingLane(
 ): PlacedPart[] | null {
   const maxStraights = Math.min(10, remainingInventory(inventory, parts)['straight-16'] ?? 0);
   const guessed = Math.max(0, Math.min(maxStraights, Math.round(distance(start, target) / 16) - 1));
-  const stuffed = Math.min(maxStraights, Math.max(guessed, Math.min(8, maxStraights)));
-  const mids = [...new Set([stuffed, guessed + 2, guessed + 1, 6, 4, guessed, 2, guessed - 1, 0].filter(
-    (mid) => mid >= 0 && mid <= maxStraights,
-  ))];
+  const stuffed = Math.min(maxStraights, Math.max(guessed, Math.min(6, maxStraights)));
+  const mids = [...new Set([stuffed, guessed, 4, 2, 0].filter((mid) => mid >= 0 && mid <= maxStraights))];
   const ends: Array<[string, string]> = [
     ['b', 'b'],
     ['a', 'a'],
@@ -1490,8 +1488,8 @@ function balloonCrossover(
     return parts;
   }
   for (const turn of ['a', 'b'] as const) {
-    for (let side = 0; side <= 5; side += 1) {
-      for (let end = 1; end <= 8; end += 1) {
+    for (let side = 0; side <= 3; side += 1) {
+      for (const end of [2, 4, 6]) {
         if ((left['straight-16'] ?? 0) < side * 2 + end) {
           continue;
         }
