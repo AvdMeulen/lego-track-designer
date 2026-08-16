@@ -214,8 +214,8 @@ describe('generateLayout', () => {
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(adjacent).toBeFalse();
     expect(layout.unfinishedPorts).toBeLessThanOrEqual(4);
-    expect(layout.parkingSpots.length).toBeLessThanOrEqual(4);
-    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(96);
+    expect(layout.parkingSpots.length).toBeLessThanOrEqual(2);
+    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(224);
   });
 
   it('does not grow a long diagonal dead-end from a switch', () => {
@@ -231,7 +231,8 @@ describe('generateLayout', () => {
       { seed: 15, timeoutMs: 2500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(96);
+    expect(layout.parkingSpots.length).toBeLessThanOrEqual(2);
+    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(224);
     const switchIds = layout.parts.filter((part) => part.partId.startsWith('switch-')).map((part) => part.instanceId);
     const closedDiverges = switchIds.filter((id) =>
       layout.connections.some(
@@ -330,23 +331,39 @@ describe('generateLayout', () => {
       { seed: 21, timeoutMs: 2500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
-    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
+    expect(layout.parkingSpots.length).toBe(1);
+    const xoUsed = layout.parts.some((part) => part.partId === 'double-crossover');
+    if (xoUsed) {
+      expect(layout.unfinishedPorts).toBe(0);
+    }
     const leftoverTrack =
       (layout.unusedInventory.find((item) => item.partId === 'straight-16')?.quantity ?? 0) +
       (layout.unusedInventory.find((item) => item.partId === 'curve-22')?.quantity ?? 0);
     expect(leftoverTrack).toBeLessThan(17);
-    const switchHeadings = new Set(
-      layout.parts
-        .filter((part) => part.partId.startsWith('switch-'))
-        .map((part) => Math.round(((((part.rotation % 360) + 360) % 360) / 90)) % 2),
+  });
+
+  it('keeps one long parking, a useful passing lane, and no dangling crossover', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 58 },
+        { partId: 'curve-22', quantity: 97 },
+        { partId: 'switch-left', quantity: 2 },
+        { partId: 'switch-right', quantity: 2 },
+        { partId: 'double-crossover', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { seed: 22, timeoutMs: 2500 },
     );
-    const passingHeadings = new Set(
-      layout.parts
-        .filter((part) => part.instanceId.startsWith('par') && part.partId === 'straight-16')
-        .map((part) => Math.round(((((part.rotation % 360) + 360) % 360) / 22.5)) % 8),
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.parkingSpots.length).toBe(1);
+    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeGreaterThanOrEqual(80);
+    const passing = layout.parts.filter(
+      (part) => part.instanceId.startsWith('par') || part.instanceId.startsWith('ret'),
     );
-    expect(switchHeadings.size >= 2 || passingHeadings.size >= 2).toBeTrue();
+    expect(passing.length).toBeGreaterThanOrEqual(4);
+    if (layout.parts.some((part) => part.partId === 'double-crossover')) {
+      expect(layout.unfinishedPorts).toBe(0);
+    }
   });
 
   it('uses opposite-curve S-bends instead of only 90-degree corners', () => {

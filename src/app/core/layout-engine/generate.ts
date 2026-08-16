@@ -40,7 +40,8 @@ const RIGID_ORDER = [
   'double-crossover',
 ];
 
-const PARK_STRAIGHTS = 5;
+const PARK_STRAIGHTS = 8;
+const PARK_MAX = 14;
 const MAX_CURVE_RUN = 6;
 
 interface SeqItem {
@@ -147,7 +148,7 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
   const parkingDelta = Math.abs(layout.parkingSpots.length - prefs.targetParkingSpots);
   const xoUsed = layout.parts.some((part) => part.partId === 'double-crossover');
   const xoOpen = unusedCrossoverPorts(layout);
-  const xoBonus = xoUsed ? (xoOpen === 0 ? 26 : 12) : 0;
+  const xoBonus = xoUsed && xoOpen === 0 ? 26 : 0;
   const reverse = prefs.preferReversingRoute
     ? layout.reverseOptions.filter((option) => option.kind !== 'dead-end').length * 10
     : 0;
@@ -166,7 +167,7 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
   const passing = Math.max(0, closedDivergeCount(layout) - layout.parkingSpots.length) * 22;
   const passingSpan = Math.min(28, longestAlignedSwitchGap(layout.parts) / 16) * 3;
   const tentacle = layout.parkingSpots.reduce(
-    (sum, spot) => sum + Math.max(0, spot.clearLengthStuds / 16 - 8) * 10,
+    (sum, spot) => sum + Math.max(0, spot.clearLengthStuds / 16 - 12) * 10,
     0,
   );
   const headings = new Set(
@@ -175,7 +176,7 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
       .map((part) => Math.round(normalizeHeading(part.rotation) / 22.5) % 8),
   );
   const variety = headings.size >= 3 ? (headings.size - 2) * 10 : 0;
-  const boxy = prefs.compact ? 0 : Math.max(0, cardinalStraightRatio(layout.parts) - 0.4) * 70;
+  const boxy = prefs.compact ? 0 : Math.max(0, cardinalStraightRatio(layout.parts) - 0.35) * 90;
   return (
     40 -
     parkingDelta * 24 +
@@ -197,7 +198,7 @@ function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number 
     boxy +
     variety -
     adjacentSwitchPairs(layout) * 28 -
-    Math.max(0, layout.score.unfinishedPenalty - xoOpen) * (layout.score.routeBonus > 0 ? 16 : 3) -
+    layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 16 : 3) -
     layout.score.flexPenalty * 6
   );
 }
@@ -757,7 +758,7 @@ function insertSwitchesIntoLoop(
       return clusters.filter((cluster) => cluster.length >= 2);
     });
   const longPairs = pairGroups.filter((group) => group.length >= 8);
-  const usablePairs = (longPairs.length ? longPairs : pairGroups.filter((group) => group.length >= 5)).sort(
+  const usablePairs = (longPairs.length ? longPairs : pairGroups.filter((group) => group.length >= 6)).sort(
     (a, b) => b.length - a.length,
   );
   const pairSlots: Array<[number, number]> = [];
@@ -796,10 +797,11 @@ function insertSwitchesIntoLoop(
       }
     }
   }
-  if (picks.length < queue.length) {
+  const wanted = Math.min(queue.length, pairSlots.length * 2 + Math.max(wantSingle, 0));
+  if (picks.length < wanted) {
     const runs = straightRuns(result).sort((a, b) => b.length - a.length);
     for (const run of runs) {
-      if (picks.length >= queue.length) {
+      if (picks.length >= wanted) {
         break;
       }
       const occupied = picks.some((pick) => {
@@ -815,9 +817,9 @@ function insertSwitchesIntoLoop(
       }
     }
   }
-  if (picks.length < Math.min(queue.length, pairSlots.length * 2 + Math.max(wantSingle, 0))) {
+  if (picks.length < wanted) {
     for (const slot of slots) {
-      if (picks.length >= queue.length) {
+      if (picks.length >= wanted) {
         break;
       }
       takeAt(slot, 3);
@@ -908,7 +910,7 @@ function betweenSwitchScore(parts: PlacedPart[], start: number, n: number): numb
     }
     return 0;
   };
-  return walk(start, -1) && walk(start + 2, 1) ? -80 : 20;
+  return walk(start, -1) && walk(start + 2, 1) ? 80 : 0;
 }
 
 function insertCrossoverIntoLoop(
@@ -1668,14 +1670,11 @@ function extendParkingWithLeftovers(
   catalog: Record<string, TrackPart>,
 ): PlacedPart[] {
   const existing = parts.filter((part) => part.instanceId.startsWith('sid')).length;
-  const room = Math.max(0, 6 - existing);
+  const room = Math.max(0, PARK_MAX - existing);
   const left = remainingInventory(inventory, parts);
   const extra = Math.min(room, (left['straight-16'] ?? 0) + (left['curve-22'] ?? 0));
   if (extra <= 0) {
     return parts;
-  }
-  if (switchOpens(parts, catalog).length > 0) {
-    return addParkingSiding(parts, inventory, catalog, extra);
   }
   const ends = parts.filter((part) => part.instanceId.startsWith('sid'));
   if (ends.length === 0) {
@@ -2205,6 +2204,31 @@ function wanderReplaceArc(
   return closedEnough ? grown : parts;
 }
 
+function crossoverStillOpen(
+  parts: PlacedPart[],
+  catalog: Record<string, TrackPart>,
+): boolean {
+  return openPorts(parts, catalog).some((port) => isCrossoverPort(port, parts, catalog));
+}
+
+function tryCrossoverModule(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  catalog: Record<string, TrackPart>,
+  random: () => number,
+  keepOpen: number,
+): PlacedPart[] {
+  const inserted = insertCrossoverIntoLoop(parts, inventory, catalog);
+  if (inserted === parts || !inserted.some((part) => part.partId === 'double-crossover')) {
+    return parts;
+  }
+  let next = joinDivergesToCrossover(inserted, inventory, catalog, random, keepOpen);
+  next = closeCrossoverLane(next, inventory, catalog, random);
+  next = balloonCrossover(next, inventory, catalog);
+  next = joinCrossoverOpens(next, inventory, catalog, random);
+  return crossoverStillOpen(next, catalog) ? parts : next;
+}
+
 function decorateLoop(
   parts: PlacedPart[],
   inventory: Record<string, number>,
@@ -2216,17 +2240,13 @@ function decorateLoop(
   let result = wanderReplaceArc(parts, inventory, catalog, random);
   result = facePassingSwitches(
     reorientSwitchesForSidings(
-      insertSwitchesIntoLoop(result, inventory, wantPark > 0 ? 1 : 2, wantPark > 0 ? 2 : 0),
+      insertSwitchesIntoLoop(result, inventory, wantPark > 0 ? 1 : 2, wantPark > 0 ? 1 : 0),
       catalog,
     ),
     catalog,
   );
-  result = insertCrossoverIntoLoop(result, inventory, catalog);
-  result = joinDivergesToCrossover(result, inventory, catalog, random, wantPark);
+  result = tryCrossoverModule(result, inventory, catalog, random, wantPark);
   result = connectOpenDiverges(result, inventory, catalog, random, wantPark);
-  result = joinCrossoverOpens(result, inventory, catalog, random);
-  result = closeCrossoverLane(result, inventory, catalog, random);
-  result = balloonCrossover(result, inventory, catalog);
   result = connectLeftoverBranches(result, inventory, catalog, random, wantPark);
   if (wantPark > 0 && switchOpens(result, catalog).length > 0) {
     result = addParkingSidings(result, inventory, catalog, wantPark);

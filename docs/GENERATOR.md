@@ -21,20 +21,17 @@ Expect:
 
 ## Pipeline
 
-1. Reserve straights for parking only. The crossover **replaces** three loop straights, so those must stay on the ring. Keep enough on the loop for long switch runs (`neededRun` is 12 when there are two or more switches).
-2. Build candidate **rings**:
+1. **Budget first**, then build. Reserve a long passing run, one parking siding, and only keep the crossover if its second track actually closes. Do not decorate leftovers into extra dead-ends.
+2. Build candidate **rings** from the remaining stock:
    - wobble octagon and irregular 5–8-gon first
    - wobble rectangle / oval as fallback
    - `wanderHomeLoop`: place freely, then home to the start port
-3. For each closed ring, **decorate**:
-   - `wanderReplaceArc` — cut one unprotected arc (not the long switch sides) and grow it at random (`rnd*`), then rejoin
-   - insert **one** facing pair plus leftover singles when parking is requested (so one diverge stays free); otherwise two pairs
-   - face those pairs so diverges sit on the same lateral and point toward each other
-   - insert the double crossover on three consecutive straights, **not** on the passing-pair run (that slot blocks the lane)
-   - `joinDivergesToCrossover` — if a diverge can reach an unused crossover port, join it (`par*`)
-   - `buildPassingLane` (wander, then curve + straights + curve) for leftover facing pairs; keep `targetParkingSpots` diverges open
-   - join leftover crossover ports; optional balloon
-   - add **only** `targetParkingSpots` sidings, then dump leftover straights/curves onto that siding
+3. For each closed ring, **place features**:
+   - `wanderReplaceArc` — cut one unprotected arc and grow it at random (`rnd*`)
+   - one facing pair on a run of at least 10 straights, plus **one** spare switch when parking is requested
+   - try the crossover **between** that pair and join both diverges to its open ports; **revert the crossover** if those ports stay empty
+   - otherwise `buildPassingLane` between the pair; keep `targetParkingSpots` diverges open
+   - add **exactly** `targetParkingSpots` sidings and lengthen that siding with leftovers (do not start a second stub)
 4. Also try a crossover-only parallel fixture and, if nothing looped, point-to-point or switch-led search.
 5. Score all candidates. Prefer closed loops when `loopPlusParking` is on.
 
@@ -119,7 +116,8 @@ Large-collection tests in `generate.spec.ts` (timeout ~2500 ms):
 | 15 | No long diagonal dead-end from a diverge |
 | 17 | At least one rejoined passing pair; not every switch is parking; most curves used; switch gap ≥ 96 studs |
 | 18 | Long passing lane (`par*` ≥ 4 pieces) and a wandered or multi-heading shape |
-| 21 | Parking target 1 is met; double crossover is used; leftover straights+curves < 17; switches or passing not only horizontal |
+| 21 | Exactly one parking; crossover only if both tracks close; leftover straights+curves < 17 |
+| 22 | One parking ≥ 80 studs; useful passing lane; no dangling crossover ports |
 
 Smaller fixtures still cover the 16-curve circle, the 15-curve flex refusal, a single-switch parking siding, and S-bends on extra curves.
 
