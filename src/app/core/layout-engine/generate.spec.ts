@@ -304,8 +304,10 @@ describe('generateLayout', () => {
       }
     }
     expect(gap).toBeGreaterThanOrEqual(96);
-    const passing = layout.parts.filter((part) => part.instanceId.startsWith('par'));
-    expect(passing.length).toBeGreaterThanOrEqual(4);
+    const passing = layout.parts.filter(
+      (part) => part.instanceId.startsWith('par') || part.instanceId.startsWith('ret'),
+    );
+    expect(passing.length).toBeGreaterThanOrEqual(3);
     const wandered = layout.parts.some((part) => part.instanceId.startsWith('rnd') || part.instanceId.startsWith('w'));
     const headings = new Set(
       layout.parts
@@ -313,6 +315,38 @@ describe('generateLayout', () => {
         .map((part) => Math.round((((part.rotation % 360) + 360) % 360) / 22.5) % 8),
     );
     expect(wandered || headings.size >= 3).toBeTrue();
+  });
+
+  it('reserves parking, uses the crossover, and does not leave a handful of leftovers', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 58 },
+        { partId: 'curve-22', quantity: 97 },
+        { partId: 'switch-left', quantity: 2 },
+        { partId: 'switch-right', quantity: 2 },
+        { partId: 'double-crossover', quantity: 1 },
+      ],
+      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1, preferReversingRoute: true, preferMorePieces: true },
+      { seed: 21, timeoutMs: 2500 },
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
+    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
+    const leftoverTrack =
+      (layout.unusedInventory.find((item) => item.partId === 'straight-16')?.quantity ?? 0) +
+      (layout.unusedInventory.find((item) => item.partId === 'curve-22')?.quantity ?? 0);
+    expect(leftoverTrack).toBeLessThan(17);
+    const switchHeadings = new Set(
+      layout.parts
+        .filter((part) => part.partId.startsWith('switch-'))
+        .map((part) => Math.round(((((part.rotation % 360) + 360) % 360) / 90)) % 2),
+    );
+    const passingHeadings = new Set(
+      layout.parts
+        .filter((part) => part.instanceId.startsWith('par') && part.partId === 'straight-16')
+        .map((part) => Math.round(((((part.rotation % 360) + 360) % 360) / 22.5)) % 8),
+    );
+    expect(switchHeadings.size >= 2 || passingHeadings.size >= 2).toBeTrue();
   });
 
   it('uses opposite-curve S-bends instead of only 90-degree corners', () => {

@@ -21,19 +21,20 @@ Expect:
 
 ## Pipeline
 
-1. Reserve a few straights for parking (and a crossover slot). Keep enough on the loop for long switch runs (`neededRun` is 12 when there are two or more switches).
+1. Reserve straights for parking only. The crossover **replaces** three loop straights, so those must stay on the ring. Keep enough on the loop for long switch runs (`neededRun` is 12 when there are two or more switches).
 2. Build candidate **rings**:
    - wobble octagon and irregular 5–8-gon first
    - wobble rectangle / oval as fallback
    - `wanderHomeLoop`: place freely, then home to the start port
 3. For each closed ring, **decorate**:
    - `wanderReplaceArc` — cut one unprotected arc (not the long switch sides) and grow it at random (`rnd*`), then rejoin
-   - insert the double crossover on three consecutive straights if it still closes
-   - insert switch pairs on the longest aligned straight runs
+   - insert **one** facing pair plus leftover singles when parking is requested (so one diverge stays free); otherwise two pairs
    - face those pairs so diverges sit on the same lateral and point toward each other
-   - `buildPassingLane` (curve + straights + curve) between open diverges; `growToward` only if that fails and actually meets the target
+   - insert the double crossover on three consecutive straights, **not** on the passing-pair run (that slot blocks the lane)
+   - `joinDivergesToCrossover` — if a diverge can reach an unused crossover port, join it (`par*`)
+   - `buildPassingLane` (wander, then curve + straights + curve) for leftover facing pairs; keep `targetParkingSpots` diverges open
    - join leftover crossover ports; optional balloon
-   - add **only** `targetParkingSpots` sidings
+   - add **only** `targetParkingSpots` sidings, then dump leftover straights/curves onto that siding
 4. Also try a crossover-only parallel fixture and, if nothing looped, point-to-point or switch-led search.
 5. Score all candidates. Prefer closed loops when `loopPlusParking` is on.
 
@@ -70,7 +71,8 @@ A useful passing loop needs **opposite-hand** switches on the **same** long run,
 - `facePassingSwitches` tries the four flip combinations and keeps the pair whose diverges are close and away from the centroid (outside).
 - Do not flip a working same-side pair onto opposite laterals just to “point outward” for parking.
 - Do not place switches adjacent (stem-to-stem). Minimum useful pair is a run of about 12 straights so that after each switch eats two studs of through, 6–8 straights remain between them.
-- `buildPassingLane` tries `curve + N straights + curve` (and straight-only) in both directions. Keep the result only if the **target diverge is closed**.
+- `buildPassingLane` first tries `wanderToPort` so the two routes can leave the mainline and rejoin on their own path. If that misses, it falls back to `curve + N straights + curve` (and straight-only). Keep the result only if the **target diverge is closed**.
+- When a crossover sits between the pair, prefer joining each diverge to a crossover port instead of cloning the mainline.
 - `growToward` must return the **original** parts when it does not meet the target. A “successful” path that never joins produced the long diagonal tentacle (seed 15).
 
 Parking is a leftover diverge plus about five straights (`PARK_STRAIGHTS`). Cap long parks; do not spend the rest of the inventory on four dead-ends.
@@ -83,7 +85,7 @@ Now:
 
 - Spend extra curves on **balanced opposite-side** wobbles, jogs, and S-bends so the loop still closes.
 - Prefer an **octagon** or **irregular polygon** (random 1–4 curve corners that still sum to 16 turns).
-- Concentrate long straight runs on one or two sides so switches still have room.
+- Concentrate long straight runs on **two perpendicular sides** (not only east–west) so switches can sit on any heading. Rectangle rings may flip which pair of sides is long.
 - `wanderHomeLoop` may produce a fully irregular closed path (`w*`).
 - `wanderReplaceArc` replaces one non-switch arc so part of an otherwise structured ring goes off-box.
 
@@ -117,6 +119,7 @@ Large-collection tests in `generate.spec.ts` (timeout ~2500 ms):
 | 15 | No long diagonal dead-end from a diverge |
 | 17 | At least one rejoined passing pair; not every switch is parking; most curves used; switch gap ≥ 96 studs |
 | 18 | Long passing lane (`par*` ≥ 4 pieces) and a wandered or multi-heading shape |
+| 21 | Parking target 1 is met; double crossover is used; leftover straights+curves < 17; switches or passing not only horizontal |
 
 Smaller fixtures still cover the 16-curve circle, the 15-curve flex refusal, a single-switch parking siding, and S-bends on extra curves.
 
