@@ -368,7 +368,11 @@ function insertSwitches(
   return result;
 }
 
-function pickPassingSlices(pairs: StraightPair[], bubbles: number): PlacedPart[][] {
+function pickPassingSlices(
+  pairs: StraightPair[],
+  bubbles: number,
+  random: () => number,
+): PlacedPart[][] {
   const runs = straightPartRuns(pairs).sort((a, b) => b.length - a.length);
   const used = new Set<string>();
   const slices: PlacedPart[][] = [];
@@ -377,7 +381,8 @@ function pickPassingSlices(pairs: StraightPair[], bubbles: number): PlacedPart[]
       if (slices.length >= bubbles) {
         return;
       }
-      const start = run.length >= need + 2 ? 1 : 0;
+      const slack = Math.max(0, run.length - need - 1);
+      const start = slack > 0 ? 1 + Math.floor(random() * slack) : 0;
       for (let i = start; i + need <= run.length; i += 1) {
         const slice = run.slice(i, i + need);
         if (slice.some((part) => used.has(part.instanceId))) {
@@ -551,7 +556,7 @@ function insertPassingLoops(
   bubbles: number,
 ): PlacedPart[] {
   let result = parts;
-  const slices = pickPassingSlices(straightPairs(result, ctx.catalog), bubbles);
+  const slices = pickPassingSlices(straightPairs(result, ctx.catalog), bubbles, ctx.random);
   for (const slice of slices) {
     const queue = switchQueue(inventory, result);
     if (queue.length < 2) {

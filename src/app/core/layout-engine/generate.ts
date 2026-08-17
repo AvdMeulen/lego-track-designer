@@ -17,6 +17,7 @@ import { curveCircle, inflateLoop, loopCloses, organicRing, pointToPoint, wander
 export interface GenerateOptions {
   seed?: number;
   timeoutMs?: number;
+  previous?: PlacedPart[];
 }
 
 function finalize(
@@ -64,7 +65,7 @@ function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWan
   const curves = inventory['curve-22'] ?? 0;
   const straights = inventory['straight-16'] ?? 0;
   if (curves >= 16) {
-    if (preferWander || straights + curves > 40) {
+    if (preferWander) {
       const wandered = wanderHomeLoop(inventory, ctx);
       if (wandered && loopCloses(wandered, ctx.catalog)) {
         return wandered;
@@ -125,6 +126,7 @@ export function generateLayout(
   }
 
   const fifteenCurves = (inventory['curve-22'] ?? 0) === 15;
+  const previousKey = options.previous?.length ? poseKey(options.previous) : '';
   let attempts = 0;
   while (Date.now() < deadline && attempts < 10) {
     attempts += 1;
@@ -136,7 +138,8 @@ export function generateLayout(
       layout.score.routeBonus > 0 &&
       layout.unfinishedPorts === 0 &&
       layout.parkingSpots.length === prefs.targetParkingSpots &&
-      unusedRigidTrack(layout) < 8
+      unusedRigidTrack(layout) < 8 &&
+      poseKey(layout.parts) !== previousKey
     ) {
       break;
     }
@@ -166,7 +169,8 @@ export function generateLayout(
             ? usable
             : candidates;
   pool.sort((a, b) => b.score.total - a.score.total);
-  const best = pool[0];
+  const distinct = previousKey ? pool.filter((layout) => poseKey(layout.parts) !== previousKey) : pool;
+  const best = (distinct.length ? distinct : pool)[0];
   if (best.parts.length === 0) {
     best.message = 'layout.couldNotPlace';
   }
@@ -177,6 +181,13 @@ function unusedRigidTrack(layout: TrackLayout): number {
   return layout.unusedInventory
     .filter((item) => item.partId === 'straight-16' || item.partId === 'curve-22')
     .reduce((sum, item) => sum + item.quantity, 0);
+}
+
+function poseKey(parts: PlacedPart[]): string {
+  return parts
+    .map((part) => `${part.partId}:${Math.round(part.x)}:${Math.round(part.y)}:${Math.round(part.rotation)}`)
+    .sort()
+    .join('|');
 }
 
 export function emptyLayout(): TrackLayout {

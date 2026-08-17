@@ -59,7 +59,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.generateHint': 'Search for a layout, or try a different variation.',
     'designer.rebuildHint': 'Update the current search after you change the collection.',
     'designer.generateHelp':
-      'Generate searches for a layout. Rebuild is available after you change the collection.',
+      'Generate searches for a layout. Click again to try a different variation. Rebuild is available after you change the collection.',
     'designer.exportPng': 'Export PNG',
     'designer.exportJson': 'Export JSON',
     'designer.copyJson': 'Copy JSON',
@@ -185,7 +185,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.generateHint': 'Zoekt een ontwerp, of probeert een andere variant.',
     'designer.rebuildHint': 'Werkt het huidige ontwerp bij nadat je de collectie wijzigt.',
     'designer.generateHelp':
-      'Genereer zoekt een ontwerp. Herbouw wordt actief nadat je de collectie wijzigt.',
+      'Genereer zoekt een ontwerp. Nog eens klikken probeert een andere variant. Herbouw wordt actief nadat je de collectie wijzigt.',
     'designer.exportPng': 'Exporteer PNG',
     'designer.exportJson': 'Exporteer JSON',
     'designer.copyJson': 'Kopieer JSON',

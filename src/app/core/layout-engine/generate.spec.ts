@@ -252,4 +252,25 @@ describe('generateLayout', () => {
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(cycles).toBeGreaterThanOrEqual(2);
   });
+
+  it('changes the layout when asked for another seed', () => {
+    const items = [
+      { partId: 'straight-16', quantity: 24 },
+      { partId: 'curve-22', quantity: 40 },
+    ];
+    const first = generateLayout(items, { targetParkingSpots: 0 }, { seed: 1, timeoutMs: 1500 });
+    const second = generateLayout(items, { targetParkingSpots: 0 }, {
+      seed: 2,
+      timeoutMs: 1500,
+      previous: first.parts,
+    });
+    const pose = (parts: { partId: string; x: number; y: number; rotation: number }[]) =>
+      parts
+        .map((part) => `${part.partId}:${Math.round(part.x)}:${Math.round(part.y)}:${Math.round(part.rotation)}`)
+        .sort()
+        .join('|');
+    expect(first.parts.length).toBeGreaterThan(16);
+    expect(second.parts.length).toBeGreaterThan(16);
+    expect(pose(second.parts)).not.toBe(pose(first.parts));
+  });
 });

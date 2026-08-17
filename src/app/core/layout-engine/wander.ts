@@ -392,14 +392,15 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
   const extra = Math.floor((curves - 16) / 2);
   const evenS = straights - (straights % 2);
   const capped = Math.min(extra, 4);
-  const tries: Array<{ s: number; extraCurves: number; corners: 4 | 8; skip: boolean }> = [
-    { s: straights, extraCurves: capped, corners: 4, skip: extra === 0 },
-    { s: straights, extraCurves: extra, corners: 8, skip: false },
+  const four = { s: straights, extraCurves: capped, corners: 4 as const, skip: extra === 0 };
+  const eight = { s: straights, extraCurves: extra, corners: 8 as const, skip: false };
+  const rest: Array<{ s: number; extraCurves: number; corners: 4 | 8; skip: boolean }> = [
     { s: straights, extraCurves: Math.floor(extra / 2), corners: 4, skip: false },
     { s: straights, extraCurves: 0, corners: 4, skip: true },
     { s: Math.max(4, evenS / 2), extraCurves: 0, corners: 4, skip: true },
     { s: 4, extraCurves: 0, corners: 4, skip: true },
   ];
+  const tries = ctx.random() < 0.5 ? [eight, four, ...rest] : [four, eight, ...rest];
   for (const attempt of tries) {
     const built = ringWithCorners(
       attempt.s,
@@ -426,23 +427,23 @@ function ringWithCorners(
   const sides = Array.from({ length: corners }, () => 0);
   let straightLeft = straights - (straights % 2);
   const half = corners / 2;
-  // Keep opposite sides equal, but pile onto few pairs so each run stays consecutive
-  // (needed for 32-stud switches) instead of 1+1 on every face.
+  const pairOffset = Math.floor(ctx.random() * half);
   while (straightLeft >= 2) {
-    sides[0] += 1;
-    sides[half] += 1;
+    sides[pairOffset] += 1;
+    sides[pairOffset + half] += 1;
     straightLeft -= 2;
   }
   const extraPairs = skipSbends ? 0 : Math.floor((curves - 16) / 2);
   const sbends = Array.from({ length: corners }, () => 0);
   let pairsLeft = extraPairs - (extraPairs % 2);
-  const bendSide = 1 % corners;
+  const bendSide = (pairOffset + 1) % corners;
   while (pairsLeft >= 2 && sbends[bendSide] < 2) {
     sbends[bendSide] += 1;
     sbends[bendSide + half] += 1;
     pairsLeft -= 2;
   }
-  const pairHand = Array.from({ length: half }, () => 'b' as 'a' | 'b');
+  const hand = ctx.random() < 0.5 ? ('a' as const) : ('b' as const);
+  const pairHand = Array.from({ length: half }, () => hand);
   const sequence: Array<{ partId: string; portId?: string }> = [];
   for (let side = 0; side < corners; side += 1) {
     for (let i = 0; i < sides[side]; i += 1) {
