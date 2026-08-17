@@ -29,7 +29,7 @@ describe('Designer', () => {
     expect(compiled.textContent).not.toContain('Parking and reverse');
     expect(compiled.textContent).not.toContain('Proof fixtures');
     expect(compiled.textContent).not.toContain('Leftover');
-    expect(compiled.querySelector('.piece-list')).toBeTruthy();
+    expect(compiled.querySelector('.rail .piece-list')).toBeTruthy();
     expect(compiled.querySelector('.io')).toBeTruthy();
     expect(compiled.querySelector('.unused')).toBeFalsy();
     expect(compiled.querySelector('.workspace')).toBeTruthy();

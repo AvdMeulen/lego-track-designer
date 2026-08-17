@@ -72,8 +72,21 @@
         }
       </ul>
     }
+  </aside>
 
-    <section class="piece-box">
+  <div class="rail">
+    @if (store.layout().unusedInventory.length) {
+      <aside class="tile unused">
+        <h2>{{ 'designer.unused' | t }}</h2>
+        <ul>
+          @for (item of store.layout().unusedInventory; track item.partId) {
+            <li>{{ item.quantity }}× {{ 'part.' + item.partId + '.name' | t }}</li>
+          }
+        </ul>
+      </aside>
+    }
+
+    <aside class="tile piece-box">
       <h2>{{ 'designer.pieceList' | t }}</h2>
       <ul class="piece-list">
         @for (part of store.layout().parts; track part.instanceId) {
@@ -88,19 +101,8 @@
           <li>{{ 'designer.noParts' | t }}</li>
         }
       </ul>
-    </section>
-  </aside>
-
-  @if (store.layout().unusedInventory.length) {
-    <aside class="unused float">
-      <h2>{{ 'designer.unused' | t }}</h2>
-      <ul>
-        @for (item of store.layout().unusedInventory; track item.partId) {
-          <li>{{ item.quantity }}× {{ 'part.' + item.partId + '.name' | t }}</li>
-        }
-      </ul>
     </aside>
-  }
+  </div>
 
   <div class="dock float">
     <div class="io">
