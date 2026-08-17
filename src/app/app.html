@@ -7,7 +7,12 @@
         <span></span>
       </span>
       <span class="brand-copy">
-        <strong>{{ 'app.title' | t }}</strong>
+        <span class="brand-title">
+          <strong>{{ 'app.title' | t }}</strong>
+          <span class="app-version" [attr.aria-label]="'app.version' | t: { version: appVersion }">
+            v{{ appVersion }}
+          </span>
+        </span>
         <small>{{ 'app.tagline' | t }}</small>
       </span>
     </a>

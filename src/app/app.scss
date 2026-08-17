@@ -64,9 +64,23 @@
   flex-direction: column;
 }
 
+.brand-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
 .brand-copy strong {
   font-size: 1.05rem;
   letter-spacing: 0.01em;
+}
+
+.app-version {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .brand-copy small {

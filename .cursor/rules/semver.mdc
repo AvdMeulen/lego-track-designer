@@ -1,0 +1,39 @@
+---
+description: Bump SemVer before every commit that will be pushed
+alwaysApply: true
+---
+
+# Semantic Versioning
+
+Before creating a git commit that will be pushed, bump the app version and include that bump in the same commit. Do this even if the user did not mention versioning.
+
+## Files to keep identical
+
+- `package.json` → `version`
+- `package-lock.json` → root `version` and `packages[""].version`
+- `src/app/core/version.ts` → `APP_VERSION`
+
+Format: `MAJOR.MINOR.PATCH`. The site reads `APP_VERSION`.
+
+## Choose the bump
+
+Inspect the change set and apply the **highest** matching level:
+
+| Bump | When |
+| --- | --- |
+| **MAJOR** | Breaking change: snapshot/import format, saved storage keys, removed or incompatible user-facing behavior |
+| **MINOR** | New backwards-compatible feature or user-visible capability |
+| **PATCH** (revision) | Bug fix, copy, styling, tests, docs, refactors, tooling, rules |
+
+Examples:
+
+- Flex gap math fix → `1.2.3` → `1.2.4`
+- New catalog part or designer control → `1.2.3` → `1.3.0`
+- Old JSON snapshots no longer import → `1.2.3` → `2.0.0`
+
+## Skip only when
+
+- Version files are already bumped for this exact change set
+- The commit is version-only (do not bump again)
+
+If the user asks to push and unpushed commits have no version bump, bump, commit, then push.

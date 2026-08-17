@@ -4,6 +4,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
   en: {
     'app.title': 'LEGO Track Designer',
     'app.tagline': 'Plan layouts from the City tracks you own',
+    'app.version': 'Version {version}',
     'nav.home': 'Home',
     'nav.inventory': 'Inventory',
     'nav.designer': 'Designer',
@@ -129,6 +130,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
   nl: {
     'app.title': 'LEGO Track Designer',
     'app.tagline': 'Plan een baan met de City-rails die je hebt',
+    'app.version': 'Versie {version}',
     'nav.home': 'Start',
     'nav.inventory': 'Collectie',
     'nav.designer': 'Ontwerper',

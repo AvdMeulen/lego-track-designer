@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map, startWith } from 'rxjs';
 import { I18nService } from './core/i18n/i18n.service';
 import { TPipe } from './core/i18n/t.pipe';
+import { APP_VERSION } from './core/version';
 import { LanguageToggle } from './shared/language-toggle/language-toggle';
 
 @Component({
@@ -13,6 +14,7 @@ import { LanguageToggle } from './shared/language-toggle/language-toggle';
   styleUrl: './app.scss',
 })
 export class App {
+  protected readonly appVersion = APP_VERSION;
   private readonly router = inject(Router);
   protected readonly immersive = toSignal(
     this.router.events.pipe(
