@@ -550,7 +550,9 @@ export function inflateLoop(
   keepStraights = 0,
 ): PlacedPart[] {
   let result = parts;
-  const closedAtStart = loopCloses(result, ctx.catalog);
+  const coreClosed = () =>
+    openPorts(result, ctx.catalog).every((port) => port.instanceId.startsWith('sid'));
+  const closedAtStart = coreClosed();
   for (let step = 0; step < maxSteps && Date.now() < ctx.deadline; step += 1) {
     const left = stockOf(inventory, result);
     if ((left['straight-16'] ?? 0) <= keepStraights && (left['curve-22'] ?? 0) <= 0) {
@@ -560,30 +562,82 @@ export function inflateLoop(
       break;
     }
     const candidates = result.filter(
-      (part) => part.partId === 'straight-16' || part.partId === 'curve-22',
+      (part) =>
+        (part.partId === 'straight-16' || part.partId === 'curve-22') &&
+        !part.instanceId.startsWith('sid'),
     );
     if (candidates.length < 4) {
       break;
     }
-    const pick = candidates[Math.floor(ctx.random() * candidates.length)];
-    const removedPorts = worldPorts(ctx.catalog[pick.partId], pick);
-    const without = result.filter((part) => part.instanceId !== pick.instanceId);
-    const heads = openPorts(without, ctx.catalog).filter((port) =>
-      removedPorts.some((removed) => portsConnect(port, removed)),
-    );
-    if (heads.length < 2) {
-      continue;
+    let inflated = false;
+    const tries = Math.min(4, candidates.length);
+    for (let attempt = 0; attempt < tries && !inflated; attempt += 1) {
+      const pick = candidates[Math.floor(ctx.random() * candidates.length)];
+      const removedPorts = worldPorts(ctx.catalog[pick.partId], pick);
+      const without = result.filter((part) => part.instanceId !== pick.instanceId);
+      const heads = openPorts(without, ctx.catalog).filter(
+        (port) =>
+          !port.instanceId.startsWith('sid') &&
+          removedPorts.some((removed) => portsConnect(port, removed)),
+      );
+      if (heads.length < 2) {
+        continue;
+      }
+      const joined =
+        tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
+        joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf');
+      if (!joined || joined.length <= result.length) {
+        continue;
+      }
+      if (closedAtStart && !joinedCoreCloses(joined, ctx.catalog)) {
+        continue;
+      }
+      result = joined;
+      inflated = true;
     }
-    const joined = joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf');
-    if (!joined || joined.length <= result.length) {
-      continue;
+    if (!inflated) {
+      break;
     }
-    if (closedAtStart && !loopCloses(joined, ctx.catalog)) {
-      continue;
-    }
-    result = joined;
   }
   return result;
+}
+
+function joinedCoreCloses(parts: PlacedPart[], catalog: Record<string, TrackPart>): boolean {
+  return openPorts(parts, catalog).every((port) => port.instanceId.startsWith('sid'));
+}
+
+function tryOffsetDetour(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const left = stockOf(inventory, parts);
+  const curves = left['curve-22'] ?? 0;
+  const straights = left['straight-16'] ?? 0;
+  if (curves < 2) {
+    return null;
+  }
+  const extras = [1, 2, 0].filter((count) => count <= straights);
+  const turns: Array<['a' | 'b', 'a' | 'b']> = [
+    ['a', 'b'],
+    ['b', 'a'],
+  ];
+  for (const [first, second] of turns) {
+    for (const extra of extras) {
+      const sequence: Array<{ partId: string; portId?: string }> = [{ partId: 'curve-22', portId: first }];
+      for (let i = 0; i < extra; i += 1) {
+        sequence.push({ partId: 'straight-16' });
+      }
+      sequence.push({ partId: 'curve-22', portId: second });
+      const built = attachSequenceFrom(parts, start, sequence, target, ctx, 'det');
+      if (built && built.length > parts.length + 1) {
+        return built;
+      }
+    }
+  }
+  return null;
 }
 
 export function attachSequenceFrom(

@@ -208,6 +208,7 @@ describe('generateLayout', () => {
     const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 14, timeoutMs: 3000 });
     expect(layout.parkingSpots.length).toBe(1);
     expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.parkingSpots[0].clearLengthStuds).toBeLessThanOrEqual(16 * 10);
     const switches = layout.parts.filter((part) => part.partId.startsWith('switch-'));
     const parkingSwitch = layout.parkingSpots[0]?.switchInstanceId;
     for (const sw of switches) {
@@ -217,6 +218,14 @@ describe('generateLayout', () => {
         expect(used.has('diverge')).toBeTrue();
       }
     }
+  });
+
+  it('does not dump leftover straights onto a parking runway', () => {
+    const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 30, timeoutMs: 3000 });
+    expect(layout.parkingSpots.length).toBe(1);
+    expect(layout.parkingSpots[0].clearLengthStuds).toBeLessThanOrEqual(16 * 10);
+    expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.parts.filter((part) => part.partId.startsWith('switch-')).length).toBeGreaterThanOrEqual(1);
   });
 
   it('builds more than one cycle when two route switches are available', () => {

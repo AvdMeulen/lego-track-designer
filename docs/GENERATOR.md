@@ -23,7 +23,7 @@ Expect:
 2. **Organic wander** (or a 16-curve core) in 22.5° steps, then home to close. S-bends spend extra curves without breaking heading closure.
 3. **Features:** insert switches / crossover / crossing by replacing straights. Grow a circuit from every new exit until it rejoins.
 4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
-5. **Parking** last: the only allowed dead-end, grown from a switch diverge.
+5. **Parking** last: a short siding from a switch (about a train length). Leftover straights and curves go into loop detours, not a runway.
 6. Flex closes a leftover near-miss only. Fifteen curves must not close with flex.
 7. Score candidates within the timeout; pick the best.
 

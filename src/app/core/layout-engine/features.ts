@@ -15,6 +15,9 @@ import { GenContext, nextId, ownerOf, placeOnHead, stockOf, tryAttach } from './
 import { TopologyPlan } from './topology';
 import { growDeadEnd, ovalJoin, targetClosed } from './wander';
 
+/** Train-length siding. Leftovers belong on the loops, not a runway. */
+const PARK_SIDING = 6;
+
 function switchQueue(inventory: Record<string, number>, parts: PlacedPart[]): string[] {
   const left = remainingInventory(inventory, parts);
   const queue: string[] = [];
@@ -457,12 +460,12 @@ function addParking(
       break;
     }
     const left = stockOf(inventory, result);
-    const available = (left['straight-16'] ?? 0) + (left['curve-22'] ?? 0);
-    if (available <= 0) {
+    const length = Math.min(PARK_SIDING, Math.max(2, left['straight-16'] ?? 0));
+    if (length <= 0) {
       break;
     }
-    const length = Math.max(1, available);
-    result = growDeadEnd(result, opens[0], inventory, ctx, length, 'sid');
+    const parkStock = { ...inventory, 'curve-22': 0 };
+    result = growDeadEnd(result, opens[0], parkStock, ctx, length, 'sid');
   }
   return result;
 }
@@ -537,7 +540,7 @@ function seedFromSwitch(
   const liveDiverge = openPorts(loop, ctx.catalog).find(
     (port) => port.instanceId === seeded.instanceId && port.id === 'diverge',
   );
-  return liveDiverge ? growDeadEnd(loop, liveDiverge, inventory, ctx, parkLength, 'sid') : loop;
+  return liveDiverge ? growDeadEnd(loop, liveDiverge, inventory, ctx, Math.min(PARK_SIDING, parkLength), 'sid') : loop;
 }
 
 function seedDualRoute(
@@ -592,15 +595,17 @@ function placeDualRoutes(
   if (seeded && divergesOf(seeded, ctx.catalog).length === 0) {
     return seeded;
   }
-  if (parking > 0) {
-    return parts;
-  }
-  let result = seeded ?? parts;
+  let result = parking > 0 ? parts : (seeded ?? parts);
   const placed = result.filter((part) => part.partId.startsWith('switch-')).length;
   const stillNeed = Math.max(0, count * 2 - placed);
   if (stillNeed > 0) {
+    const before = result;
     result = insertSwitches(result, inventory, ctx, stillNeed, 'rte');
     result = joinOpenPairs(result, divergesOf(result, ctx.catalog), inventory, ctx, 'rte', true);
+    result = joinOpenPairs(result, divergesOf(result, ctx.catalog), inventory, ctx, 'rte', false);
+    if (parking > 0 && divergesOf(result, ctx.catalog).length > 0) {
+      result = before;
+    }
   } else if (divergesOf(result, ctx.catalog).length >= 2) {
     result = joinOpenPairs(result, divergesOf(result, ctx.catalog), inventory, ctx, 'rte', true);
   }
@@ -680,8 +685,7 @@ export function placeParking(
     result = addParking(result, inventory, ctx, count);
   }
   if (!hasParkingSiding(result, ctx)) {
-    const left = stockOf(inventory, result);
-    const seeded = seedFromSwitch(inventory, ctx, Math.max(8, left['straight-16'] ?? 0));
+    const seeded = seedFromSwitch(inventory, ctx, PARK_SIDING);
     if (seeded) {
       return seeded;
     }
@@ -725,11 +729,9 @@ export function placeRemainingSpecials(
     result = insertCrossing(result, inventory, ctx);
     result = joinOpenPairs(result, specialOpens(result, ctx.catalog, 'crossing'), inventory, ctx, 'cr', true);
   }
-  if (parking > 0) {
-    return result;
-  }
   const switchesLeft = switchQueue(inventory, result);
-  if (switchesLeft.length >= 2) {
+  const placedSwitches = result.filter((part) => part.partId.startsWith('switch-')).length;
+  if (switchesLeft.length >= 2 && (parking === 0 || placedSwitches < 2)) {
     const before = result;
     const openBefore = divergesOf(result, ctx.catalog).length;
     result = insertSwitches(result, inventory, ctx, 2, 'sw');

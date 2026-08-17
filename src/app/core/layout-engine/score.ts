@@ -129,6 +129,11 @@ export function rectangleEnvelopePenalty(parts: PlacedPart[]): number {
   return 0;
 }
 
+function parkingRunwayPenalty(layout: TrackLayout): number {
+  const longest = layout.parkingSpots.reduce((max, spot) => Math.max(max, spot.clearLengthStuds), 0);
+  return Math.max(0, longest / 16 - 8) * 18;
+}
+
 export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number {
   const parkingDelta = Math.abs(layout.parkingSpots.length - prefs.targetParkingSpots);
   const extraPark = Math.max(0, layout.parkingSpots.length - prefs.targetParkingSpots) * 16;
@@ -138,10 +143,8 @@ export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): 
   const crBonus = layout.parts.some((part) => part.partId === 'crossing-90') && crOpen === 0 ? 22 : 0;
   const cycles = independentCycles(layout);
   const unused = unusedRigidCount(layout) * 8 + unusedSpecialCount(layout) * 40;
-  const parkLength =
-    prefs.targetParkingSpots > 0
-      ? (layout.parkingSpots.reduce((sum, spot) => sum + spot.clearLengthStuds, 0) / 16) * 3
-      : 0;
+  const parkPieces = layout.parkingSpots.reduce((sum, spot) => sum + spot.clearLengthStuds, 0) / 16;
+  const parkLength = prefs.targetParkingSpots > 0 ? Math.min(parkPieces, 8) * 3 : 0;
   const diverges = closedSwitchPorts(layout, 'diverge');
   const throughs = closedSwitchPorts(layout, 'through');
   return (
@@ -154,9 +157,11 @@ export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): 
     parkLength +
     diverges * 10 +
     throughs * 6 +
-    headingVariety(layout.parts) -
+    headingVariety(layout.parts) +
+    Math.min(36, layout.score.compactness * 250) -
     unused -
     extraPark -
+    parkingRunwayPenalty(layout) -
     rectangleEnvelopePenalty(layout.parts) -
     adjacentSwitchPairs(layout) * 24 -
     layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 40 : 4) -

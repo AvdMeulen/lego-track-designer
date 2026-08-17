@@ -49,7 +49,7 @@ function reserveForFeatures(
   const straights = inventory['straight-16'] ?? 0;
   const slots = plan.dualRoutes * 2 + plan.keerlussen + plan.parking;
   const loopNeed = Math.max(4, slots * 2 + plan.crossovers * 3 + plan.crossings);
-  const reservedPark = Math.min(plan.parking * 8, Math.max(0, straights - loopNeed));
+  const reservedPark = Math.min(plan.parking * 6, Math.max(0, straights - loopNeed));
   const reservedJoin = extraLoops > 0 ? Math.max(0, straights - loopNeed - reservedPark) : 0;
   return {
     ...inventory,
@@ -96,16 +96,18 @@ function buildCandidate(
 ): PlacedPart[] {
   const plan = planTopology(inventory, prefs);
   const main = reserveForFeatures(inventory, plan);
-  let parts = buildCore(main, ctx, preferWander);
+  const large = (inventory['curve-22'] ?? 0) >= 32;
+  let parts = buildCore(main, ctx, preferWander || large);
   if (parts.length === 0) {
     parts = pointToPoint(inventory, ctx);
   }
   parts = applyFeatures(parts, inventory, plan, ctx);
-  const keepPark = plan.parking * 8;
-  parts = inflateLoop(parts, inventory, ctx, 16, keepPark);
+  const keepPark = plan.parking * 6;
+  parts = inflateLoop(parts, inventory, ctx, 18, keepPark);
   parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
-  parts = inflateLoop(parts, inventory, ctx, 20, keepPark);
+  parts = inflateLoop(parts, inventory, ctx, 22, keepPark);
   parts = placeParking(parts, inventory, ctx, plan.parking);
+  parts = inflateLoop(parts, inventory, ctx, 16, 0);
   return parts;
 }
 
@@ -130,7 +132,7 @@ export function generateLayout(
   while (Date.now() < deadline && attempts < 10) {
     attempts += 1;
     const ctx: GenContext = { catalog, random, deadline, seq: attempts * 100 };
-    const parts = buildCandidate(inventory, prefs, ctx, attempts % 3 === 1);
+    const parts = buildCandidate(inventory, prefs, ctx, attempts % 2 === 0);
     const layout = finalize(parts, inventory, prefs, 'layout.organicLoop');
     candidates.push(layout);
     if (
