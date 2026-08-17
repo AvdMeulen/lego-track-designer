@@ -28,25 +28,6 @@
     }
   </g>
 
-  <defs>
-    @for (item of drawnParts(); track item.part.instanceId) {
-      @if (item.maskId) {
-        <mask [attr.id]="item.maskId" maskUnits="userSpaceOnUse">
-          <rect
-            [attr.x]="view().minX - 40"
-            [attr.y]="view().minY - 40"
-            [attr.width]="view().width + 80"
-            [attr.height]="view().height + 80"
-            fill="#fff"
-          />
-          @for (d of item.beds; track $index) {
-            <path [attr.transform]="item.transform" [attr.d]="d" fill="#000" />
-          }
-        </mask>
-      }
-    }
-  </defs>
-
   @for (item of drawnParts(); track item.part.instanceId) {
     <g
       class="part"
@@ -74,13 +55,6 @@
         }
         @if (item.outline) {
           <path class="body outline" [attr.transform]="item.transform" [attr.d]="item.outline" />
-        }
-        @if (item.maskId) {
-          <g [attr.mask]="'url(#' + item.maskId + ')'">
-            @for (d of item.beds; track $index) {
-              <path class="body outline" [attr.transform]="item.transform" [attr.d]="d" />
-            }
-          </g>
         }
         @for (d of item.rails; track $index) {
           <path class="rail" [attr.transform]="item.transform" [attr.d]="d" />

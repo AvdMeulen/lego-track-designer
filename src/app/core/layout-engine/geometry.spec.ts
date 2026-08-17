@@ -4,8 +4,11 @@ import {
   crossoverArtwork,
   CURVE_ANGLE,
   CURVE_RADIUS,
+  CROSSOVER_LENGTH,
+  CROSSOVER_SPACING,
   SWITCH_LENGTH,
   crossingArtwork,
+  crossoverBranchOutline,
   curveSector,
   headingDelta,
   polygonCenter,
@@ -58,7 +61,7 @@ describe('geometry', () => {
     const art = switchArtwork(1);
     expect(art.beds.length).toBe(2);
     expect(art.rails.length).toBe(0);
-    expect(art.outline).toContain('M 0 ');
+    expect(art.outline?.startsWith('M ')).toBeTrue();
     expect(art.beds[0]).toContain(`h ${SWITCH_LENGTH}`);
     expect(art.beds[0]).toContain('v 8');
   });
@@ -72,6 +75,7 @@ describe('geometry', () => {
     const last = outline[outline.length - 1];
     expect(last.x).toBeCloseTo(0, 1);
     expect(last.y).toBeCloseTo(4, 1);
+    expect(Math.max(...outline.map((point) => point.y))).toBeGreaterThan(12);
 
     const diverge = switchDivergeEnd(1);
     const nearest = Math.min(...outline.map((point) => Math.hypot(point.x - diverge.x, point.y - diverge.y)));
@@ -117,11 +121,26 @@ describe('geometry', () => {
     expect(headingDelta(straightEnd.heading, curveEndPort.heading)).toBeLessThan(1);
   });
 
-  it('draws a crossover as two 8-stud parallels and an X', () => {
+  it('draws a crossover as two 8-stud parallels and two S-curve crossings', () => {
     const art = crossoverArtwork();
     expect(art.beds.length).toBe(4);
     expect(art.rails.length).toBe(0);
-    expect(art.beds[0]).toContain('v 8');
+    expect(art.outline?.startsWith('M ')).toBeTrue();
+  });
+
+  it('builds a crossover branch from a switch S plus a completing curve', () => {
+    const outline = crossoverBranchOutline(1);
+    const end = { x: CROSSOVER_LENGTH, y: CROSSOVER_SPACING };
+    const nearestEnd = Math.min(...outline.map((point) => Math.hypot(point.x - end.x, point.y - end.y)));
+    expect(nearestEnd).toBeLessThan(4.2);
+    expect(outline.some((point) => Math.hypot(point.x, point.y - 4) < 0.3)).toBeTrue();
+    expect(outline.some((point) => Math.hypot(point.x, point.y + 4) < 0.3)).toBeTrue();
+    expect(outline.some((point) => point.y > 6 && point.y < 10 && point.x > 12 && point.x < 36)).toBeTrue();
+
+    const right = crossoverBranchOutline(-1);
+    const rightEnd = { x: CROSSOVER_LENGTH, y: -CROSSOVER_SPACING };
+    const nearestRight = Math.min(...right.map((point) => Math.hypot(point.x - rightEnd.x, point.y - rightEnd.y)));
+    expect(nearestRight).toBeLessThan(4.2);
   });
 
   it('draws a 90° crossing as an 8-stud-wide plus with one outline', () => {

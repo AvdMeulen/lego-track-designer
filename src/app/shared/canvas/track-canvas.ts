@@ -104,7 +104,6 @@ export class TrackCanvas {
       const showPolygon = spec.category !== 'curve' && special.beds.length === 0;
       const transform = `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
       const outline = special.outline ?? '';
-      const maskId = special.beds.length > 1 && !outline ? `bed-outline-${part.instanceId}` : '';
       const centerLocal =
         spec.category === 'curve'
           ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2)
@@ -123,7 +122,6 @@ export class TrackCanvas {
         beds: special.beds,
         rails: special.rails,
         outline,
-        maskId,
         showPolygon,
         transform,
         center,

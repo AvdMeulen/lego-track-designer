@@ -232,17 +232,167 @@ function rectPath(x: number, y: number, width: number, height: number): string {
   return `M ${x} ${y} h ${width} v ${height} h ${-width} Z`;
 }
 
-function thickenSegment(a: Point, b: Point, halfWidth: number): string {
-  const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-  const nx = (-(b.y - a.y) / length) * halfWidth;
-  const ny = ((b.x - a.x) / length) * halfWidth;
+function rectPolygon(x: number, y: number, width: number, height: number): Point[] {
   return [
-    `M ${a.x + nx} ${a.y + ny}`,
-    `L ${b.x + nx} ${b.y + ny}`,
-    `L ${b.x - nx} ${b.y - ny}`,
-    `L ${a.x - nx} ${a.y - ny}`,
-    'Z',
-  ].join(' ');
+    { x, y },
+    { x: x + width, y },
+    { x: x + width, y: y + height },
+    { x, y: y + height },
+  ];
+}
+
+function pointInPolygon(point: Point, polygon: Point[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i];
+    const b = polygon[j];
+    if (a.y === b.y) {
+      continue;
+    }
+    if (a.y > point.y !== b.y > point.y && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function shoelace(points: Point[]): number {
+  let area = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const next = points[(i + 1) % points.length];
+    area += points[i].x * next.y - next.x * points[i].y;
+  }
+  return area / 2;
+}
+
+function simplifyColinear(points: Point[]): Point[] {
+  if (points.length < 4) {
+    return points;
+  }
+  const result: Point[] = [];
+  for (let i = 0; i < points.length; i += 1) {
+    const prev = points[(i + points.length - 1) % points.length];
+    const cur = points[i];
+    const next = points[(i + 1) % points.length];
+    const cross = (cur.x - prev.x) * (next.y - cur.y) - (cur.y - prev.y) * (next.x - cur.x);
+    if (Math.abs(cross) > 1e-6) {
+      result.push(cur);
+    }
+  }
+  return result.length >= 3 ? result : points;
+}
+
+/** Outer ring of a union of filled polygons, for a single SVG stroke. */
+function rasterUnionOutline(polygons: Point[][], cell = 0.2): Point[] {
+  const bounds = boundsOf(polygons.flat());
+  const pad = cell * 2;
+  const minX = bounds.minX - pad;
+  const minY = bounds.minY - pad;
+  const cols = Math.max(1, Math.ceil((bounds.maxX - bounds.minX + pad * 2) / cell));
+  const rows = Math.max(1, Math.ceil((bounds.maxY - bounds.minY + pad * 2) / cell));
+  const filled = new Uint8Array(cols * rows);
+  const at = (c: number, r: number) =>
+    c >= 0 && r >= 0 && c < cols && r < rows ? filled[r * cols + c] : 0;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const point = { x: minX + (c + 0.5) * cell, y: minY + (r + 0.5) * cell };
+      if (polygons.some((polygon) => pointInPolygon(point, polygon))) {
+        filled[r * cols + c] = 1;
+      }
+    }
+  }
+  const outgoing = new Map<string, Array<[number, number]>>();
+  const add = (c1: number, r1: number, c2: number, r2: number) => {
+    const key = `${c1},${r1}`;
+    const list = outgoing.get(key) ?? [];
+    list.push([c2, r2]);
+    outgoing.set(key, list);
+  };
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (!at(c, r)) {
+        continue;
+      }
+      if (!at(c, r - 1)) {
+        add(c, r, c + 1, r);
+      }
+      if (!at(c + 1, r)) {
+        add(c + 1, r, c + 1, r + 1);
+      }
+      if (!at(c, r + 1)) {
+        add(c + 1, r + 1, c, r + 1);
+      }
+      if (!at(c - 1, r)) {
+        add(c, r + 1, c, r);
+      }
+    }
+  }
+  const loops: Point[][] = [];
+  const used = new Set<string>();
+  const edgeKey = (c1: number, r1: number, c2: number, r2: number) => `${c1},${r1}>${c2},${r2}`;
+  for (const [startKey, dests] of outgoing) {
+    for (const dest of dests) {
+      const start = startKey.split(',').map(Number) as [number, number];
+      if (used.has(edgeKey(start[0], start[1], dest[0], dest[1]))) {
+        continue;
+      }
+      const loop: Point[] = [];
+      let c = start[0];
+      let r = start[1];
+      for (let guard = 0; guard < cols * rows * 4; guard += 1) {
+        loop.push({ x: minX + c * cell, y: minY + r * cell });
+        const nexts = outgoing.get(`${c},${r}`) ?? [];
+        const next = nexts.find((item) => !used.has(edgeKey(c, r, item[0], item[1])));
+        if (!next) {
+          break;
+        }
+        used.add(edgeKey(c, r, next[0], next[1]));
+        c = next[0];
+        r = next[1];
+        if (c === start[0] && r === start[1]) {
+          break;
+        }
+      }
+      if (loop.length > 3) {
+        loops.push(simplifyColinear(loop));
+      }
+    }
+  }
+  loops.sort((a, b) => Math.abs(shoelace(b)) - Math.abs(shoelace(a)));
+  return loops[0] ?? [];
+}
+
+function offsetPolyline(center: Point[], half: number): Point[] {
+  const left: Point[] = [];
+  const right: Point[] = [];
+  for (let i = 0; i < center.length; i += 1) {
+    const prev = center[Math.max(0, i - 1)];
+    const next = center[Math.min(center.length - 1, i + 1)];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    left.push({
+      x: center[i].x + (-dy / len) * half,
+      y: center[i].y + (dx / len) * half,
+    });
+    right.push({
+      x: center[i].x - (-dy / len) * half,
+      y: center[i].y - (dx / len) * half,
+    });
+  }
+  return [...left, ...right.reverse()];
+}
+
+function arcCenterline(angle: number, sign: number, steps: number): Point[] {
+  const points: Point[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const rad = degToRad((angle * i) / steps);
+    points.push({
+      x: CURVE_RADIUS * Math.sin(rad),
+      y: sign * CURVE_RADIUS * (1 - Math.cos(rad)),
+    });
+  }
+  return points;
 }
 
 export function switchDivergeEnd(sign = 1): Point {
@@ -313,6 +463,34 @@ function pointsToPath(points: Point[]): string {
   return `${points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')} Z`;
 }
 
+/** Constant-width S from (0,0) heading 0 to (48, ±16) heading 0: switch branch plus completing curve. */
+export function crossoverBranchOutline(sign = 1, half = 4, steps = 16): Point[] {
+  const first = arcCenterline(SWITCH_OUT_ANGLE, sign, steps);
+  const mid = first[first.length - 1];
+  const second = arcCenterline(SWITCH_RETURN_ANGLE, -sign, steps)
+    .slice(1)
+    .map((point) => addPoints(mid, rotatePoint(point, sign * SWITCH_OUT_ANGLE)));
+  const diverge = switchDivergeEnd(sign);
+  const far = curveEnd(CURVE_RADIUS, CURVE_ANGLE, sign);
+  const pose = { x: diverge.x + far.x, y: diverge.y + far.y, rotation: 180 };
+  const third: Point[] = [];
+  for (let i = steps - 1; i >= 0; i -= 1) {
+    const rad = degToRad((CURVE_ANGLE * i) / steps);
+    third.push(
+      transformPolygon(
+        [
+          {
+            x: CURVE_RADIUS * Math.sin(rad),
+            y: sign * CURVE_RADIUS * (1 - Math.cos(rad)),
+          },
+        ],
+        pose,
+      )[0],
+    );
+  }
+  return offsetPolyline([...first, ...second, ...third], half);
+}
+
 export type TrackArtwork = { beds: string[]; rails: string[]; outline?: string };
 
 /** Outer silhouette of through-bed ∪ S-branch, so the canvas can stroke one path. */
@@ -344,10 +522,12 @@ export function switchUnionOutline(sign = 1, half = 4, steps = 16): Point[] {
 
 export function switchArtwork(sign = 1): TrackArtwork {
   const half = 4;
+  const branch = switchBranchOutline(sign, half);
+  const through = rectPolygon(0, -half, SWITCH_LENGTH, half * 2);
   return {
-    beds: [rectPath(0, -half, SWITCH_LENGTH, half * 2), pointsToPath(switchBranchOutline(sign, half))],
+    beds: [rectPath(0, -half, SWITCH_LENGTH, half * 2), pointsToPath(branch)],
     rails: [],
-    outline: pointsToPath(switchUnionOutline(sign, half)),
+    outline: pointsToPath(rasterUnionOutline([through, branch])),
   };
 }
 
@@ -375,14 +555,15 @@ export function crossingArtwork(): TrackArtwork {
 export function crossoverArtwork(): TrackArtwork {
   const half = CROSSOVER_LENGTH / 2;
   const lane = CROSSOVER_SPACING;
+  const shift = (point: Point, y: number) => addPoints(point, { x: -half, y });
+  const up = crossoverBranchOutline(1).map((point) => shift(point, 0));
+  const down = crossoverBranchOutline(-1).map((point) => shift(point, lane));
+  const lower = rectPolygon(-half, -4, CROSSOVER_LENGTH, 8);
+  const upper = rectPolygon(-half, lane - 4, CROSSOVER_LENGTH, 8);
   return {
-    beds: [
-      rectPath(-half, -4, CROSSOVER_LENGTH, 8),
-      rectPath(-half, lane - 4, CROSSOVER_LENGTH, 8),
-      thickenSegment({ x: -half, y: 0 }, { x: half, y: lane }, 4),
-      thickenSegment({ x: -half, y: lane }, { x: half, y: 0 }, 4),
-    ],
+    beds: [pointsToPath(lower), pointsToPath(upper), pointsToPath(up), pointsToPath(down)],
     rails: [],
+    outline: pointsToPath(rasterUnionOutline([lower, upper, up, down])),
   };
 }
 
