@@ -61,7 +61,7 @@ describe('geometry', () => {
     const art = switchArtwork(1);
     expect(art.beds.length).toBe(2);
     expect(art.rails.length).toBe(0);
-    expect(art.outline?.startsWith('M ')).toBeTrue();
+    expect(art.outline).toContain('M 0 ');
     expect(art.beds[0]).toContain(`h ${SWITCH_LENGTH}`);
     expect(art.beds[0]).toContain('v 8');
   });
@@ -125,7 +125,6 @@ describe('geometry', () => {
     const art = crossoverArtwork();
     expect(art.beds.length).toBe(4);
     expect(art.rails.length).toBe(0);
-    expect(art.outline?.startsWith('M ')).toBeTrue();
   });
 
   it('builds a crossover branch from a switch S plus a completing curve', () => {

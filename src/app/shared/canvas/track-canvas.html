@@ -44,6 +44,11 @@
         @if (item.curvePath) {
           <path class="body" [attr.transform]="item.transform" [attr.d]="item.curvePath" [attr.fill]="item.spec.color" />
         }
+        @if (!item.outline && item.beds.length > 1) {
+          @for (d of item.beds; track $index) {
+            <path class="body outline" [attr.transform]="item.transform" [attr.d]="d" />
+          }
+        }
         @for (d of item.beds; track $index) {
           <path
             class="body"
