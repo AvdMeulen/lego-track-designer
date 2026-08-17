@@ -72,59 +72,55 @@
   }
 }
 
+.panel,
+.unused,
+.dock {
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
 .panel {
   position: absolute;
   top: 5.4rem;
   left: 1rem;
   z-index: 3;
-  width: min(320px, calc(100vw - 2rem));
+  width: min(280px, calc(100vw - 2rem));
   max-height: calc(100vh - 6.6rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 1rem;
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
-  border: 1px solid var(--color-line);
+  padding: 0.85rem 0.9rem;
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
-}
-
-.eyebrow {
-  margin: 0 0 0.5rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-red);
 }
 
 h1,
 h2 {
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.45rem;
 }
 
 h1 {
-  font-size: 1.35rem;
+  font-size: 1rem;
+  line-height: 1.3;
 }
 
 h2 {
-  margin-top: 0.9rem;
-  font-size: 1rem;
+  font-size: 0.82rem;
 }
 
 .hint {
-  margin: -0.35rem 0 0.6rem;
+  margin: 0;
   color: var(--color-muted);
-  font-size: 0.82rem;
-  line-height: 1.35;
+  font-size: 0.75rem;
+  line-height: 1.3;
 }
 
-.actions,
-.fixtures {
+.actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
-  margin: 0.8rem 0;
+  gap: 0.4rem;
+  margin: 0.55rem 0 0.65rem;
 }
 
 button,
@@ -136,7 +132,7 @@ button {
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   border-radius: 999px;
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.7rem;
   cursor: pointer;
 }
 
@@ -150,38 +146,39 @@ button {
   display: none;
 }
 
-.panel-scroll {
-  overflow: auto;
-  min-height: 0;
-  flex: 1 1 auto;
-}
-
-fieldset {
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  margin: 1rem 0 0;
-  display: grid;
-  gap: 0.45rem;
-}
-
-label {
+.setting {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.45rem;
+  margin: 0 0 0.55rem;
+  font-size: 0.85rem;
+}
+
+.setting select {
+  min-width: 3.2rem;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.panel a {
+  font-size: 0.85rem;
 }
 
 .piece-box {
   display: flex;
   flex-direction: column;
-  flex: 0 0 min(28vh, 16rem);
+  flex: 1 1 auto;
   min-height: 8rem;
-  margin-top: 0.8rem;
-  padding-top: 0.4rem;
+  margin-top: 0.7rem;
+  padding-top: 0.45rem;
   border-top: 1px solid var(--color-line);
 }
 
 .piece-box h2 {
-  margin-top: 0.2rem;
+  margin-top: 0;
 }
 
 .piece-list,
@@ -209,36 +206,74 @@ ul {
   background: #fff3d6;
 }
 
-.meta {
+.unused {
+  position: absolute;
+  top: 5.4rem;
+  right: 1rem;
+  z-index: 3;
+  width: min(220px, calc(100vw - 2rem));
+  max-height: 36vh;
+  overflow: auto;
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+}
+
+.unused ul {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.dock {
   position: absolute;
   right: 1rem;
   bottom: 1rem;
   z-index: 3;
-  margin: 0;
-  padding: 0.45rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  padding: 0.45rem 0.55rem;
   max-width: min(420px, calc(100vw - 2rem));
-  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
+  border-radius: 16px;
 }
 
-.status,
+.io {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+.io-btn {
+  padding: 0.18rem 0.48rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .notes,
 .meta {
   color: var(--color-muted);
 }
 
 .notes {
-  margin: 0.8rem 0 0;
-  padding-left: 1.1rem;
+  margin: 0.55rem 0 0;
+  font-size: 0.8rem;
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.75rem;
 }
 
 @media (max-width: 720px) {
   .panel {
     top: auto;
-    bottom: 3.6rem;
-    max-height: 46vh;
+    bottom: 5.4rem;
+    max-height: 42vh;
+  }
+
+  .unused {
+    top: 4.8rem;
+    max-height: 22vh;
   }
 }

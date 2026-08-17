@@ -19,14 +19,19 @@ describe('Designer', () => {
     fixture.detectChanges();
   });
 
-  it('renders generate and export actions', () => {
+  it('renders a compact designer menu', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('Generate');
     expect(compiled.textContent).toContain('Rebuild');
-    expect(compiled.textContent).toContain('Export PNG');
-    expect(compiled.textContent).toContain('Export JSON');
-    expect(compiled.textContent).toContain('Import JSON');
+    expect(compiled.textContent).toContain('PNG');
+    expect(compiled.textContent).toContain('JSON');
+    expect(compiled.textContent).toContain('Import');
+    expect(compiled.textContent).not.toContain('Parking and reverse');
+    expect(compiled.textContent).not.toContain('Proof fixtures');
+    expect(compiled.textContent).not.toContain('Leftover');
     expect(compiled.querySelector('.piece-list')).toBeTruthy();
+    expect(compiled.querySelector('.io')).toBeTruthy();
+    expect(compiled.querySelector('.unused')).toBeFalsy();
     expect(compiled.querySelector('.workspace')).toBeTruthy();
   });
 });

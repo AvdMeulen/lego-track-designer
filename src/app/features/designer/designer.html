@@ -18,19 +18,13 @@
   </div>
 
   <aside class="panel float">
-    <p class="eyebrow">{{ 'designer.eyebrow' | t }}</p>
-    <h1>{{ 'designer.title' | t }}</h1>
-    <p class="status">
+    <h1>
       @if (store.generating()) {
         {{ 'designer.searching' | t }}
-      } @else if (store.layout().notes.length) {
-        @for (note of store.layout().notes; track note) {
-          {{ note | t }}
-        }
       } @else {
         {{ (store.layout().message || 'designer.empty') | t }}
       }
-    </p>
+    </h1>
 
     <div class="actions">
       <button
@@ -50,83 +44,34 @@
       >
         {{ 'designer.rebuild' | t }}
       </button>
-      <button type="button" (click)="exportPng()" [disabled]="store.layout().parts.length === 0">
-        {{ 'designer.exportPng' | t }}
-      </button>
-      <button type="button" (click)="exportJson()">{{ 'designer.exportJson' | t }}</button>
-      <button type="button" (click)="copyJson()">{{ 'designer.copyJson' | t }}</button>
-      <button type="button" (click)="openImport()">{{ 'designer.importJson' | t }}</button>
-      <input
-        #snapshotFile
-        class="file"
-        type="file"
-        accept="application/json,.json"
-        (change)="importFile($event)"
-      />
     </div>
-    <p class="hint">{{ 'designer.generateHelp' | t }}</p>
-    <p class="hint">{{ 'designer.snapshotHelp' | t }}</p>
-    @if (snapshotStatus()) {
-      <p class="hint">{{ snapshotStatus()! | t }}</p>
-    }
+
+    <label
+      class="setting"
+      [attr.title]="
+        (store.parkingHint() ? 'designer.parkingTradeoff' : 'designer.parkingSpotsHint') | t
+      "
+    >
+      {{ 'designer.parkingSpots' | t }}
+      <select
+        [ngModel]="store.preferences().targetParkingSpots"
+        (ngModelChange)="setParking('' + $event)"
+      >
+        @for (count of store.parkingOptions(); track count) {
+          <option [ngValue]="count">{{ count }}</option>
+        }
+      </select>
+    </label>
 
     <a routerLink="/inventory">{{ 'designer.editCollection' | t }}</a>
 
-    <div class="panel-scroll">
-      <fieldset>
-        <legend>{{ 'designer.parkingSpots' | t }}</legend>
-        <label>
-          {{ 'designer.parkingSpotsHint' | t }}
-          <select
-            [ngModel]="store.preferences().targetParkingSpots"
-            (ngModelChange)="setParking('' + $event)"
-          >
-            @for (count of store.parkingOptions(); track count) {
-              <option [ngValue]="count">{{ count }}</option>
-            }
-          </select>
-        </label>
-        @if (store.parkingHint()) {
-          <p class="hint">{{ 'designer.parkingTradeoff' | t }}</p>
-        }
-      </fieldset>
-
-      @if (store.layout().notes.length) {
-        <ul class="notes">
-          @for (note of store.layout().notes; track note) {
-            <li>{{ note | t }}</li>
-          }
-        </ul>
-      }
-
-      <h2>{{ 'designer.parkingReverse' | t }}</h2>
-      <ul>
-        @for (spot of store.layout().parkingSpots; track spot.id) {
-          <li>{{ 'designer.parkingItem' | t: { n: $index + 1, studs: spot.clearLengthStuds } }}</li>
-        } @empty {
-          <li>{{ 'designer.noParking' | t }}</li>
-        }
-        @for (option of store.layout().reverseOptions; track option.kind + option.partIds.join('-')) {
-          <li>{{ 'reverse.' + option.kind | t }}</li>
+    @if (store.layout().notes.length && !store.generating()) {
+      <ul class="notes">
+        @for (note of store.layout().notes; track note) {
+          <li>{{ note | t }}</li>
         }
       </ul>
-
-      <h2>{{ 'designer.leftover' | t }}</h2>
-      <ul>
-        @for (item of store.layout().unusedInventory; track item.partId) {
-          <li>{{ item.quantity }}× {{ 'part.' + item.partId + '.name' | t }}</li>
-        } @empty {
-          <li>{{ 'designer.none' | t }}</li>
-        }
-      </ul>
-
-      <h2>{{ 'designer.fixtures' | t }}</h2>
-      <div class="fixtures">
-        @for (fixture of fixtures; track fixture.id) {
-          <button type="button" (click)="showFixture(fixture.id)">{{ 'fixture.' + fixture.id | t }}</button>
-        }
-      </div>
-    </div>
+    }
 
     <section class="piece-box">
       <h2>{{ 'designer.pieceList' | t }}</h2>
@@ -146,15 +91,69 @@
     </section>
   </aside>
 
-  <p class="meta float">
-    {{
-      'designer.meta'
-        | t
-          : {
-              parking: store.layout().parkingSpots.length,
-              reverse: store.layout().reverseOptions.length,
-              open: store.layout().unfinishedPorts,
-            }
-    }}
-  </p>
+  @if (store.layout().unusedInventory.length) {
+    <aside class="unused float">
+      <h2>{{ 'designer.unused' | t }}</h2>
+      <ul>
+        @for (item of store.layout().unusedInventory; track item.partId) {
+          <li>{{ item.quantity }}× {{ 'part.' + item.partId + '.name' | t }}</li>
+        }
+      </ul>
+    </aside>
+  }
+
+  <div class="dock float">
+    <div class="io">
+      <button
+        type="button"
+        class="io-btn"
+        (click)="exportPng()"
+        [disabled]="store.layout().parts.length === 0"
+        [attr.title]="'designer.exportPngHint' | t"
+        [attr.aria-label]="'designer.exportPngHint' | t"
+      >
+        {{ 'designer.exportPng' | t }}
+      </button>
+      <button
+        type="button"
+        class="io-btn"
+        (click)="exportJson()"
+        [attr.title]="'designer.exportJsonHint' | t"
+        [attr.aria-label]="'designer.exportJsonHint' | t"
+      >
+        {{ 'designer.exportJson' | t }}
+      </button>
+      <button
+        type="button"
+        class="io-btn"
+        (click)="copyJson()"
+        [attr.title]="'designer.copyJsonHint' | t"
+        [attr.aria-label]="'designer.copyJsonHint' | t"
+      >
+        {{ 'designer.copyJson' | t }}
+      </button>
+      <button
+        type="button"
+        class="io-btn"
+        (click)="openImport()"
+        [attr.title]="'designer.importJsonHint' | t"
+        [attr.aria-label]="'designer.importJsonHint' | t"
+      >
+        {{ 'designer.importJson' | t }}
+      </button>
+      <input
+        #snapshotFile
+        class="file"
+        type="file"
+        accept="application/json,.json"
+        (change)="importFile($event)"
+      />
+    </div>
+    @if (snapshotStatus()) {
+      <p class="hint">{{ snapshotStatus()! | t }}</p>
+    }
+    <p class="meta">
+      {{ 'designer.meta' | t: { open: store.layout().unfinishedPorts } }}
+    </p>
+  </div>
 </section>

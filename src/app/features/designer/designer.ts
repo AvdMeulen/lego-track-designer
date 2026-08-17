@@ -1,11 +1,9 @@
 import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { CatalogService } from '../../core/catalog/catalog.service';
 import { exportSvgElementToPng } from '../../core/export/png-export';
 import { downloadJson, parseSnapshotText } from '../../core/export/snapshot';
 import { TPipe } from '../../core/i18n/t.pipe';
-import { allFixtures } from '../../core/layout-engine/fixtures';
 import { LayoutStore } from '../../core/layout-store/layout.store';
 import { TrackCanvas } from '../../shared/canvas/track-canvas';
 
@@ -16,13 +14,11 @@ import { TrackCanvas } from '../../shared/canvas/track-canvas';
   styleUrl: './designer.scss',
 })
 export class Designer {
-  protected readonly catalog = inject(CatalogService);
   protected readonly store = inject(LayoutStore);
   private readonly canvasHost = viewChild<ElementRef<HTMLElement>>('canvasHost');
   private readonly canvas = viewChild(TrackCanvas);
   private readonly snapshotFile = viewChild<ElementRef<HTMLInputElement>>('snapshotFile');
 
-  protected readonly fixtures = allFixtures();
   protected readonly snapshotStatus = signal<string | null>(null);
 
   setParking(value: string): void {
@@ -37,13 +33,6 @@ export class Designer {
 
   rebuild(): void {
     this.store.rebuild();
-  }
-
-  showFixture(id: string): void {
-    const fixture = this.fixtures.find((item) => item.id === id);
-    if (fixture) {
-      this.store.show(fixture.layout);
-    }
   }
 
   async exportPng(): Promise<void> {
