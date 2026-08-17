@@ -74,6 +74,8 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.parkingSpots': 'Parking spots',
     'designer.parkingSpotsHint': 'Sidings from a switch where a train can stop',
     'designer.parking2plus': '2+',
+    'designer.parkingTradeoff':
+      'With two switches, one parking spot means a reversing loop instead of a second round trip.',
     'designer.parkingReverse': 'Parking and reverse',
     'designer.parkingItem': 'Parking {n} · {studs} studs',
     'designer.noParking': 'No parking spots',
@@ -101,7 +103,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'note.gapTooLarge': 'Gap too large for flex.',
     'note.fewerParking': 'Fewer parking spots than requested.',
 
-    'layout.variedLoop': 'Varied loop with sidings',
+    'layout.organicLoop': 'Organic loop from the pieces you own',
     'layout.roundedLoop': 'Rounded loop from curves and straights',
     'layout.parallels': 'Parallel tracks from a double crossover',
     'layout.pointToPoint': 'Point-to-point route',
@@ -197,6 +199,8 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'designer.parkingSpots': 'Parkeerplekken',
     'designer.parkingSpotsHint': 'Zijsporen vanaf een wissel waar een trein kan stoppen',
     'designer.parking2plus': '2+',
+    'designer.parkingTradeoff':
+      'Met twee wissels betekent 1 parkeerplaats een keerlus in plaats van een tweede rondje.',
     'designer.parkingReverse': 'Parkeren en keren',
     'designer.parkingItem': 'Parkeren {n} · {studs} noppen',
     'designer.noParking': 'Geen parkeerplekken',
@@ -224,7 +228,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'note.gapTooLarge': 'Gat te groot voor flex.',
     'note.fewerParking': 'Minder parkeerplekken dan gevraagd.',
 
-    'layout.variedLoop': 'Wisselende lus met zijsporen',
+    'layout.organicLoop': 'Organische lus uit de stukken die je hebt',
     'layout.roundedLoop': 'Afgeronde lus van bochten en rechte stukken',
     'layout.parallels': 'Parallelle banen vanuit een dubbele kruising',
     'layout.pointToPoint': 'Punt-tot-puntroute',

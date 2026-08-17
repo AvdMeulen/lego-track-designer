@@ -27,8 +27,8 @@ Source notes live in `public/catalog/city-tracks.json` and `src/app/core/catalog
 
 ## Layout features
 
-- **Passing lane:** two opposite-hand switches on one long straight, diverges joined so a second track runs beside the mainline and merges again. Needs a long gap (about 6–8 straights), not two adjacent switches.
-- **Parking spot:** dead-end siding from a leftover diverge, preferably about five straights (80 studs) clear of the switch. The generator aims at `targetParkingSpots` and should not park every unused diverge.
+- **Alternate route:** two switches on different parts of the network, diverges joined so a train can take a second circular trip.
+- **Parking spot:** dead-end siding from a switch diverge, preferably a long run of straights. The generator aims at `targetParkingSpots` (capped by switch count) and must not leave other switch exits open.
 - **Reverse options:** `dead-end`, `reversing-loop`, `wye`.
 - An open port is parking, a flex candidate, or an unfinished connector. Only unfinished connectors penalize the score.
 

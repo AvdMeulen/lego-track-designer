@@ -6,6 +6,8 @@ import {
   InventoryItem,
   LAYOUT_STORAGE_KEY,
   TrackLayout,
+  clampParkingSpots,
+  switchCountOf,
 } from '../../shared/models/track';
 import { buildSnapshot, DesignerSnapshot } from '../export/snapshot';
 import { emptyLayout, generateLayout } from '../layout-engine/generate';
@@ -45,6 +47,15 @@ export class LayoutStore {
       inventoryKey(this.inventory.snapshot()) !== inventoryKey(this.usedInventory()),
   );
 
+  readonly parkingOptions = computed(() => {
+    const max = clampParkingSpots(2, switchCountOf(this.inventory.snapshot()));
+    return Array.from({ length: max + 1 }, (_, index) => index as 0 | 1 | 2);
+  });
+
+  readonly parkingHint = computed(
+    () => switchCountOf(this.inventory.snapshot()) === 2 && this.preferences().targetParkingSpots === 1,
+  );
+
   readonly usageSummary = computed(() => {
     const counts = new Map<string, number>();
     for (const part of this.layout().parts) {
@@ -57,14 +68,16 @@ export class LayoutStore {
     const saved = this.storage.read<PersistedLayout>(LAYOUT_STORAGE_KEY);
     if (saved?.layout) {
       this.layout.set(saved.layout);
-      this.preferences.set(normalizePreferences(saved.preferences));
+      this.preferences.set(normalizePreferences(saved.preferences, switchCountOf(this.inventory.snapshot())));
       this.seed = saved.seed ?? 1;
       this.usedInventory.set(saved.usedInventory ?? this.inventory.snapshot());
     }
   }
 
   updatePreferences(patch: Partial<GenerationPreferences>): void {
-    this.preferences.update((current) => ({ ...current, ...patch }));
+    this.preferences.update((current) =>
+      normalizePreferences({ ...current, ...patch }, switchCountOf(this.inventory.snapshot())),
+    );
     this.persist();
   }
 
@@ -110,7 +123,7 @@ export class LayoutStore {
 
   importSnapshot(snapshot: DesignerSnapshot): void {
     this.inventory.replaceAll(snapshot.inventory);
-    this.preferences.set(normalizePreferences(snapshot.preferences));
+    this.preferences.set(normalizePreferences(snapshot.preferences, switchCountOf(snapshot.inventory)));
     this.layout.set(snapshot.layout);
     this.seed = snapshot.seed;
     this.usedInventory.set(snapshot.inventory);
@@ -127,9 +140,11 @@ export class LayoutStore {
 
   private finishRun(): void {
     const used = this.inventory.snapshot();
-    const layout = generateLayout(used, this.preferences(), {
+    const prefs = normalizePreferences(this.preferences(), switchCountOf(used));
+    this.preferences.set(prefs);
+    const layout = generateLayout(used, prefs, {
       seed: this.seed,
-      timeoutMs: 2200,
+      timeoutMs: 2800,
     });
     this.usedInventory.set(used);
     this.layout.set(layout);

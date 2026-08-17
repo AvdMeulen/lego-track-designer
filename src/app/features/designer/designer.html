@@ -81,11 +81,14 @@
             [ngModel]="store.preferences().targetParkingSpots"
             (ngModelChange)="setParking('' + $event)"
           >
-            <option [ngValue]="0">0</option>
-            <option [ngValue]="1">1</option>
-            <option [ngValue]="2">{{ 'designer.parking2plus' | t }}</option>
+            @for (count of store.parkingOptions(); track count) {
+              <option [ngValue]="count">{{ count }}</option>
+            }
           </select>
         </label>
+        @if (store.parkingHint()) {
+          <p class="hint">{{ 'designer.parkingTradeoff' | t }}</p>
+        }
       </fieldset>
 
       @if (store.layout().notes.length) {

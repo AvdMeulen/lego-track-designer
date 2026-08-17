@@ -110,15 +110,34 @@ export interface TrackLayout {
 }
 
 export const DEFAULT_PREFERENCES: GenerationPreferences = {
-  targetParkingSpots: 1,
+  targetParkingSpots: 0,
 };
 
-export function normalizePreferences(raw?: unknown): GenerationPreferences {
+export function maxParkingSpots(switchCount: number): 0 | 1 | 2 {
+  if (switchCount <= 0) {
+    return 0;
+  }
+  return switchCount === 1 ? 1 : 2;
+}
+
+export function clampParkingSpots(target: number, switchCount: number): 0 | 1 | 2 {
+  const max = maxParkingSpots(switchCount);
+  const spots = Math.min(Math.max(0, Math.floor(target)), max);
+  return spots >= 2 ? 2 : spots >= 1 ? 1 : 0;
+}
+
+export function switchCountOf(items: { partId: string; quantity: number }[]): number {
+  return items
+    .filter((item) => item.partId === 'switch-left' || item.partId === 'switch-right')
+    .reduce((sum, item) => sum + item.quantity, 0);
+}
+
+export function normalizePreferences(raw?: unknown, switchCount = 2): GenerationPreferences {
   const spots =
     raw && typeof raw === 'object' && 'targetParkingSpots' in raw
       ? Number((raw as { targetParkingSpots: unknown }).targetParkingSpots)
       : DEFAULT_PREFERENCES.targetParkingSpots;
-  return { targetParkingSpots: spots >= 2 ? 2 : spots >= 1 ? 1 : 0 };
+  return { targetParkingSpots: clampParkingSpots(spots, switchCount) };
 }
 
 export const INVENTORY_STORAGE_KEY = 'lego-track-designer.inventory.v1';

@@ -1,139 +1,46 @@
 # Layout generator
 
-How `generateLayout` builds a City network, and the rules that came out of iterating on real snapshots.
+How `generateLayout` builds a City network from inventory.
 
-The engine lives in `src/app/core/layout-engine/generate.ts`. Analysis (parking, reverse, cycles) is separate in `layout-analysis/`. Share a failed or interesting result as a JSON snapshot from the designer — that is the source of truth for the next change.
+The engine lives in `src/app/core/layout-engine/` (`generate.ts` orchestrates `topology.ts`, `wander.ts`, `features.ts`, `score.ts`). Analysis (parking, reverse, cycles) stays in `layout-analysis/`. Share a failed or interesting result as a JSON snapshot from the designer.
 
-## What a good large layout looks like
+## What a good layout looks like
 
 Typical test collection: 58× `straight-16`, 97× `curve-22`, 2 left + 2 right switches, 1 double crossover.
 
-The only user setting is `targetParkingSpots` (0, 1, or 2). Rare pieces (switches, crossover, crossing) are used when they form a closed feature. An unused switch in inventory is better than an open split. With parking off, every pair of switches becomes an alternate route; an odd leftover switch stays on the loop without a siding.
+Parking is **off by default**. The selector only offers `0 … min(2, switchCount)`. Rare pieces (switches, crossover, 90° crossing) are always placed. The only allowed open ports are requested parking ends.
 
 Expect:
 
-- A **closed mainline** (no leftover ports on the loop).
-- **At least one passing lane**: two switches on the same long straight, diverges rejoined so a train can run beside the mainline and merge again.
-- **At most one parking siding** when the target is 1. Do not turn every unused diverge into a dead-end.
-- **A long gap between the paired switches** (about 6–8 straights / 96+ studs). Two curves between almost-adjacent switches is not a useful passing loop.
-- **A shape that is not a rectangle.** Extra curves become S-bends, jogs, wobbles, an octagon or irregular ring, a wander-home loop, or one replaced random arc.
-- **Most of the inventory used.** Leaving tens of curves unused is a miss. A few leftovers for parking or a failed crossover insert are acceptable.
+- An **organic closed circuit** (O, U, L, or a blob) — not a four-sided rectangle template.
+- **Both exits of every non-parking switch on a circuit.** Two switches become two different round trips. One leftover switch with parking off becomes a reversing loop (keerlus). With parking on, an odd leftover switch stays unused so only parking ends remain open.
+- **Parking** only when the user asks: one switch on the circuit and a mostly-straight siding.
+- **Most of the inventory used.** Leftovers are pieces that physically would overlap.
 
 ## Pipeline
 
-1. **Budget first**, then build. Reserve a long passing run, one parking siding, and only keep the crossover if its second track actually closes. Do not decorate leftovers into extra dead-ends.
-2. Build candidate **rings** from the remaining stock:
-   - wobble octagon and irregular 5–8-gon first
-   - wobble rectangle / oval as fallback
-   - `wanderHomeLoop`: place freely, then home to the start port
-3. For each closed ring, **place features**:
-   - `wanderReplaceArc` — cut one unprotected arc and grow it at random (`rnd*`)
-   - first try a route pair on **two different runs** (`rte*`) and join them with a corner chord / `growToward`
-   - if that pair does not close, fall back to the facing pair on one long straight and `buildPassingLane`
-   - try the crossover and join diverges to its open ports; **revert the crossover** if those ports stay empty
-   - keep `targetParkingSpots` diverges open for parking
-   - **revert** any leftover open switch to two straights (`fix*`) so only parking may stay open
-   - add **exactly** `targetParkingSpots` sidings and lengthen that siding with leftovers (do not start a second stub)
-4. Also try a crossover-only parallel fixture and, if nothing looped, point-to-point or switch-led search.
-5. Score all candidates. Prefer a closed loop when one exists. Always spend specials and as many pieces as will join.
-
-Flex runs last, and only to close a small leftover gap. Fifteen curves must not close with flex.
-
-## Instance id prefixes
-
-| Prefix | Meaning |
-| --- | --- |
-| `p*` | Sequence-built ring |
-| `w*` | Wander-home loop |
-| `rnd*` | Random replacement arc |
-| `rte*` | Alternate-route switch pair on two different runs |
-| `par*` | Passing-lane or chord pieces |
-| `sid*` | Parking siding |
-| `xo*` | Double crossover |
-| `ret*` | Grow/retry pieces (kept only if they join) |
-| `fix*` | Open switch put back to two straights |
-
-A snapshot that is only `p1…pN` plus four `sid*` chains is the old “wobbly rectangle + four parkings” failure mode.
+1. **TopologyPlan** from counts: parking, dual-route pairs, keerlus, crossover, crossing.
+2. **Organic wander** (or a 16-curve core) in 22.5° steps, then home to close. S-bends spend extra curves without breaking heading closure.
+3. **Features:** insert switches / crossover / crossing by replacing straights. Grow a circuit from every new exit until it rejoins.
+4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
+5. **Parking** last: the only allowed dead-end, grown from a switch diverge.
+6. Flex closes a leftover near-miss only. Fifteen curves must not close with flex.
+7. Score candidates within the timeout; pick the best.
 
 ## City geometry that the generator depends on
 
-- **Curve:** 22.5°, R40. Sixteen same-direction curves are 360°. Straights add no turn. Opposite-port pairs (`a` then `b`) are an S-bend: heading returns, the track shifts sideways.
-- **Switch:** 32-stud through (two straights). The diverge is an S-curve that ends at 22.5°. One extra curve on the diverge runs **parallel** to the through route. Artwork is one continuous S, same bed width as a straight — not a self-crossing centerline.
-- **Double crossover:** 48 studs long (three straights), parallel routes 16 studs apart.
-- Ports connect within 0.35 studs and ~180° heading. Footprints may touch at faces, not overlap.
+- **Curve:** 22.5°, R40. Sixteen same-direction curves are 360°. Opposite-port pairs (`a` then `b`) are an S-bend.
+- **Switch:** 32-stud through (two straights). The diverge ends at 22.5°.
+- **Double crossover:** 48 studs, parallel routes 16 studs apart. All four ports must sit on circuits.
+- **Crossing 90°:** plus intersection; routes do not join. All four ports must sit on circuits.
+- Ports connect within 0.35 studs and ~180° heading.
 
-## Alternate routes, then passing lanes
+## Scoring
 
-Prefer two switches on **different runs** (`rte*`), diverges pointing inward, joined by a corner chord or `growToward`. That is a second route through the interior, not a clone beside one straight. If those diverges stay open, fall back to a passing pair on one long run.
+Rewarded: unused rigid pieces near zero, specials used, independent cycles (route choice), parking match, heading variety as a bonus.
 
-A useful passing loop needs **opposite-hand** switches on the **same** long run, far apart, facing each other on the **outside** of the loop.
-
-- West + east on an eastbound side, outward south: right switch at the west end, left switch at the east end (or the mirror on the other lateral).
-- Same-hand switches with the same rotation both send the diverge the same way. That does not make a short facing lane.
-- Same-hand switches flipped 180° put diverges on **opposite** laterals.
-- `facePassingSwitches` tries the four flip combinations and keeps the pair whose diverges are close and away from the centroid (outside).
-- Do not flip a working same-side pair onto opposite laterals just to “point outward” for parking.
-- Do not place switches adjacent (stem-to-stem). Minimum useful pair is a run of about 12 straights so that after each switch eats two studs of through, 6–8 straights remain between them.
-- `buildPassingLane` first tries `wanderToPort` so the two routes can leave the mainline and rejoin on their own path. If that misses, it falls back to `curve + N straights + curve` (and straight-only). Keep the result only if the **target diverge is closed**.
-- When a crossover sits between the pair, prefer joining each diverge to a crossover port instead of cloning the mainline.
-- `growToward` must return the **original** parts when it does not meet the target. A “successful” path that never joins produced the long diagonal tentacle (seed 15).
-
-Parking is a leftover diverge plus about five straights (`PARK_STRAIGHTS`). Cap long parks; do not spend the rest of the inventory on four dead-ends.
-
-## Shape
-
-Equal-length rectangle sides were required to close early loops (the Y-shape bug). That made every large layout a box.
-
-Now:
-
-- Spend extra curves on **balanced opposite-side** wobbles, jogs, and S-bends so the loop still closes.
-- Prefer an **octagon** or **irregular polygon** (random 1–4 curve corners that still sum to 16 turns).
-- Concentrate long straight runs on **two perpendicular sides** (not only east–west) so switches can sit on any heading. Rectangle rings may flip which pair of sides is long.
-- `wanderHomeLoop` may produce a fully irregular closed path (`w*`).
-- `wanderReplaceArc` replaces one non-switch arc so part of an otherwise structured ring goes off-box.
-
-A wobbly rectangle can still win on piece count. Scoring therefore penalizes a high share of axis-aligned straights and rewards heading variety and long passing spans.
-
-## Scoring (what we optimize)
-
-Rewarded: closed loop, more pieces, reversing loops/wyes, **specials used**, parking length when parking is requested, rejoined switch pairs, heading variety.
-
-Penalized: unused rigid/special pieces, extra parking beyond the target, tentacle sidings longer than eight straights, boxy cardinal ratio, adjacent switches, unfinished ports on a loop, flex.
-
-Unfinished ports on a closed mainline should only be unused branch ports. Do not keep a grow path that failed to join.
+Penalized: unused specials, unfinished ports on a loop, extra parking above the target, adjacent switches, flex, a **four-sided cardinal rectangle envelope**. Long 0°/90° runs are **not** penalized (L and U shapes need them).
 
 ## Snapshots
 
-Designer export is `lego-track-designer.snapshot` version 1 (`src/app/core/export/snapshot.ts`):
-
-- `seed`, `preferences`, `inventory`
-- full `layout` (parts, connections, unused, parking, reverse, marks, score)
-- `summary` (counts and used/unused maps)
-
-Import restores inventory, preferences, and the drawn layout so a seed can be discussed without regenerating. When changing the generator, paste the snapshot JSON into chat and treat unused counts, `par*` / `sid*` ids, and switch spacing as the bug report.
-
-## Regression seeds
-
-Large-collection tests in `generate.spec.ts` (timeout ~2500 ms):
-
-| Seed | Guard |
-| --- | --- |
-| 14 | Switches not adjacent; no open ports except parking; parking ends capped |
-| 15 | No long diagonal dead-end from a diverge |
-| 17 | At least one rejoined passing pair; not every switch is parking; most curves used; switch gap ≥ 96 studs |
-| 18 | Long passing lane (`par*` ≥ 4 pieces) and a wandered or multi-heading shape |
-| 21 | Exactly one parking; crossover only if both tracks close; leftover straights+curves < 17 |
-| 22 | One parking ≥ 80 studs; useful passing lane; no dangling crossover ports |
-| 27 | No open switch splits except the parking siding |
-
-Smaller fixtures still cover the 16-curve circle, the 15-curve flex refusal, a single-switch parking siding, and S-bends on extra curves.
-
-## Rules of thumb for the next change
-
-- Fix from a snapshot, not from a guessed seed.
-- If both a fix and an exploit-style path are possible, change scoring or placement — do not add a one-off for one seed.
-- Keep `growToward` / passing / crossover joins honest: fewer open ports is not enough; the intended target port must close.
-- Do not steal the long switch run to feed wobbles or parking.
-- Prefer one passing loop + one parking over four parkings or two unfinished diverges.
-- No open switch splits except the parking siding. If a route pair does not close, put those switches back to straights.
-- A random stretch is valuable only if the loop still closes and the switch sides stay long.
+Designer export is `lego-track-designer.snapshot` version 1. When changing the generator, paste the snapshot JSON into chat and treat unused counts and open ports as the bug report.

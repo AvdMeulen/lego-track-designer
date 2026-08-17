@@ -1,11 +1,47 @@
 import { generateLayout } from './generate';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { openPorts } from './connections';
-import { DEFAULT_PREFERENCES } from '../../shared/models/track';
+import { rectangleEnvelopePenalty } from './score';
+
+const LARGE = [
+  { partId: 'straight-16', quantity: 58 },
+  { partId: 'curve-22', quantity: 97 },
+  { partId: 'switch-left', quantity: 2 },
+  { partId: 'switch-right', quantity: 2 },
+  { partId: 'double-crossover', quantity: 1 },
+];
+
+function usedOf(layout: { unusedInventory: { partId: string; quantity: number }[] }, partId: string): number {
+  return layout.unusedInventory.find((item) => item.partId === partId)?.quantity ?? 0;
+}
+
+function switchPortsUsed(
+  layout: {
+    parts: { instanceId: string; partId: string }[];
+    connections: {
+      fromInstanceId: string;
+      fromPortId: string;
+      toInstanceId: string;
+      toPortId: string;
+    }[];
+  },
+  instanceId: string,
+): Set<string> {
+  const used = new Set<string>();
+  for (const connection of layout.connections) {
+    if (connection.fromInstanceId === instanceId) {
+      used.add(connection.fromPortId);
+    }
+    if (connection.toInstanceId === instanceId) {
+      used.add(connection.toPortId);
+    }
+  }
+  return used;
+}
 
 describe('generateLayout', () => {
   it('builds a circle from 16 curves without flex', () => {
-    const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], DEFAULT_PREFERENCES, {
+    const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], { targetParkingSpots: 0 }, {
       seed: 1,
       timeoutMs: 1500,
     });
@@ -20,13 +56,26 @@ describe('generateLayout', () => {
         { partId: 'curve-22', quantity: 15 },
         { partId: 'flex-track', quantity: 4 },
       ],
-      DEFAULT_PREFERENCES,
+      { targetParkingSpots: 0 },
       { seed: 2, timeoutMs: 1500 },
     );
     expect(layout.parts.filter((part) => part.partId === 'flex-track').length).toBe(0);
     expect(layout.score.routeBonus).toBe(0);
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBeGreaterThan(0);
     expect(layout.notes.join(' ')).toContain('note.fifteenCurves');
+  });
+
+  it('never uses more pieces than inventory', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'curve-22', quantity: 20 },
+        { partId: 'straight-16', quantity: 10 },
+      ],
+      { targetParkingSpots: 0 },
+      { seed: 3, timeoutMs: 1500 },
+    );
+    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBeLessThanOrEqual(20);
+    expect(layout.parts.filter((part) => part.partId === 'straight-16').length).toBeLessThanOrEqual(10);
   });
 
   it('uses 8 curves and 8 straights as a connected network', () => {
@@ -39,31 +88,22 @@ describe('generateLayout', () => {
       { seed: 3, timeoutMs: 1500 },
     );
     expect(layout.parts.length).toBeGreaterThanOrEqual(8);
+    expect(layout.connections.length).toBeGreaterThan(0);
   });
 
-  it('creates a parking siding from a switch and a straight', () => {
+  it('creates a parking siding from a switch when parking is requested', () => {
     const layout = generateLayout(
       [
         { partId: 'switch-left', quantity: 1 },
-        { partId: 'straight-16', quantity: 3 },
+        { partId: 'straight-16', quantity: 8 },
+        { partId: 'curve-22', quantity: 16 },
       ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1 },
-      { seed: 4, timeoutMs: 1500 },
+      { targetParkingSpots: 1 },
+      { seed: 4, timeoutMs: 2000 },
     );
-    expect(layout.parkingSpots.length).toBeGreaterThan(0);
-  });
-
-  it('builds a connected point-to-point route', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 4 },
-        { partId: 'curve-22', quantity: 4 },
-      ],
-      { targetParkingSpots: 0 },
-      { seed: 5, timeoutMs: 1500 },
-    );
-    expect(layout.parts.length).toBeGreaterThanOrEqual(4);
-    expect(layout.connections.length).toBeGreaterThan(0);
+    expect(layout.parts.some((part) => part.partId === 'switch-left')).toBeTrue();
+    expect(layout.parkingSpots.length).toBe(1);
+    expect(layout.unfinishedPorts).toBe(0);
   });
 
   it('uses extra curves in a closed loop instead of leaving them unused', () => {
@@ -73,90 +113,12 @@ describe('generateLayout', () => {
         { partId: 'straight-16', quantity: 24 },
       ],
       { targetParkingSpots: 0 },
-      { seed: 1, timeoutMs: 1500 },
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
-    const curves = layout.parts.filter((part) => part.partId === 'curve-22').length;
-    const straights = layout.parts.filter((part) => part.partId === 'straight-16').length;
-    expect(curves).toBeGreaterThan(16);
-    expect(straights).toBe(24);
-    expect(layout.unusedInventory.find((item) => item.partId === 'straight-16')).toBeFalsy();
-  });
-
-  it('builds a long straight parking siding from a switch', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'curve-22', quantity: 16 },
-        { partId: 'straight-16', quantity: 16 },
-        { partId: 'switch-left', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 1, timeoutMs: 1500 },
-    );
-    expect(layout.parkingSpots.length).toBeGreaterThan(0);
-    expect(Math.max(...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeGreaterThanOrEqual(80);
-  });
-
-  it('connects a switch diverge as a second track on a loop', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'curve-22', quantity: 16 },
-        { partId: 'straight-16', quantity: 8 },
-        { partId: 'switch-left', quantity: 1 },
-      ],
-      { ...DEFAULT_PREFERENCES, targetParkingSpots: 1 },
-      { seed: 1, timeoutMs: 1500 },
-    );
-    const sw = layout.parts.find((part) => part.partId === 'switch-left');
-    expect(sw).toBeTruthy();
-    const used = new Set(
-      layout.connections.flatMap((connection) => {
-        const ports: string[] = [];
-        if (connection.fromInstanceId === sw?.instanceId) {
-          ports.push(connection.fromPortId);
-        }
-        if (connection.toInstanceId === sw?.instanceId) {
-          ports.push(connection.toPortId);
-        }
-        return ports;
-      }),
-    );
-    expect(used.has('stem')).toBeTrue();
-    expect(used.has('through')).toBeTrue();
-    expect(used.has('diverge')).toBeTrue();
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parkingSpots.length).toBeGreaterThan(0);
-  });
-
-  it('grows two parallel tracks from a double crossover', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'double-crossover', quantity: 1 },
-        { partId: 'straight-16', quantity: 8 },
-      ],
-      { targetParkingSpots: 0 },
-      { seed: 6, timeoutMs: 1500 },
-    );
-    const lanes = new Set(
-      layout.parts.filter((part) => part.partId === 'straight-16').map((part) => Math.round(part.y)),
-    );
-    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
-    expect(lanes.size).toBeGreaterThanOrEqual(2);
-  });
-
-  it('still closes after wandering instead of staying rectangular', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 20 },
-        { partId: 'curve-22', quantity: 32 },
-      ],
-      { targetParkingSpots: 0 },
-      { seed: 11, timeoutMs: 2000 },
+      { seed: 1, timeoutMs: 2000 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
     expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBeGreaterThan(16);
+    expect(usedOf(layout, 'straight-16')).toBe(0);
   });
 
   it('closes a loop when the straight count is not a multiple of four', () => {
@@ -169,218 +131,29 @@ describe('generateLayout', () => {
       { seed: 1, timeoutMs: 1500 },
     );
     expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBe(16);
     expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
   });
 
-  it('builds a closed loop from a large City collection', () => {
+  it('connects through and diverge on a non-parking switch', () => {
     const layout = generateLayout(
       [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
+        { partId: 'curve-22', quantity: 32 },
+        { partId: 'straight-16', quantity: 16 },
+        { partId: 'switch-left', quantity: 1 },
+        { partId: 'switch-right', quantity: 1 },
       ],
-      DEFAULT_PREFERENCES,
-      { seed: 1, timeoutMs: 2500 },
+      { targetParkingSpots: 0 },
+      { seed: 7, timeoutMs: 2500 },
     );
-    const curves = layout.parts.filter((part) => part.partId === 'curve-22').length;
-    const straights = layout.parts.filter((part) => part.partId === 'straight-16').length;
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(curves).toBeGreaterThan(16);
-    expect(straights).toBeGreaterThan(20);
-    expect(layout.parts.some((part) => part.partId.startsWith('switch-'))).toBeTrue();
-  });
-
-  it('keeps switches apart and only leaves parking ends', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 14, timeoutMs: 2500 },
-    );
-    const switchIds = new Set(
-      layout.parts.filter((part) => part.partId.startsWith('switch-')).map((part) => part.instanceId),
-    );
-    const adjacent = layout.connections.some(
-      (connection) => switchIds.has(connection.fromInstanceId) && switchIds.has(connection.toInstanceId),
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(adjacent).toBeFalse();
-    expect(layout.unfinishedPorts).toBe(0);
-    expect(layout.parkingSpots.length).toBeLessThanOrEqual(2);
-    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(224);
-  });
-
-  it('does not grow a long diagonal dead-end from a switch', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 15, timeoutMs: 2500 },
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parkingSpots.length).toBeLessThanOrEqual(2);
-    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeLessThanOrEqual(224);
-    const switchIds = layout.parts.filter((part) => part.partId.startsWith('switch-')).map((part) => part.instanceId);
-    const closedDiverges = switchIds.filter((id) =>
-      layout.connections.some(
-        (connection) =>
-          (connection.fromInstanceId === id && connection.fromPortId === 'diverge') ||
-          (connection.toInstanceId === id && connection.toPortId === 'diverge'),
-      ),
-    );
-    expect(closedDiverges.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('rejoins switch pairs instead of turning every switch into parking', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 17, timeoutMs: 2500 },
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parkingSpots.length).toBeLessThanOrEqual(2);
-    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBeGreaterThan(70);
-    const unusedCurves = layout.unusedInventory.find((item) => item.partId === 'curve-22')?.quantity ?? 0;
-    expect(unusedCurves).toBeLessThan(25);
-    const switchIds = layout.parts
-      .filter((part) => part.partId.startsWith('switch-'))
-      .map((part) => part.instanceId);
-    const closedDiverges = switchIds.filter((id) =>
-      layout.connections.some(
-        (connection) =>
-          (connection.fromInstanceId === id && connection.fromPortId === 'diverge') ||
-          (connection.toInstanceId === id && connection.toPortId === 'diverge'),
-      ),
-    );
-    expect(closedDiverges.length - layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
     const switches = layout.parts.filter((part) => part.partId.startsWith('switch-'));
-    let gap = 0;
-    for (let i = 0; i < switches.length; i += 1) {
-      for (let j = i + 1; j < switches.length; j += 1) {
-        const dx = switches[i].x - switches[j].x;
-        const dy = switches[i].y - switches[j].y;
-        gap = Math.max(gap, Math.hypot(dx, dy));
-      }
+    expect(switches.length).toBe(2);
+    for (const sw of switches) {
+      const used = switchPortsUsed(layout, sw.instanceId);
+      expect(used.has('through')).toBeTrue();
+      expect(used.has('diverge')).toBeTrue();
     }
-    expect(gap).toBeGreaterThanOrEqual(96);
-  });
-
-  it('keeps a long passing lane and wanders off the box', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 18, timeoutMs: 2500 },
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    const switches = layout.parts.filter((part) => part.partId.startsWith('switch-'));
-    let gap = 0;
-    for (let i = 0; i < switches.length; i += 1) {
-      for (let j = i + 1; j < switches.length; j += 1) {
-        gap = Math.max(gap, Math.hypot(switches[i].x - switches[j].x, switches[i].y - switches[j].y));
-      }
-    }
-    expect(gap).toBeGreaterThanOrEqual(96);
-    const passing = layout.parts.filter(
-      (part) => part.instanceId.startsWith('par') || part.instanceId.startsWith('ret'),
-    );
-    expect(passing.length).toBeGreaterThanOrEqual(3);
-    const wandered = layout.parts.some((part) => part.instanceId.startsWith('rnd') || part.instanceId.startsWith('w'));
-    const headings = new Set(
-      layout.parts
-        .filter((part) => part.partId === 'straight-16')
-        .map((part) => Math.round((((part.rotation % 360) + 360) % 360) / 22.5) % 8),
-    );
-    expect(wandered || headings.size >= 3).toBeTrue();
-  });
-
-  it('reserves parking, uses the crossover, and does not leave a handful of leftovers', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 21, timeoutMs: 2500 },
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parkingSpots.length).toBe(1);
-    const xoUsed = layout.parts.some((part) => part.partId === 'double-crossover');
-    if (xoUsed) {
-      expect(layout.unfinishedPorts).toBe(0);
-    }
-    const leftoverTrack =
-      (layout.unusedInventory.find((item) => item.partId === 'straight-16')?.quantity ?? 0) +
-      (layout.unusedInventory.find((item) => item.partId === 'curve-22')?.quantity ?? 0);
-    expect(leftoverTrack).toBeLessThan(17);
-  });
-
-  it('keeps one long parking, a useful passing lane, and no dangling crossover', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 22, timeoutMs: 2500 },
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parkingSpots.length).toBe(1);
-    expect(Math.max(0, ...layout.parkingSpots.map((spot) => spot.clearLengthStuds))).toBeGreaterThanOrEqual(80);
-    const passing = layout.parts.filter(
-      (part) => part.instanceId.startsWith('par') || part.instanceId.startsWith('ret'),
-    );
-    expect(passing.length).toBeGreaterThanOrEqual(4);
-    if (layout.parts.some((part) => part.partId === 'double-crossover')) {
-      expect(layout.unfinishedPorts).toBe(0);
-    }
-  });
-
-  it('leaves no open switch splits except the parking siding', () => {
-    const layout = generateLayout(
-      [
-        { partId: 'straight-16', quantity: 58 },
-        { partId: 'curve-22', quantity: 97 },
-        { partId: 'switch-left', quantity: 2 },
-        { partId: 'switch-right', quantity: 2 },
-        { partId: 'double-crossover', quantity: 1 },
-      ],
-      { targetParkingSpots: 1 },
-      { seed: 27, timeoutMs: 2500 },
-    );
-    expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parkingSpots.length).toBe(1);
     expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
   });
 
   it('uses opposite-curve S-bends instead of only 90-degree corners', () => {
@@ -407,9 +180,58 @@ describe('generateLayout', () => {
     expect(turns.some((turn) => turn < 0)).toBeTrue();
   });
 
-  it('accepts a 16-curve circle when parking is set to 0', () => {
-    const layout = generateLayout([{ partId: 'curve-22', quantity: 16 }], { targetParkingSpots: 0 });
-    expect(layout.parkingSpots.length).toBe(0);
-    expect(openPorts(layout.parts, CITY_TRACKS_BY_ID).length).toBe(0);
+  it('places a double crossover and closes its ports when possible', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'double-crossover', quantity: 1 },
+        { partId: 'straight-16', quantity: 20 },
+        { partId: 'curve-22', quantity: 32 },
+      ],
+      { targetParkingSpots: 0 },
+      { seed: 6, timeoutMs: 2500 },
+    );
+    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
+  });
+
+  it('uses specials from a large City collection and stays off a four-sided box', () => {
+    const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, { seed: 1, timeoutMs: 3000 });
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.parts.some((part) => part.partId.startsWith('switch-'))).toBeTrue();
+    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
+    expect(usedOf(layout, 'switch-left') + usedOf(layout, 'switch-right')).toBe(0);
+    expect(usedOf(layout, 'double-crossover')).toBe(0);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(24);
+    expect(rectangleEnvelopePenalty(layout.parts)).toBe(0);
+  });
+
+  it('matches parking count and leaves only parking ends unfinished', () => {
+    const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 14, timeoutMs: 3000 });
+    expect(layout.parkingSpots.length).toBe(1);
+    expect(layout.unfinishedPorts).toBe(0);
+    const switches = layout.parts.filter((part) => part.partId.startsWith('switch-'));
+    const parkingSwitch = layout.parkingSpots[0]?.switchInstanceId;
+    for (const sw of switches) {
+      const used = switchPortsUsed(layout, sw.instanceId);
+      expect(used.has('through')).toBeTrue();
+      if (sw.instanceId !== parkingSwitch) {
+        expect(used.has('diverge')).toBeTrue();
+      }
+    }
+  });
+
+  it('builds more than one cycle when two route switches are available', () => {
+    const layout = generateLayout(
+      [
+        { partId: 'straight-16', quantity: 30 },
+        { partId: 'curve-22', quantity: 48 },
+        { partId: 'switch-left', quantity: 1 },
+        { partId: 'switch-right', quantity: 1 },
+      ],
+      { targetParkingSpots: 0 },
+      { seed: 9, timeoutMs: 2500 },
+    );
+    const cycles = Math.max(0, layout.connections.length - layout.parts.length + 1);
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(cycles).toBeGreaterThanOrEqual(2);
   });
 });

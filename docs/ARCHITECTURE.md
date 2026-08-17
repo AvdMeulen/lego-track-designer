@@ -32,7 +32,7 @@ Catalog → inventory page → inventory store → designer → `generateLayout`
 
 ## Engine
 
-Closed rings first (octagon / irregular / wobble, plus a wander-home attempt), then decoration: random arc, crossover, switch pairs, passing lanes, at most `targetParkingSpots` sidings. Score picks among those candidates. Point-to-point and switch-led search run only when nothing looped. Flex closes a leftover near-miss only.
+Closed organic wander first (or a 16-curve core plus inflate), then features: dual-route switch pairs, keerlus, crossover, 90° crossing, at most `targetParkingSpots` sidings. Score picks among candidates. Flex closes a leftover near-miss only.
 
 Details, instance-id prefixes, and snapshot-driven rules: [GENERATOR.md](GENERATOR.md).
 
@@ -40,4 +40,4 @@ Details, instance-id prefixes, and snapshot-driven rules: [GENERATOR.md](GENERAT
 
 Golden fixtures live next to geometry (`fixtures.spec.ts`): 16-curve circle, oval, 15-curve refusal, switch/crossing/crossover, flex accept/refuse.
 
-Generator regressions live in `generate.spec.ts`: parking sidings, S-bends, large-collection seeds 14–18 (no adjacent switches, no tentacle, passing lanes, unused curves, off-box shape). Snapshot parse/build is in `export/snapshot.spec.ts`.
+Generator regressions live in `generate.spec.ts`: closed loops, parking sidings, S-bends, large-collection specials and leftovers. Snapshot parse/build is in `export/snapshot.spec.ts`.

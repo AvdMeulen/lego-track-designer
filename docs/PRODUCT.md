@@ -31,7 +31,7 @@ Straight 16, curve 22.5°, left/right switch, 90° crossing, assembled 7996 doub
 
 - Never use more pieces than inventory.
 - Show every placed part with a number, color, and name.
-- Support parking dead-ends, passing lanes that rejoin, and direction change — not only a single circle.
+- Support parking dead-ends, alternate circular routes via switches, and direction change — not only a single circle.
 - Use most of a large collection instead of a small rectangle with leftover piles.
 - Use flex only to close a small remaining gap.
 - Persist the design, export a readable PNG, and share a JSON snapshot.

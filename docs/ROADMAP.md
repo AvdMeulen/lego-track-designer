@@ -28,6 +28,10 @@ Set presets, richer silhouettes/colors, GitHub Actions CI.
 
 JSON snapshot import/export. Switch artwork as one S. Generator prefers closed loops with passing lanes, one parking siding, leftover curves spent on wobbles / octagons / a random arc — not a box with four dead-ends. Lessons: [GENERATOR.md](GENERATOR.md).
 
+## Slice G — Organic generator (done)
+
+Path-first generator: wander in 22.5° steps, close every switch exit except requested parking, spend leftovers as detours. No rectangle template and no passing lanes. Parking options follow switch count; default is 0.
+
 ## Later
 
 Richer room-scale shapes, using the double crossover more often, 3D bricks, train animation, switch-lever states, PDF print, chaining several flex pieces, third-party crossovers.
