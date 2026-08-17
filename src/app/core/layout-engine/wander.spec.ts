@@ -2,7 +2,7 @@ import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { openPorts } from './connections';
 import { worldPorts } from './geometry';
 import { GenContext, nextId, rng } from './place';
-import { ovalJoin } from './wander';
+import { ovalJoin, organicRing } from './wander';
 
 describe('ovalJoin', () => {
   it('closes a switch through-route with the reversing-loop balloon', () => {
@@ -34,5 +34,18 @@ describe('ovalJoin', () => {
     expect(joined).toBeTruthy();
     expect(openPorts(joined!, CITY_TRACKS_BY_ID).some((port) => port.id === 'through')).toBeFalse();
     expect(openPorts(joined!, CITY_TRACKS_BY_ID).some((port) => port.id === 'stem')).toBeFalse();
+  });
+
+  it('builds a closed ring that spends a large City collection', () => {
+    const ctx: GenContext = {
+      catalog: CITY_TRACKS_BY_ID,
+      random: rng(1),
+      deadline: Date.now() + 2000,
+      seq: 1,
+    };
+    const ring = organicRing({ 'straight-16': 50, 'curve-22': 81 }, ctx);
+    expect(ring).toBeTruthy();
+    expect(openPorts(ring!, CITY_TRACKS_BY_ID).length).toBe(0);
+    expect(ring!.length).toBeGreaterThan(40);
   });
 });

@@ -44,16 +44,13 @@ function reserveForFeatures(
 ): Record<string, number> {
   const extraLoops = plan.dualRoutes + plan.keerlussen + plan.crossovers + plan.crossings;
   const totalCurves = inventory['curve-22'] ?? 0;
-  const reservedCurves = Math.min(Math.max(0, totalCurves - 16), extraLoops * 16);
-  const keepCurves = totalCurves - reservedCurves;
+  const reservedCurves = extraLoops > 0 ? Math.min(16 * extraLoops, Math.max(0, totalCurves - 16)) : 0;
   const straights = inventory['straight-16'] ?? 0;
-  const slots = plan.dualRoutes * 2 + plan.keerlussen + plan.parking;
-  const loopNeed = Math.max(4, slots * 2 + plan.crossovers * 3 + plan.crossings);
-  const reservedPark = Math.min(plan.parking * 6, Math.max(0, straights - loopNeed));
-  const reservedJoin = extraLoops > 0 ? Math.max(0, straights - loopNeed - reservedPark) : 0;
+  const reservedPark = Math.min(plan.parking * 6, Math.max(0, straights - 8));
+  const reservedJoin = extraLoops > 0 ? Math.min(4 * extraLoops, Math.max(0, straights - reservedPark - 8)) : 0;
   return {
     ...inventory,
-    'curve-22': Math.min(inventory['curve-22'] ?? 0, keepCurves),
+    'curve-22': Math.max(0, totalCurves - reservedCurves),
     'straight-16': Math.max(0, straights - reservedPark - reservedJoin),
     'switch-left': 0,
     'switch-right': 0,
@@ -65,8 +62,9 @@ function reserveForFeatures(
 
 function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWander: boolean): PlacedPart[] {
   const curves = inventory['curve-22'] ?? 0;
+  const straights = inventory['straight-16'] ?? 0;
   if (curves >= 16) {
-    if (preferWander) {
+    if (preferWander || straights + curves > 40) {
       const wandered = wanderHomeLoop(inventory, ctx);
       if (wandered && loopCloses(wandered, ctx.catalog)) {
         return wandered;
@@ -96,18 +94,17 @@ function buildCandidate(
 ): PlacedPart[] {
   const plan = planTopology(inventory, prefs);
   const main = reserveForFeatures(inventory, plan);
-  const large = (inventory['curve-22'] ?? 0) >= 32;
-  let parts = buildCore(main, ctx, preferWander || large);
+  let parts = buildCore(main, ctx, preferWander);
   if (parts.length === 0) {
     parts = pointToPoint(inventory, ctx);
   }
   parts = applyFeatures(parts, inventory, plan, ctx);
   const keepPark = plan.parking * 6;
-  parts = inflateLoop(parts, inventory, ctx, 18, keepPark);
+  parts = inflateLoop(parts, inventory, ctx, 12, keepPark);
   parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
-  parts = inflateLoop(parts, inventory, ctx, 22, keepPark);
+  parts = inflateLoop(parts, inventory, ctx, 16, keepPark);
   parts = placeParking(parts, inventory, ctx, plan.parking);
-  parts = inflateLoop(parts, inventory, ctx, 16, 0);
+  parts = inflateLoop(parts, inventory, ctx, 12, 0);
   return parts;
 }
 

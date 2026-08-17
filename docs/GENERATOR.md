@@ -20,8 +20,8 @@ Expect:
 ## Pipeline
 
 1. **TopologyPlan** from counts: parking, dual-route pairs, keerlus, crossover, crossing.
-2. **Organic wander** (or a 16-curve core) in 22.5° steps, then home to close. S-bends spend extra curves without breaking heading closure.
-3. **Features:** insert switches / crossover / crossing by replacing straights. Grow a circuit from every new exit until it rejoins.
+2. **Organic wander** or a wobbly ring that **uses the collection**, then home to close. S-bends spend extra curves without breaking heading closure.
+3. **Features:** insert switches / crossover / crossing into that path. Grow a circuit from every new exit until it rejoins. Do not replace a large closed path with two tiny ovals. Dual-route switches sit on the same straight run so the second circuit is a local bubble, not a path through the interior.
 4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
 5. **Parking** last: a short siding from a switch (about a train length). Leftover straights and curves go into loop detours, not a runway.
 6. Flex closes a leftover near-miss only. Fifteen curves must not close with flex.

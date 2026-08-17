@@ -79,7 +79,7 @@ export function growToward(
   let current = start;
   let curveRun = 0;
   let worse = 0;
-  const ignore = [target.instanceId];
+  const ignore = [target.instanceId, start.instanceId];
   for (let step = 0; step < 64; step += 1) {
     if (portsConnect(current, target)) {
       return result;
@@ -209,7 +209,10 @@ export function wanderHomeLoop(
   let straightRun = 0;
   let curveRun = 0;
   const maxParts = Math.min(160, 2 + straights + curves);
-  const minParts = Math.min(maxParts - 8, Math.max(16, Math.floor((straights + Math.min(curves, 48)) * 0.35)));
+  const minParts = Math.min(
+    maxParts - 8,
+    Math.max(16, Math.floor((straights + Math.min(curves, 80)) * (straights + curves > 40 ? 0.65 : 0.35))),
+  );
 
   const restore = () => {
     if (parts.length <= 1) {
@@ -265,7 +268,8 @@ export function wanderHomeLoop(
     const need = Math.abs(headingSteps(head.heading, goal.heading + 180)) % 16;
     const minTurns = need === 0 ? 0 : Math.min(need, 16 - need);
     const dist = distance(head, goal);
-    const canClose = parts.length >= minParts;
+    const leftover = curvesLeft + straightLeft;
+    const canClose = parts.length >= minParts && leftover <= 10;
     const mustHome = curvesLeft <= minTurns + 2 || (dist < 32 && canClose) || parts.length > maxParts - 8;
     const wanderP = mustHome ? 0 : 0.82;
     const wander = ctx.random() < wanderP;
@@ -335,7 +339,7 @@ export function wanderHomeLoop(
     }
     commit(chosen, wander);
   }
-  return portsConnect(head, goal) && parts.length >= 8 ? parts : null;
+  return portsConnect(head, goal) && parts.length >= minParts ? parts : null;
 }
 
 export function attachSequence(
@@ -364,7 +368,8 @@ export function attachSequence(
     }
     const item = sequence[i];
     const portId = item.portId ?? ctx.catalog[item.partId].ports[0].id;
-    const move = placeOnHead(item.partId, portId, head, parts, ctx, prefix);
+    const ignore = i === sequence.length - 1 ? [start.instanceId] : [];
+    const move = placeOnHead(item.partId, portId, head, parts, ctx, prefix, ignore);
     if (!move) {
       return null;
     }
@@ -384,16 +389,29 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
   if (curves < 16) {
     return null;
   }
-  const evenCorners = ctx.random() < 0.3 ? 8 : 4;
-  const built = ringWithCorners(straights, curves, evenCorners, ctx, false);
-  if (built) {
-    return built;
+  const extra = Math.floor((curves - 16) / 2);
+  const evenS = straights - (straights % 2);
+  const tries: Array<{ s: number; extraCurves: number; corners: 4 | 8; skip: boolean }> = [
+    { s: straights, extraCurves: extra, corners: 4, skip: extra === 0 },
+    { s: straights, extraCurves: extra, corners: 8, skip: false },
+    { s: straights, extraCurves: Math.floor(extra / 2), corners: 4, skip: false },
+    { s: straights, extraCurves: 0, corners: 4, skip: true },
+    { s: Math.max(4, evenS / 2), extraCurves: 0, corners: 4, skip: true },
+    { s: 4, extraCurves: 0, corners: 4, skip: true },
+  ];
+  for (const attempt of tries) {
+    const built = ringWithCorners(
+      attempt.s,
+      16 + attempt.extraCurves * 2,
+      attempt.corners,
+      ctx,
+      attempt.skip,
+    );
+    if (built) {
+      return built;
+    }
   }
-  const oval = ringWithCorners(straights, curves, 4, ctx, false);
-  if (oval) {
-    return oval;
-  }
-  return ringWithCorners(straights, 16, 4, ctx, true);
+  return null;
 }
 
 function ringWithCorners(
@@ -410,34 +428,30 @@ function ringWithCorners(
   // Keep opposite sides equal, but pile onto few pairs so each run stays consecutive
   // (needed for 32-stud switches) instead of 1+1 on every face.
   while (straightLeft >= 2) {
-    const filled = sides.filter((count, index) => index < half && count > 0).length;
-    const index =
-      filled === 0 || ctx.random() < 0.7
-        ? sides.slice(0, half).findIndex((count) => count > 0)
-        : Math.floor(ctx.random() * half);
-    const pick = index >= 0 ? index : 0;
-    sides[pick] += 1;
-    sides[pick + half] += 1;
+    sides[0] += 1;
+    sides[half] += 1;
     straightLeft -= 2;
   }
   const extraPairs = skipSbends ? 0 : Math.floor((curves - 16) / 2);
   const sbends = Array.from({ length: corners }, () => 0);
   let pairsLeft = extraPairs - (extraPairs % 2);
+  const bendSide = 1 % corners;
   while (pairsLeft >= 2) {
-    const index = Math.floor(ctx.random() * half);
-    sbends[index] += 1;
-    sbends[index + half] += 1;
+    sbends[bendSide] += 1;
+    sbends[bendSide + half] += 1;
     pairsLeft -= 2;
   }
+  const pairHand = Array.from({ length: half }, () => 'b' as 'a' | 'b');
   const sequence: Array<{ partId: string; portId?: string }> = [];
   for (let side = 0; side < corners; side += 1) {
     for (let i = 0; i < sides[side]; i += 1) {
       sequence.push({ partId: 'straight-16' });
     }
-    const leftFirst = ctx.random() >= 0.5;
+    const first = pairHand[side % half];
+    const second = first === 'a' ? 'b' : 'a';
     for (let i = 0; i < sbends[side]; i += 1) {
-      sequence.push({ partId: 'curve-22', portId: leftFirst ? 'a' : 'b' });
-      sequence.push({ partId: 'curve-22', portId: leftFirst ? 'b' : 'a' });
+      sequence.push({ partId: 'curve-22', portId: first });
+      sequence.push({ partId: 'curve-22', portId: second });
     }
     for (let i = 0; i < perCorner; i += 1) {
       sequence.push({ partId: 'curve-22', portId: 'a' });
@@ -583,8 +597,13 @@ export function inflateLoop(
       if (heads.length < 2) {
         continue;
       }
+      const leftovers = stockOf(inventory, without);
+      const roomy = (leftovers['curve-22'] ?? 0) >= 20 && (leftovers['straight-16'] ?? 0) >= 8;
       const joined =
         tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
+        (roomy || (leftovers['curve-22'] ?? 0) >= 16
+          ? ovalJoin(without, heads[0], heads[1], inventory, ctx, 'inf', roomy)
+          : null) ??
         joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf');
       if (!joined || joined.length <= result.length) {
         continue;
@@ -650,7 +669,7 @@ export function attachSequenceFrom(
 ): PlacedPart[] | null {
   let trail = parts;
   let tip = start;
-  const ignore = [target.instanceId];
+  const ignore = [target.instanceId, start.instanceId];
   for (const item of sequence) {
     const portId = item.portId ?? ctx.catalog[item.partId].ports[0].id;
     const move = placeOnHead(item.partId, portId, tip, trail, ctx, prefix, ignore);

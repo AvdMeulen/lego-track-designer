@@ -221,11 +221,20 @@ describe('generateLayout', () => {
   });
 
   it('does not dump leftover straights onto a parking runway', () => {
-    const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 30, timeoutMs: 3000 });
+    const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 30, timeoutMs: 3500 });
     expect(layout.parkingSpots.length).toBe(1);
     expect(layout.parkingSpots[0].clearLengthStuds).toBeLessThanOrEqual(16 * 10);
     expect(layout.unfinishedPorts).toBe(0);
     expect(layout.parts.filter((part) => part.partId.startsWith('switch-')).length).toBeGreaterThanOrEqual(1);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(50);
+  });
+
+  it('keeps leftover track on the circuit instead of two tiny ovals', () => {
+    const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 31, timeoutMs: 3500 });
+    expect(layout.parkingSpots.length).toBe(1);
+    expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.parts.length).toBeGreaterThan(80);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(50);
   });
 
   it('builds more than one cycle when two route switches are available', () => {
