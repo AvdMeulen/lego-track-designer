@@ -38,16 +38,47 @@
   fill-opacity: 0.88;
   stroke: #1f1a17;
   stroke-width: 0.35;
+  stroke-linejoin: round;
 }
 
 .part path.body.overlay {
   stroke: none;
 }
 
+.part path.body.outline {
+  fill: none;
+  fill-opacity: 1;
+}
+
 .part.selected polygon,
 .part.selected path.body {
   stroke: #c91a1a;
   stroke-width: 1.1;
+}
+
+.part.selected path.body.overlay {
+  stroke: none;
+}
+
+.part path.flex-outline,
+.part path.flex-body {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.part path.flex-outline {
+  stroke: #1f1a17;
+  stroke-width: 6.7;
+}
+
+.part path.flex-body {
+  stroke-width: 6;
+}
+
+.part.selected path.flex-outline {
+  stroke: #c91a1a;
+  stroke-width: 8.2;
 }
 
 .part path.rail {

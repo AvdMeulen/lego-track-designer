@@ -5,6 +5,7 @@ import {
   CURVE_ANGLE,
   CURVE_RADIUS,
   SWITCH_LENGTH,
+  crossingArtwork,
   curveSector,
   headingDelta,
   polygonCenter,
@@ -12,6 +13,7 @@ import {
   switchArtwork,
   switchBranchOutline,
   switchDivergeEnd,
+  switchUnionOutline,
   worldPort,
 } from './geometry';
 
@@ -56,8 +58,28 @@ describe('geometry', () => {
     const art = switchArtwork(1);
     expect(art.beds.length).toBe(2);
     expect(art.rails.length).toBe(0);
+    expect(art.outline).toContain('M 0 ');
     expect(art.beds[0]).toContain(`h ${SWITCH_LENGTH}`);
     expect(art.beds[0]).toContain('v 8');
+  });
+
+  it('outlines a switch as the union of the through bed and S-branch', () => {
+    const outline = switchUnionOutline(1);
+    expect(outline[0].x).toBeCloseTo(0, 5);
+    expect(outline[0].y).toBeCloseTo(-4, 5);
+    expect(outline.some((point) => Math.abs(point.x - SWITCH_LENGTH) < 0.01 && Math.abs(point.y + 4) < 0.01)).toBeTrue();
+    expect(outline.some((point) => Math.abs(point.x - SWITCH_LENGTH) < 0.01 && Math.abs(point.y - 4) < 0.01)).toBeTrue();
+    const last = outline[outline.length - 1];
+    expect(last.x).toBeCloseTo(0, 1);
+    expect(last.y).toBeCloseTo(4, 1);
+
+    const diverge = switchDivergeEnd(1);
+    const nearest = Math.min(...outline.map((point) => Math.hypot(point.x - diverge.x, point.y - diverge.y)));
+    expect(nearest).toBeLessThan(4.2);
+
+    const right = switchUnionOutline(-1);
+    expect(right[0].y).toBeCloseTo(4, 5);
+    expect(Math.min(...right.map((point) => point.y))).toBeLessThan(switchDivergeEnd(-1).y);
   });
 
   it('keeps the switch branch a constant-width S that reaches the diverge port', () => {
@@ -100,6 +122,13 @@ describe('geometry', () => {
     expect(art.beds.length).toBe(4);
     expect(art.rails.length).toBe(0);
     expect(art.beds[0]).toContain('v 8');
+  });
+
+  it('draws a 90° crossing as an 8-stud-wide plus with one outline', () => {
+    const art = crossingArtwork();
+    expect(art.beds.length).toBe(2);
+    expect(art.outline).toContain('M -4 -8');
+    expect(art.outline).toContain('L 8 -4');
   });
 
   it('centers a straight label in the middle of the piece', () => {

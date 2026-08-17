@@ -313,15 +313,66 @@ function pointsToPath(points: Point[]): string {
   return `${points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')} Z`;
 }
 
-export function switchArtwork(sign = 1): { beds: string[]; rails: string[] } {
+export type TrackArtwork = { beds: string[]; rails: string[]; outline?: string };
+
+/** Outer silhouette of through-bed ∪ S-branch, so the canvas can stroke one path. */
+export function switchUnionOutline(sign = 1, half = 4, steps = 16): Point[] {
+  const branch = switchBranchOutline(sign, half, steps);
+  const yInner = sign * half;
+  const yOuter = -sign * half;
+  const firstCount = steps + 1;
+  let leave = 1;
+  for (let i = 1; i < firstCount; i += 1) {
+    const crossed = sign > 0 ? branch[i].y > half : branch[i].y < -half;
+    if (crossed) {
+      leave = i;
+      break;
+    }
+  }
+  const prev = branch[leave - 1];
+  const next = branch[leave];
+  const t = (yInner - prev.y) / (next.y - prev.y || 1);
+  const split = { x: prev.x + (next.x - prev.x) * t, y: yInner };
+  return [
+    { x: 0, y: yOuter },
+    { x: SWITCH_LENGTH, y: yOuter },
+    { x: SWITCH_LENGTH, y: yInner },
+    split,
+    ...branch.slice(leave),
+  ];
+}
+
+export function switchArtwork(sign = 1): TrackArtwork {
   const half = 4;
   return {
     beds: [rectPath(0, -half, SWITCH_LENGTH, half * 2), pointsToPath(switchBranchOutline(sign, half))],
     rails: [],
+    outline: pointsToPath(switchUnionOutline(sign, half)),
   };
 }
 
-export function crossoverArtwork(): { beds: string[]; rails: string[] } {
+export function crossingArtwork(): TrackArtwork {
+  return {
+    beds: [rectPath(-8, -4, 16, 8), rectPath(-4, -8, 8, 16)],
+    rails: [],
+    outline: pointsToPath([
+      { x: -4, y: -8 },
+      { x: 4, y: -8 },
+      { x: 4, y: -4 },
+      { x: 8, y: -4 },
+      { x: 8, y: 4 },
+      { x: 4, y: 4 },
+      { x: 4, y: 8 },
+      { x: -4, y: 8 },
+      { x: -4, y: 4 },
+      { x: -8, y: 4 },
+      { x: -8, y: -4 },
+      { x: -4, y: -4 },
+    ]),
+  };
+}
+
+export function crossoverArtwork(): TrackArtwork {
   const half = CROSSOVER_LENGTH / 2;
   const lane = CROSSOVER_SPACING;
   return {

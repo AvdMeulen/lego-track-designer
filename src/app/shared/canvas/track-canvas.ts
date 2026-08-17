@@ -8,6 +8,7 @@ import {
   crossoverArtwork,
   curveArtworkPath,
   curveEnd,
+  crossingArtwork,
   polygonCenter,
   switchArtwork,
   transformPolygon,
@@ -96,10 +97,14 @@ export class TrackCanvas {
           ? switchArtwork(spec.id === 'switch-right' ? -1 : 1)
           : spec.category === 'double-crossover'
             ? crossoverArtwork()
-            : { beds: [] as string[], rails: [] as string[] };
+            : spec.category === 'crossing'
+              ? crossingArtwork()
+              : { beds: [] as string[], rails: [] as string[] };
       const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
       const showPolygon = spec.category !== 'curve' && special.beds.length === 0;
       const transform = `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
+      const outline = special.outline ?? '';
+      const maskId = special.beds.length > 1 && !outline ? `bed-outline-${part.instanceId}` : '';
       const centerLocal =
         spec.category === 'curve'
           ? curveEnd(CURVE_RADIUS, CURVE_ANGLE / 2)
@@ -109,7 +114,20 @@ export class TrackCanvas {
       const center = part.flexPath?.length
         ? part.flexPath[Math.floor(part.flexPath.length / 2)]
         : transformPolygon([centerLocal], part)[0];
-      return { part, spec, points, path, curvePath, beds: special.beds, rails: special.rails, showPolygon, transform, center };
+      return {
+        part,
+        spec,
+        points,
+        path,
+        curvePath,
+        beds: special.beds,
+        rails: special.rails,
+        outline,
+        maskId,
+        showPolygon,
+        transform,
+        center,
+      };
     }),
   );
 
