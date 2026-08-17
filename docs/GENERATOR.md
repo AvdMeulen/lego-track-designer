@@ -30,7 +30,7 @@ Expect:
 ## City geometry that the generator depends on
 
 - **Curve:** 22.5°, R40. Sixteen same-direction curves are 360°. Opposite-port pairs (`a` then `b`) are an S-bend.
-- **Switch:** 32-stud through (two straights). The diverge ends at 22.5°.
+- **Switch:** 32-stud through (two straights). The diverge ends at 22.5°. A passing loop is six consecutive straights: opposite-hand switches with two straights between them, then one completing curve on each diverge.
 - **Double crossover:** 48 studs, parallel routes 16 studs apart. All four ports must sit on circuits.
 - **Crossing 90°:** plus intersection; routes do not join. All four ports must sit on circuits.
 - Ports connect within 0.35 studs and ~180° heading.

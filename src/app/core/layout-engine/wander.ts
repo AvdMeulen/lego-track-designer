@@ -391,8 +391,9 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
   }
   const extra = Math.floor((curves - 16) / 2);
   const evenS = straights - (straights % 2);
+  const capped = Math.min(extra, 4);
   const tries: Array<{ s: number; extraCurves: number; corners: 4 | 8; skip: boolean }> = [
-    { s: straights, extraCurves: extra, corners: 4, skip: extra === 0 },
+    { s: straights, extraCurves: capped, corners: 4, skip: extra === 0 },
     { s: straights, extraCurves: extra, corners: 8, skip: false },
     { s: straights, extraCurves: Math.floor(extra / 2), corners: 4, skip: false },
     { s: straights, extraCurves: 0, corners: 4, skip: true },
@@ -436,7 +437,7 @@ function ringWithCorners(
   const sbends = Array.from({ length: corners }, () => 0);
   let pairsLeft = extraPairs - (extraPairs % 2);
   const bendSide = 1 % corners;
-  while (pairsLeft >= 2) {
+  while (pairsLeft >= 2 && sbends[bendSide] < 2) {
     sbends[bendSide] += 1;
     sbends[bendSide + half] += 1;
     pairsLeft -= 2;

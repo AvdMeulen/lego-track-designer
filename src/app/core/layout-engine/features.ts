@@ -20,11 +20,17 @@ const PARK_SIDING = 6;
 
 function switchQueue(inventory: Record<string, number>, parts: PlacedPart[]): string[] {
   const left = remainingInventory(inventory, parts);
+  const nLeft = left['switch-left'] ?? 0;
+  const nRight = left['switch-right'] ?? 0;
   const queue: string[] = [];
-  for (let i = 0; i < (left['switch-left'] ?? 0); i += 1) {
+  const pairs = Math.min(nLeft, nRight);
+  for (let i = 0; i < pairs; i += 1) {
+    queue.push('switch-left', 'switch-right');
+  }
+  for (let i = 0; i < nLeft - pairs; i += 1) {
     queue.push('switch-left');
   }
-  for (let i = 0; i < (left['switch-right'] ?? 0); i += 1) {
+  for (let i = 0; i < nRight - pairs; i += 1) {
     queue.push('switch-right');
   }
   return queue;
@@ -366,21 +372,28 @@ function pickPassingSlices(pairs: StraightPair[], bubbles: number): PlacedPart[]
   const runs = straightPartRuns(pairs).sort((a, b) => b.length - a.length);
   const used = new Set<string>();
   const slices: PlacedPart[][] = [];
-  for (const run of runs) {
-    if (slices.length >= bubbles) {
-      break;
-    }
-    const start = run.length >= 6 ? 1 : 0;
-    for (let i = start; i + 3 < run.length; i += 1) {
-      const slice = run.slice(i, i + 4);
-      if (slice.some((part) => used.has(part.instanceId))) {
-        continue;
+  const take = (need: number) => {
+    for (const run of runs) {
+      if (slices.length >= bubbles) {
+        return;
       }
-      slice.forEach((part) => used.add(part.instanceId));
-      slices.push(slice);
-      break;
+      const start = run.length >= need + 2 ? 1 : 0;
+      for (let i = start; i + need <= run.length; i += 1) {
+        const slice = run.slice(i, i + need);
+        if (slice.some((part) => used.has(part.instanceId))) {
+          continue;
+        }
+        slice.forEach((part) => used.add(part.instanceId));
+        slices.push(slice);
+        i += need;
+        if (slices.length >= bubbles) {
+          return;
+        }
+      }
     }
-  }
+  };
+  take(6);
+  take(4);
   return slices;
 }
 
@@ -391,6 +404,9 @@ function closePassingHeads(
   inventory: Record<string, number>,
   ctx: GenContext,
 ): PlacedPart[] | null {
+  if (portsConnect(start, target)) {
+    return parts;
+  }
   const left = stockOf(inventory, parts);
   const maxS = Math.min(8, left['straight-16'] ?? 0);
   for (let n = 0; n <= maxS; n += 1) {
@@ -400,7 +416,29 @@ function closePassingHeads(
       return built;
     }
   }
-  return joinHeads(parts, start, target, inventory, ctx, 'rte');
+  if ((left['curve-22'] ?? 0) >= 2) {
+    const turns: Array<['a' | 'b', 'a' | 'b']> = [
+      ['a', 'b'],
+      ['b', 'a'],
+    ];
+    for (const [first, second] of turns) {
+      for (let extra = 0; extra <= Math.min(4, maxS); extra += 1) {
+        const sequence: Array<{ partId: string; portId?: string }> = [{ partId: 'curve-22', portId: first }];
+        for (let i = 0; i < extra; i += 1) {
+          sequence.push({ partId: 'straight-16' });
+        }
+        sequence.push({ partId: 'curve-22', portId: second });
+        const built = attachSequenceFrom(parts, start, sequence, target, ctx, 'rte');
+        if (built) {
+          return built;
+        }
+      }
+    }
+  }
+  return (
+    joinHeads(parts, start, target, inventory, ctx, 'rte') ??
+    ovalJoin(parts, start, target, inventory, ctx, 'rte', false)
+  );
 }
 
 function tryPassingLoop(
@@ -411,13 +449,47 @@ function tryPassingLoop(
   inventory: Record<string, number>,
   ctx: GenContext,
 ): PlacedPart[] | null {
-  const firstPair = orderStraightPair({ first: slice[0], second: slice[1] });
-  const secondPair = orderStraightPair({ first: slice[2], second: slice[3] });
-  const ids = new Set(slice.map((part) => part.instanceId));
-  const without = parts.filter((part) => !ids.has(part.instanceId));
-  const ignore = without
-    .filter((part) => slice.some((item) => distance(part, item) < 28))
-    .map((part) => part.instanceId);
+  if (slice.length >= 6) {
+    const compact = tryPassingLoopWindow(parts, slice.slice(0, 6), firstId, secondId, inventory, ctx);
+    if (compact) {
+      return compact;
+    }
+  }
+  if (slice.length >= 4) {
+    return tryPassingLoopWindow(parts, slice.slice(0, 4), firstId, secondId, inventory, ctx);
+  }
+  return null;
+}
+
+function tryPassingLoopWindow(
+  parts: PlacedPart[],
+  slice: PlacedPart[],
+  firstId: string,
+  secondId: string,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const span = slice.length >= 6 ? 6 : 4;
+  const window = slice.slice(0, span);
+  const replace = span === 6 ? [window[0], window[1], window[4], window[5]] : window;
+  const keepMiddle = span === 6 ? [window[2], window[3]] : [];
+  const replaceIds = new Set(replace.map((part) => part.instanceId));
+  const without = parts.filter((part) => !replaceIds.has(part.instanceId));
+  const middleIds = keepMiddle.map((part) => part.instanceId);
+  const ignore = [
+    ...middleIds,
+    ...without
+      .filter(
+        (part) =>
+          !middleIds.includes(part.instanceId) && replace.some((item) => distance(part, item) < 40),
+      )
+      .map((part) => part.instanceId),
+  ];
+  const firstPair = orderStraightPair({ first: window[0], second: window[1] });
+  const secondPair =
+    span === 6
+      ? orderStraightPair({ first: window[4], second: window[5] })
+      : orderStraightPair({ first: window[2], second: window[3] });
   const make = (partId: string, pose: PlacedPart, flip: boolean): PlacedPart => {
     const placed: PlacedPart = {
       ...pose,
@@ -432,26 +504,44 @@ function tryPassingLoop(
     [make(secondId, firstPair.first, false), make(firstId, secondPair.first, true)],
     [make(secondId, firstPair.first, true), make(firstId, secondPair.first, false)],
   ];
-  for (const [a, b] of attempts) {
-    if (
-      placementCollides(a, without, ctx.catalog, ignore) ||
-      placementCollides(b, [...without, a], ctx.catalog, ignore)
-    ) {
-      continue;
-    }
+  const center = centroid(without.length ? without : parts);
+  const ranked = attempts
+    .filter(
+      ([a, b]) =>
+        !placementCollides(a, without, ctx.catalog, ignore) &&
+        !placementCollides(b, [...without, a], ctx.catalog, ignore),
+    )
+    .sort((left, right) => divergeSpread(right, center, ctx) - divergeSpread(left, center, ctx));
+  for (const [a, b] of ranked) {
     const placed = [...without, a, b];
     const diverges = divergesOf(placed, ctx.catalog);
     if (diverges.length < 2) {
       continue;
     }
-    const first = extendSwitchHead(placed, diverges[0], inventory, ctx);
-    const second = extendSwitchHead(first.parts, diverges[1], inventory, ctx);
+    const featureIgnore = [a.instanceId, b.instanceId, ...middleIds];
+    const first = extendSwitchHead(placed, diverges[0], inventory, ctx, featureIgnore);
+    const added = first.parts.filter((part) => !placed.some((item) => item.instanceId === part.instanceId));
+    const second = extendSwitchHead(first.parts, diverges[1], inventory, ctx, [
+      ...featureIgnore,
+      ...added.map((part) => part.instanceId),
+    ]);
     const joined = closePassingHeads(second.parts, first.head, second.head, inventory, ctx);
     if (joined && divergesOf(joined, ctx.catalog).length === 0) {
       return joined;
     }
   }
   return null;
+}
+
+function divergeSpread(
+  pair: [PlacedPart, PlacedPart],
+  center: { x: number; y: number },
+  ctx: GenContext,
+): number {
+  return pair.reduce((sum, part) => {
+    const diverge = worldPorts(ctx.catalog[part.partId], part).find((port) => port.id === 'diverge');
+    return sum + (diverge ? distance(diverge, center) : 0);
+  }, 0);
 }
 
 function insertPassingLoops(
@@ -480,6 +570,7 @@ function extendSwitchHead(
   port: WorldPort,
   inventory: Record<string, number>,
   ctx: GenContext,
+  extraIgnore: string[] = [],
 ): { parts: PlacedPart[]; head: WorldPort } {
   const owner = ownerOf(port, parts);
   if (!owner || ctx.catalog[owner.partId]?.category !== 'switch' || port.id !== 'diverge') {
@@ -489,8 +580,9 @@ function extendSwitchHead(
     return { parts, head: port };
   }
   const order = owner.partId === 'switch-left' ? (['b', 'a'] as const) : (['a', 'b'] as const);
+  const ignore = [...extraIgnore, owner.instanceId];
   for (const portId of order) {
-    const move = placeOnHead('curve-22', portId, port, parts, ctx, 'par');
+    const move = placeOnHead('curve-22', portId, port, parts, ctx, 'par', ignore);
     if (move) {
       return { parts: [...parts, move.part], head: move.head };
     }
