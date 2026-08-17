@@ -206,13 +206,15 @@ export function wanderHomeLoop(
   const history = [head];
   const wandered = [false];
   let backtracks = 0;
-  let straightRun = 0;
-  let curveRun = 0;
-  const maxParts = Math.min(160, 2 + straights + curves);
-  const minParts = Math.min(
-    maxParts - 8,
-    Math.max(16, Math.floor((straights + Math.min(curves, 80)) * (straights + curves > 40 ? 0.65 : 0.35))),
-  );
+  let straightRun = startId === 'straight-16' ? 1 : 0;
+  let curveRun = startId === 'curve-22' ? 1 : 0;
+  const total = straights + curves;
+  const maxParts = Math.min(160, 2 + total);
+  const minParts = Math.min(maxParts - 8, Math.max(16, Math.floor(total * (total > 40 ? 0.55 : 0.35))));
+  const exploreUntil = Math.max(minParts, Math.floor(total * 0.62));
+  const padsWanted = straights >= 12 ? (straights >= 28 ? 2 : 1) : 0;
+  let padsPlaced = 0;
+  let homeTried = false;
 
   const restore = () => {
     if (parts.length <= 1) {
@@ -249,11 +251,52 @@ export function wanderHomeLoop(
     curveRun = move.part.partId === 'curve-22' ? curveRun + 1 : 0;
   };
 
-  for (let step = 0; step < 480 && Date.now() < ctx.deadline; step += 1) {
+  const refreshRuns = () => {
+    straightRun = 0;
+    curveRun = 0;
+    for (let i = parts.length - 1; i >= 0; i -= 1) {
+      if (parts[i].partId === 'straight-16') {
+        if (curveRun > 0) {
+          break;
+        }
+        straightRun += 1;
+      } else if (parts[i].partId === 'curve-22') {
+        if (straightRun > 0) {
+          break;
+        }
+        curveRun += 1;
+      } else {
+        break;
+      }
+    }
+  };
+
+  const trySequence = (sequence: Array<{ partId: string; portId: string }>, wander: boolean): boolean => {
+    const mark = parts.length;
+    for (const item of sequence) {
+      const move = placeOnHead(item.partId, item.portId, head, parts, ctx, prefix, ignore);
+      if (!move) {
+        while (parts.length > mark) {
+          wandered.pop();
+          parts.pop();
+          history.pop();
+        }
+        head = history[history.length - 1];
+        refreshRuns();
+        return false;
+      }
+      commit(move, wander);
+    }
+    return true;
+  };
+
+  const ignore = [start.instanceId];
+
+  for (let step = 0; step < 520 && Date.now() < ctx.deadline; step += 1) {
     if (portsConnect(head, goal) && parts.length >= minParts) {
       return parts;
     }
-    if (backtracks > 110 || parts.length > maxParts) {
+    if (backtracks > 140 || parts.length > maxParts) {
       break;
     }
     const left = stockOf(inventory, parts);
@@ -269,54 +312,96 @@ export function wanderHomeLoop(
     const minTurns = need === 0 ? 0 : Math.min(need, 16 - need);
     const dist = distance(head, goal);
     const leftover = curvesLeft + straightLeft;
-    const canClose = parts.length >= minParts && leftover <= 10;
-    const mustHome = curvesLeft <= minTurns + 2 || (dist < 32 && canClose) || parts.length > maxParts - 8;
-    const wanderP = mustHome ? 0 : 0.82;
-    const wander = ctx.random() < wanderP;
-    const ignore = [start.instanceId];
+    const mustHome =
+      parts.length >= exploreUntil ||
+      curvesLeft <= minTurns + 2 ||
+      (dist < 28 && leftover <= 16 && parts.length >= minParts) ||
+      parts.length > maxParts - 8;
+
+    if (mustHome && !homeTried) {
+      homeTried = true;
+      const closed =
+        joinHeads(parts, head, goal, inventory, ctx, prefix) ??
+        ovalJoin(parts, head, goal, inventory, ctx, prefix, false);
+      if (closed && loopCloses(closed, ctx.catalog) && closed.length >= minParts) {
+        return closed;
+      }
+    }
+
     const options: Array<{ partId: string; portId: string }> = [];
-    if (straightLeft > 0 && (mustHome || straightRun < 8)) {
+    if (straightLeft > 0 && (mustHome || straightRun < 3)) {
       options.push({ partId: 'straight-16', portId: 'a' });
     }
-    options.push(...curveOptions(curvesLeft));
+    if (curvesLeft > 0 && curveRun < MAX_CURVE_RUN) {
+      options.push(...curveOptions(curvesLeft));
+    } else if (curvesLeft > 0 && mustHome) {
+      options.push(...curveOptions(curvesLeft));
+    }
+    if (options.length === 0) {
+      if (straightLeft > 0) {
+        options.push({ partId: 'straight-16', portId: 'a' });
+      }
+      options.push(...curveOptions(curvesLeft));
+    }
     if (options.length === 0) {
       if (!restore()) {
         break;
       }
       continue;
     }
-    if (wander && curvesLeft >= 2 && ctx.random() < 0.55) {
-      const sPorts = ctx.random() >= 0.5 ? (['a', 'b'] as const) : (['b', 'a'] as const);
-      const chunk = tryChunk(sPorts, 'curve-22', head, parts, ctx, prefix, ignore);
-      if (chunk && homeScore(chunk.head, goal) <= homeScore(head, goal) + 48) {
-        const added = chunk.parts.slice(parts.length);
-        for (const part of added) {
-          commit({ part, head: chunk.head }, true);
-        }
-        head = chunk.head;
+
+    const wander = !mustHome;
+    if (
+      wander &&
+      padsPlaced < padsWanted &&
+      straightLeft >= 6 &&
+      straightRun === 0 &&
+      (padsPlaced === 0 && parts.length >= 6 ? ctx.random() < 0.7 : ctx.random() < 0.22) &&
+      trySequence(
+        Array.from({ length: 6 }, () => ({ partId: 'straight-16', portId: 'a' })),
+        true,
+      )
+    ) {
+      padsPlaced += 1;
+      continue;
+    }
+    if (wander && curvesLeft >= 6 && ctx.random() < 0.28) {
+      const turn = ctx.random() < 0.5 ? 'a' : 'b';
+      const count = curvesLeft >= 8 && ctx.random() < 0.55 ? 8 : 6;
+      if (trySequence(Array.from({ length: count }, () => ({ partId: 'curve-22', portId: turn })), true)) {
         continue;
       }
     }
-    if (wander && curvesLeft >= 4 && ctx.random() < 0.2) {
-      const leftFirst = ctx.random() >= 0.5;
-      const jog = leftFirst ? (['a', 'a', 'b', 'b'] as const) : (['b', 'b', 'a', 'a'] as const);
-      const chunk = tryChunk(jog, 'curve-22', head, parts, ctx, prefix, ignore);
-      if (chunk && homeScore(chunk.head, goal) <= homeScore(head, goal) + 44) {
-        const added = chunk.parts.slice(parts.length);
-        for (const part of added) {
-          commit({ part, head: chunk.head }, true);
-        }
-        head = chunk.head;
-        continue;
-      }
+    if (
+      wander &&
+      curvesLeft >= 2 &&
+      ctx.random() < 0.45 &&
+      trySequence(
+        ctx.random() >= 0.5
+          ? [
+              { partId: 'curve-22', portId: 'a' },
+              { partId: 'curve-22', portId: 'b' },
+            ]
+          : [
+              { partId: 'curve-22', portId: 'b' },
+              { partId: 'curve-22', portId: 'a' },
+            ],
+        true,
+      )
+    ) {
+      continue;
     }
+
     let chosen: { part: PlacedPart; head: WorldPort } | null = null;
     if (wander) {
-      const pick = options[Math.floor(ctx.random() * options.length)];
+      const mix = curvesLeft / Math.max(1, curvesLeft + straightLeft);
+      const preferCurve = straightRun >= 3 || ctx.random() < mix;
+      const pool = preferCurve
+        ? options.filter((option) => option.partId === 'curve-22')
+        : options.filter((option) => option.partId === 'straight-16');
+      const pickFrom = pool.length ? pool : options;
+      const pick = pickFrom[Math.floor(ctx.random() * pickFrom.length)];
       chosen = placeOnHead(pick.partId, pick.portId, head, parts, ctx, prefix, ignore);
-      if (chosen && homeScore(chosen.head, goal) > homeScore(head, goal) + 48) {
-        chosen = null;
-      }
     } else {
       let best: { move: { part: PlacedPart; head: WorldPort }; score: number } | null = null;
       for (const option of options) {
@@ -339,7 +424,13 @@ export function wanderHomeLoop(
     }
     commit(chosen, wander);
   }
-  return portsConnect(head, goal) && parts.length >= minParts ? parts : null;
+  if (portsConnect(head, goal) && parts.length >= minParts) {
+    return parts;
+  }
+  const closed =
+    joinHeads(parts, head, goal, inventory, ctx, prefix) ??
+    ovalJoin(parts, head, goal, inventory, ctx, prefix, false);
+  return closed && loopCloses(closed, ctx.catalog) && closed.length >= minParts ? closed : null;
 }
 
 export function attachSequence(
@@ -391,16 +482,16 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
   }
   const extra = Math.floor((curves - 16) / 2);
   const evenS = straights - (straights % 2);
-  const capped = Math.min(extra, 4);
+  const capped = Math.min(extra, 12);
   const four = { s: straights, extraCurves: capped, corners: 4 as const, skip: extra === 0 };
-  const eight = { s: straights, extraCurves: extra, corners: 8 as const, skip: false };
+  const eight = { s: straights, extraCurves: Math.min(extra, 8), corners: 8 as const, skip: false };
   const rest: Array<{ s: number; extraCurves: number; corners: 4 | 8; skip: boolean }> = [
     { s: straights, extraCurves: Math.floor(extra / 2), corners: 4, skip: false },
     { s: straights, extraCurves: 0, corners: 4, skip: true },
     { s: Math.max(4, evenS / 2), extraCurves: 0, corners: 4, skip: true },
     { s: 4, extraCurves: 0, corners: 4, skip: true },
   ];
-  const tries = ctx.random() < 0.5 ? [eight, four, ...rest] : [four, eight, ...rest];
+  const tries = [four, eight, ...rest];
   for (const attempt of tries) {
     const built = ringWithCorners(
       attempt.s,
@@ -428,19 +519,36 @@ function ringWithCorners(
   let straightLeft = straights - (straights % 2);
   const half = corners / 2;
   const pairOffset = Math.floor(ctx.random() * half);
-  while (straightLeft >= 2) {
+  const other = (pairOffset + 1) % half;
+  const pad = straights >= 12 ? 6 : Math.min(6, Math.floor((straights - (straights % 2)) / 4) * 2 || 4);
+  while (straightLeft >= 2 && sides[pairOffset] < pad) {
     sides[pairOffset] += 1;
     sides[pairOffset + half] += 1;
+    straightLeft -= 2;
+  }
+  if (straights >= 24) {
+    while (straightLeft >= 2 && sides[other] < pad) {
+      sides[other] += 1;
+      sides[other + half] += 1;
+      straightLeft -= 2;
+    }
+  }
+  while (straightLeft >= 2) {
+    const side = sides[pairOffset] <= sides[other] + 2 ? pairOffset : other;
+    sides[side] += 1;
+    sides[side + half] += 1;
     straightLeft -= 2;
   }
   const extraPairs = skipSbends ? 0 : Math.floor((curves - 16) / 2);
   const sbends = Array.from({ length: corners }, () => 0);
   let pairsLeft = extraPairs - (extraPairs % 2);
-  const bendSide = (pairOffset + 1) % corners;
-  while (pairsLeft >= 2 && sbends[bendSide] < 2) {
-    sbends[bendSide] += 1;
-    sbends[bendSide + half] += 1;
-    pairsLeft -= 2;
+  const bendOrder = [pairOffset, other, (pairOffset + 2) % half];
+  for (const bend of bendOrder) {
+    while (pairsLeft >= 2 && sbends[bend] < 8) {
+      sbends[bend] += 1;
+      sbends[bend + half] += 1;
+      pairsLeft -= 2;
+    }
   }
   const hand = ctx.random() < 0.5 ? ('a' as const) : ('b' as const);
   const pairHand = Array.from({ length: half }, () => hand);

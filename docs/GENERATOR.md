@@ -12,7 +12,7 @@ Parking is **off by default**. The selector only offers `0 … min(2, switchCoun
 
 Expect:
 
-- An **organic closed circuit** (O, U, L, or a blob) — not a four-sided rectangle template.
+- An **organic closed circuit** — a wandering line that mixes curves and straights in the same ratio as the collection. Hairpins (six to eight same-way curves) and nested loops are expected. Not a four-sided rectangle or two long parallel runways.
 - **Both exits of every non-parking switch on a circuit.** Two switches become two different round trips. One leftover switch with parking off becomes a reversing loop (keerlus). With parking on, an odd leftover switch stays unused so only parking ends remain open.
 - **Parking** only when the user asks: one switch on the circuit and a mostly-straight siding.
 - **Most of the inventory used.** Leftovers are pieces that physically would overlap.
@@ -20,7 +20,7 @@ Expect:
 ## Pipeline
 
 1. **TopologyPlan** from counts: parking, dual-route pairs, keerlus, crossover, crossing.
-2. **Organic wander** or a wobbly ring that **uses the collection**, then home to close. S-bends spend extra curves without breaking heading closure.
+2. **Organic wander** that spends the collection in curve/straight proportion, then homes to close. Hairpins and S-bends use extra curves. A wobbly ring is only a fallback.
 3. **Features:** insert switches / crossover / crossing into that path. Grow a circuit from every new exit until it rejoins. Do not replace a large closed path with two tiny ovals. Dual-route switches sit on the same straight run so the second circuit is a local bubble, not a path through the interior.
 4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
 5. **Parking** last: a short siding from a switch (about a train length). Leftover straights and curves go into loop detours, not a runway.
@@ -39,7 +39,7 @@ Expect:
 
 Rewarded: unused rigid pieces near zero, specials used, independent cycles (route choice), parking match, heading variety as a bonus.
 
-Penalized: unused specials, unfinished ports on a loop, extra parking above the target, adjacent switches, flex, a **four-sided cardinal rectangle envelope**. Long 0°/90° runs are **not** penalized (L and U shapes need them).
+Penalized: unused specials, unfinished ports on a loop, extra parking above the target, adjacent switches, flex, a **four-sided cardinal rectangle envelope**, and long cardinal straight runways.
 
 ## Snapshots
 

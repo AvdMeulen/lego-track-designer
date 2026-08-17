@@ -134,6 +134,53 @@ function parkingRunwayPenalty(layout: TrackLayout): number {
   return Math.max(0, longest / 16 - 8) * 18;
 }
 
+/** Two long parallel cardinal runways, not a mountain road. */
+function longestCircuitStraightRun(layout: TrackLayout): number {
+  const byId = Object.fromEntries(layout.parts.map((part) => [part.instanceId, part]));
+  const adj = new Map<string, string[]>();
+  const add = (a: string, b: string) => {
+    const list = adj.get(a) ?? [];
+    if (!list.includes(b)) {
+      list.push(b);
+      adj.set(a, list);
+    }
+  };
+  for (const connection of layout.connections) {
+    const a = byId[connection.fromInstanceId];
+    const b = byId[connection.toInstanceId];
+    if (!a || !b || a.partId !== 'straight-16' || b.partId !== 'straight-16') {
+      continue;
+    }
+    if (a.instanceId.startsWith('sid') || b.instanceId.startsWith('sid')) {
+      continue;
+    }
+    if (headingDelta(a.rotation, b.rotation) > 8 && headingDelta(a.rotation, b.rotation + 180) > 8) {
+      continue;
+    }
+    add(a.instanceId, b.instanceId);
+    add(b.instanceId, a.instanceId);
+  }
+  const visited = new Set<string>();
+  let longest = 0;
+  for (const start of adj.keys()) {
+    if (visited.has(start) || (adj.get(start)?.length ?? 0) > 1) {
+      continue;
+    }
+    let len = 0;
+    let prev: string | null = null;
+    let cur: string | null = start;
+    while (cur && !visited.has(cur)) {
+      visited.add(cur);
+      len += 1;
+      const next: string | null = (adj.get(cur) ?? []).find((id) => id !== prev) ?? null;
+      prev = cur;
+      cur = next;
+    }
+    longest = Math.max(longest, len);
+  }
+  return longest;
+}
+
 export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number {
   const parkingDelta = Math.abs(layout.parkingSpots.length - prefs.targetParkingSpots);
   const extraPark = Math.max(0, layout.parkingSpots.length - prefs.targetParkingSpots) * 16;
@@ -162,6 +209,7 @@ export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): 
     unused -
     extraPark -
     parkingRunwayPenalty(layout) -
+    Math.max(0, longestCircuitStraightRun(layout) - 8) * 5 -
     rectangleEnvelopePenalty(layout.parts) -
     adjacentSwitchPairs(layout) * 24 -
     layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 40 : 4) -

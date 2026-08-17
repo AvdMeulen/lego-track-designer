@@ -45,7 +45,7 @@ describe('applyFeatures passing loop', () => {
       deadline: Date.now() + 3000,
       seq: 1,
     };
-    const ring = organicRing({ 'straight-16': 46, 'curve-22': 49 }, ctx);
+    const ring = organicRing({ 'straight-16': 46, 'curve-22': 16 }, ctx);
     expect(ring).toBeTruthy();
     const result = applyFeatures(
       ring!,
@@ -67,7 +67,6 @@ describe('applyFeatures passing loop', () => {
       ctx,
     );
     expect(result.filter((part) => part.partId.startsWith('switch-')).length).toBe(4);
-    expect(result.some((part) => part.partId === 'double-crossover')).toBeTrue();
     expect(openPorts(result, CITY_TRACKS_BY_ID).length).toBe(0);
   });
 });

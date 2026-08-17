@@ -43,11 +43,14 @@ function reserveForFeatures(
   inventory: Record<string, number>,
   plan: { dualRoutes: number; keerlussen: number; crossovers: number; crossings: number; parking: number },
 ): Record<string, number> {
-  const extraLoops = plan.dualRoutes + plan.keerlussen + plan.crossovers + plan.crossings;
   const totalCurves = inventory['curve-22'] ?? 0;
-  const reservedCurves = extraLoops > 0 ? Math.min(16 * extraLoops, Math.max(0, totalCurves - 16)) : 0;
+  const reservedCurves = Math.min(
+    totalCurves,
+    plan.dualRoutes * 4 + plan.keerlussen * 16 + plan.crossovers * 16 + plan.crossings * 8,
+  );
   const straights = inventory['straight-16'] ?? 0;
   const reservedPark = Math.min(plan.parking * 6, Math.max(0, straights - 8));
+  const extraLoops = plan.dualRoutes + plan.keerlussen + plan.crossovers + plan.crossings;
   const reservedJoin = extraLoops > 0 ? Math.min(4 * extraLoops, Math.max(0, straights - reservedPark - 8)) : 0;
   return {
     ...inventory,
@@ -65,7 +68,7 @@ function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWan
   const curves = inventory['curve-22'] ?? 0;
   const straights = inventory['straight-16'] ?? 0;
   if (curves >= 16) {
-    if (preferWander) {
+    if (preferWander || straights + curves > 40) {
       const wandered = wanderHomeLoop(inventory, ctx);
       if (wandered && loopCloses(wandered, ctx.catalog)) {
         return wandered;

@@ -229,6 +229,15 @@ describe('generateLayout', () => {
     expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(50);
   });
 
+  it('draws a curve-heavy collection as a wandering line, not two runways', () => {
+    const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 38, timeoutMs: 3500 });
+    const curves = layout.parts.filter((part) => part.partId === 'curve-22').length;
+    const straights = layout.parts.filter((part) => part.partId === 'straight-16').length;
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(curves).toBeGreaterThan(straights);
+    expect(usedOf(layout, 'curve-22')).toBeLessThan(40);
+  });
+
   it('keeps leftover track on the circuit instead of two tiny ovals', () => {
     const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 31, timeoutMs: 3500 });
     expect(layout.parkingSpots.length).toBe(1);
