@@ -176,6 +176,253 @@ export function joinHeads(
   return targetClosed(grown, ctx.catalog, target) ? grown : null;
 }
 
+export type WanderBias = 'inward' | 'outward' | 'mixed';
+
+function centroidOf(parts: PlacedPart[]): { x: number; y: number } {
+  if (parts.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  return {
+    x: parts.reduce((sum, part) => sum + part.x, 0) / parts.length,
+    y: parts.reduce((sum, part) => sum + part.y, 0) / parts.length,
+  };
+}
+
+function radialDelta(from: WorldPort, to: WorldPort, center: { x: number; y: number }): number {
+  return distance(to, center) - distance(from, center);
+}
+
+/** Grow an organic path between two open ports. Prefers the interior when `bias` is inward. */
+export function wanderJoin(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  prefix: string,
+  bias: WanderBias = 'mixed',
+): PlacedPart[] | null {
+  if (portsConnect(start, target)) {
+    return parts;
+  }
+  if (Date.now() > ctx.deadline - 180) {
+    return joinHeads(parts, start, target, inventory, ctx, prefix);
+  }
+  const center = centroidOf(parts);
+  const left0 = stockOf(inventory, parts);
+  const total = (left0['curve-22'] ?? 0) + (left0['straight-16'] ?? 0);
+  if (total < 2) {
+    return joinHeads(parts, start, target, inventory, ctx, prefix);
+  }
+  const budget = Math.min(18, Math.max(6, Math.floor(total * 0.22)));
+  const exploreUntil = Math.min(
+    budget - 2,
+    4 + Math.floor(ctx.random() * Math.max(3, Math.floor(budget * 0.4))),
+  );
+
+  let trail = [...parts];
+  let head = start;
+  const history = [head];
+  let straightRun = 0;
+  let curveRun = 0;
+  let backtracks = 0;
+  const ignore = [target.instanceId, start.instanceId];
+
+  const restore = (): boolean => {
+    if (trail.length <= parts.length) {
+      return false;
+    }
+    let popped = 0;
+    while (trail.length > parts.length && popped < 3) {
+      const removed = trail.pop();
+      history.pop();
+      popped += 1;
+      if (removed?.partId === 'straight-16') {
+        straightRun = Math.max(0, straightRun - 1);
+        curveRun = 0;
+      } else {
+        straightRun = 0;
+        curveRun = Math.max(0, curveRun - 1);
+      }
+    }
+    head = history[history.length - 1];
+    backtracks += 1;
+    return true;
+  };
+
+  const commit = (move: { part: PlacedPart; head: WorldPort }) => {
+    trail = [...trail, move.part];
+    head = move.head;
+    history.push(head);
+    straightRun = move.part.partId === 'straight-16' ? straightRun + 1 : 0;
+    curveRun = move.part.partId === 'curve-22' ? curveRun + 1 : 0;
+  };
+
+  const refreshRuns = () => {
+    straightRun = 0;
+    curveRun = 0;
+    for (let i = trail.length - 1; i >= parts.length; i -= 1) {
+      if (trail[i].partId === 'straight-16') {
+        if (curveRun > 0) {
+          break;
+        }
+        straightRun += 1;
+      } else if (trail[i].partId === 'curve-22') {
+        if (straightRun > 0) {
+          break;
+        }
+        curveRun += 1;
+      } else {
+        break;
+      }
+    }
+  };
+
+  const trySequence = (sequence: Array<{ partId: string; portId: string }>): boolean => {
+    const mark = trail.length;
+    const markHead = head;
+    for (const item of sequence) {
+      const move = placeOnHead(item.partId, item.portId, head, trail, ctx, prefix, ignore);
+      if (!move) {
+        while (trail.length > mark) {
+          trail.pop();
+          history.pop();
+        }
+        head = markHead;
+        refreshRuns();
+        return false;
+      }
+      commit(move);
+    }
+    return true;
+  };
+
+  const pickCurvePort = (): 'a' | 'b' | null => {
+    const left = placeOnHead('curve-22', 'a', head, trail, ctx, prefix, ignore);
+    const right = placeOnHead('curve-22', 'b', head, trail, ctx, prefix, ignore);
+    if (!left && !right) {
+      return null;
+    }
+    if (!left) {
+      return 'b';
+    }
+    if (!right) {
+      return 'a';
+    }
+    if (bias === 'mixed') {
+      return ctx.random() < 0.5 ? 'a' : 'b';
+    }
+    const da = radialDelta(head, left.head, center);
+    const db = radialDelta(head, right.head, center);
+    return bias === 'inward' ? (da <= db ? 'a' : 'b') : da >= db ? 'a' : 'b';
+  };
+
+  for (let step = 0; step < 90 && Date.now() < ctx.deadline; step += 1) {
+    if (portsConnect(head, target)) {
+      return trail;
+    }
+    const added = trail.length - parts.length;
+    if (backtracks > 24 || added > budget) {
+      break;
+    }
+    const left = stockOf(inventory, trail);
+    const curvesLeft = left['curve-22'] ?? 0;
+    const straightLeft = left['straight-16'] ?? 0;
+    if (curvesLeft + straightLeft === 0) {
+      if (!restore()) {
+        break;
+      }
+      continue;
+    }
+    const mustHome = added >= exploreUntil || curvesLeft + straightLeft <= 6 || added >= budget - 2;
+    if (mustHome) {
+      const closed =
+        joinHeads(trail, head, target, inventory, ctx, prefix) ??
+        ovalJoin(trail, head, target, inventory, ctx, prefix, false);
+      if (closed && targetClosed(closed, ctx.catalog, target)) {
+        return closed;
+      }
+      if (!restore()) {
+        break;
+      }
+      continue;
+    }
+
+    const mix = curvesLeft / Math.max(1, curvesLeft + straightLeft);
+    if (curvesLeft >= 6 && ctx.random() < 0.24) {
+      const turn = pickCurvePort() ?? (ctx.random() < 0.5 ? 'a' : 'b');
+      if (trySequence(Array.from({ length: 6 }, () => ({ partId: 'curve-22', portId: turn })))) {
+        continue;
+      }
+    }
+    if (
+      curvesLeft >= 2 &&
+      ctx.random() < 0.42 &&
+      trySequence(
+        ctx.random() >= 0.5
+          ? [
+              { partId: 'curve-22', portId: 'a' },
+              { partId: 'curve-22', portId: 'b' },
+            ]
+          : [
+              { partId: 'curve-22', portId: 'b' },
+              { partId: 'curve-22', portId: 'a' },
+            ],
+      )
+    ) {
+      continue;
+    }
+
+    const options: Array<{ partId: string; portId: string }> = [];
+    if (straightLeft > 0 && straightRun < 3) {
+      options.push({ partId: 'straight-16', portId: 'a' });
+    }
+    if (curvesLeft > 0 && curveRun < MAX_CURVE_RUN) {
+      const port = pickCurvePort();
+      if (port) {
+        options.push({ partId: 'curve-22', portId: port });
+      } else {
+        options.push(...curveOptions(curvesLeft));
+      }
+    }
+    if (options.length === 0) {
+      if (straightLeft > 0) {
+        options.push({ partId: 'straight-16', portId: 'a' });
+      }
+      options.push(...curveOptions(curvesLeft));
+    }
+    if (options.length === 0) {
+      if (!restore()) {
+        break;
+      }
+      continue;
+    }
+
+    const preferCurve = straightRun >= 2 || ctx.random() < mix;
+    const pool = preferCurve
+      ? options.filter((option) => option.partId === 'curve-22')
+      : options.filter((option) => option.partId === 'straight-16');
+    const pickFrom = pool.length ? pool : options;
+    const pick = pickFrom[Math.floor(ctx.random() * pickFrom.length)];
+    const chosen = placeOnHead(pick.partId, pick.portId, head, trail, ctx, prefix, ignore);
+    if (!chosen) {
+      if (!restore()) {
+        break;
+      }
+      continue;
+    }
+    commit(chosen);
+  }
+
+  if (portsConnect(head, target)) {
+    return trail;
+  }
+  const closed =
+    joinHeads(trail, head, target, inventory, ctx, prefix) ??
+    ovalJoin(trail, head, target, inventory, ctx, prefix, false);
+  return closed && targetClosed(closed, ctx.catalog, target) ? closed : null;
+}
+
 export function wanderHomeLoop(
   inventory: Record<string, number>,
   ctx: GenContext,
@@ -214,7 +461,6 @@ export function wanderHomeLoop(
   const exploreUntil = Math.max(minParts, Math.floor(total * 0.62));
   const padsWanted = straights >= 12 ? (straights >= 28 ? 2 : 1) : 0;
   let padsPlaced = 0;
-  let homeTried = false;
 
   const restore = () => {
     if (parts.length <= 1) {
@@ -318,14 +564,14 @@ export function wanderHomeLoop(
       (dist < 28 && leftover <= 16 && parts.length >= minParts) ||
       parts.length > maxParts - 8;
 
-    if (mustHome && !homeTried) {
-      homeTried = true;
+    if (mustHome && step % 7 === 0) {
       const closed =
         joinHeads(parts, head, goal, inventory, ctx, prefix) ??
         ovalJoin(parts, head, goal, inventory, ctx, prefix, false);
       if (closed && loopCloses(closed, ctx.catalog) && closed.length >= minParts) {
         return closed;
       }
+      restore();
     }
 
     const options: Array<{ partId: string; portId: string }> = [];
@@ -474,6 +720,18 @@ export function attachSequence(
   return parts;
 }
 
+function oppositeCornerTurns(random: () => number): [number, number, number, number] {
+  const pairs: Array<[number, number]> = [
+    [5, 3],
+    [6, 2],
+    [3, 5],
+    [2, 6],
+    [7, 1],
+  ];
+  const [a, b] = pairs[Math.floor(random() * pairs.length)];
+  return [a, b, a, b];
+}
+
 export function organicRing(inventory: Record<string, number>, ctx: GenContext): PlacedPart[] | null {
   const curves = inventory['curve-22'] ?? 0;
   const straights = inventory['straight-16'] ?? 0;
@@ -483,15 +741,41 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
   const extra = Math.floor((curves - 16) / 2);
   const evenS = straights - (straights % 2);
   const capped = Math.min(extra, 12);
-  const four = { s: straights, extraCurves: capped, corners: 4 as const, skip: extra === 0 };
-  const eight = { s: straights, extraCurves: Math.min(extra, 8), corners: 8 as const, skip: false };
-  const rest: Array<{ s: number; extraCurves: number; corners: 4 | 8; skip: boolean }> = [
-    { s: straights, extraCurves: Math.floor(extra / 2), corners: 4, skip: false },
-    { s: straights, extraCurves: 0, corners: 4, skip: true },
-    { s: Math.max(4, evenS / 2), extraCurves: 0, corners: 4, skip: true },
-    { s: 4, extraCurves: 0, corners: 4, skip: true },
+  const irregular = oppositeCornerTurns(ctx.random);
+  const square = {
+    s: straights,
+    extraCurves: capped,
+    corners: 4 as const,
+    skip: extra === 0,
+    turns: [4, 4, 4, 4] as number[],
+  };
+  const four = {
+    s: straights,
+    extraCurves: capped,
+    corners: 4 as const,
+    skip: extra === 0,
+    turns: irregular,
+  };
+  const eight = {
+    s: straights,
+    extraCurves: Math.min(extra, 8),
+    corners: 8 as const,
+    skip: false,
+    turns: undefined as number[] | undefined,
+  };
+  const rest: Array<{
+    s: number;
+    extraCurves: number;
+    corners: 4 | 8;
+    skip: boolean;
+    turns?: number[];
+  }> = [
+    { s: straights, extraCurves: Math.floor(extra / 2), corners: 4, skip: false, turns: [4, 4, 4, 4] },
+    { s: straights, extraCurves: 0, corners: 4, skip: true, turns: [4, 4, 4, 4] },
+    { s: Math.max(4, evenS / 2), extraCurves: 0, corners: 4, skip: true, turns: [4, 4, 4, 4] },
+    { s: 4, extraCurves: 0, corners: 4, skip: true, turns: [4, 4, 4, 4] },
   ];
-  const tries = [four, eight, ...rest];
+  const tries = [four, square, eight, ...rest];
   for (const attempt of tries) {
     const built = ringWithCorners(
       attempt.s,
@@ -499,6 +783,7 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
       attempt.corners,
       ctx,
       attempt.skip,
+      attempt.turns,
     );
     if (built) {
       return built;
@@ -513,8 +798,12 @@ function ringWithCorners(
   corners: 4 | 8,
   ctx: GenContext,
   skipSbends: boolean,
+  cornerTurns?: number[],
 ): PlacedPart[] | null {
-  const perCorner = 16 / corners;
+  const turns =
+    cornerTurns && cornerTurns.length === corners
+      ? cornerTurns
+      : Array.from({ length: corners }, () => 16 / corners);
   const sides = Array.from({ length: corners }, () => 0);
   let straightLeft = straights - (straights % 2);
   const half = corners / 2;
@@ -526,32 +815,51 @@ function ringWithCorners(
     sides[pairOffset + half] += 1;
     straightLeft -= 2;
   }
-  if (straights >= 24) {
-    while (straightLeft >= 2 && sides[other] < pad) {
+  if (straights >= 24 && ctx.random() < 0.45) {
+    const secondPad = Math.min(pad, Math.floor(straightLeft / 2));
+    while (straightLeft >= 2 && sides[other] < secondPad) {
       sides[other] += 1;
       sides[other + half] += 1;
       straightLeft -= 2;
     }
   }
   while (straightLeft >= 2) {
-    const side = sides[pairOffset] <= sides[other] + 2 ? pairOffset : other;
+    const side = ctx.random() < 0.7 ? pairOffset : other;
     sides[side] += 1;
     sides[side + half] += 1;
     straightLeft -= 2;
   }
   const extraPairs = skipSbends ? 0 : Math.floor((curves - 16) / 2);
   const sbends = Array.from({ length: corners }, () => 0);
-  let pairsLeft = extraPairs - (extraPairs % 2);
+  const wiggles = Array.from({ length: corners }, () => 0);
+  let pairsLeft = extraPairs;
+  const offsetPairs = Math.min(4, Math.floor(pairsLeft / 2) * 2);
+  let offsetLeft = offsetPairs - (offsetPairs % 2);
+  pairsLeft -= offsetLeft;
   const bendOrder = [pairOffset, other, (pairOffset + 2) % half];
   for (const bend of bendOrder) {
-    while (pairsLeft >= 2 && sbends[bend] < 8) {
+    while (offsetLeft >= 2 && sbends[bend] < 2) {
       sbends[bend] += 1;
       sbends[bend + half] += 1;
-      pairsLeft -= 2;
+      offsetLeft -= 2;
     }
   }
+  pairsLeft += offsetLeft;
+  while (pairsLeft >= 4) {
+    const side = Math.floor(ctx.random() * half);
+    wiggles[side] += 1;
+    wiggles[side + half] += 1;
+    pairsLeft -= 4;
+  }
+  while (pairsLeft >= 2) {
+    sbends[pairOffset] += 1;
+    sbends[pairOffset + half] += 1;
+    pairsLeft -= 2;
+  }
   const hand = ctx.random() < 0.5 ? ('a' as const) : ('b' as const);
-  const pairHand = Array.from({ length: half }, () => hand);
+  const pairHand = Array.from({ length: half }, () =>
+    ctx.random() < 0.35 ? (hand === 'a' ? 'b' : 'a') : hand,
+  );
   const sequence: Array<{ partId: string; portId?: string }> = [];
   for (let side = 0; side < corners; side += 1) {
     for (let i = 0; i < sides[side]; i += 1) {
@@ -563,7 +871,13 @@ function ringWithCorners(
       sequence.push({ partId: 'curve-22', portId: first });
       sequence.push({ partId: 'curve-22', portId: second });
     }
-    for (let i = 0; i < perCorner; i += 1) {
+    for (let i = 0; i < wiggles[side]; i += 1) {
+      sequence.push({ partId: 'curve-22', portId: first });
+      sequence.push({ partId: 'curve-22', portId: second });
+      sequence.push({ partId: 'curve-22', portId: second });
+      sequence.push({ partId: 'curve-22', portId: first });
+    }
+    for (let i = 0; i < turns[side]; i += 1) {
       sequence.push({ partId: 'curve-22', portId: 'a' });
     }
   }
@@ -693,10 +1007,14 @@ export function inflateLoop(
     if (candidates.length < 4) {
       break;
     }
+    const nested = candidates.filter((part) =>
+      ['rte', 'xo', 'par', 'cr', 'kel'].some((prefix) => part.instanceId.startsWith(prefix)),
+    );
+    const pool = nested.length > 0 && ctx.random() < 0.6 ? nested : candidates;
     let inflated = false;
-    const tries = Math.min(4, candidates.length);
+    const tries = Math.min(4, pool.length);
     for (let attempt = 0; attempt < tries && !inflated; attempt += 1) {
-      const pick = candidates[Math.floor(ctx.random() * candidates.length)];
+      const pick = pool[Math.floor(ctx.random() * pool.length)];
       const removedPorts = worldPorts(ctx.catalog[pick.partId], pick);
       const without = result.filter((part) => part.instanceId !== pick.instanceId);
       const heads = openPorts(without, ctx.catalog).filter(

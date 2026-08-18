@@ -13,7 +13,7 @@ import {
 } from './geometry';
 import { GenContext, nextId, ownerOf, placeOnHead, stockOf, tryAttach } from './place';
 import { TopologyPlan } from './topology';
-import { attachSequenceFrom, growDeadEnd, joinHeads, ovalJoin, targetClosed } from './wander';
+import { attachSequenceFrom, growDeadEnd, joinHeads, ovalJoin, targetClosed, wanderJoin } from './wander';
 
 /** Train-length siding. Leftovers belong on the loops, not a runway. */
 const PARK_SIDING = 6;
@@ -130,8 +130,9 @@ function tryReplacePairWithSwitch(
   );
   const orientations = [candidate, flipSwitchInPlace(candidate)];
   const center = centroid(without.length ? without : parts);
+  const preferInward = ctx.random() < 0.65;
   let best: PlacedPart[] | null = null;
-  let bestDist = -1;
+  let bestDist = preferInward ? Number.POSITIVE_INFINITY : -1;
   for (const placed of orientations) {
     const ignore = far ? [far.instanceId] : [];
     if (placementCollides(placed, without, ctx.catalog, ignore)) {
@@ -140,7 +141,7 @@ function tryReplacePairWithSwitch(
     const next = [...without, placed];
     const diverge = worldPorts(ctx.catalog[placed.partId], placed).find((port) => port.id === 'diverge');
     const dist = diverge ? distance(diverge, center) : 0;
-    if (dist >= bestDist) {
+    if (preferInward ? dist <= bestDist : dist >= bestDist) {
       best = next;
       bestDist = dist;
     }
@@ -441,6 +442,7 @@ function closePassingHeads(
     }
   }
   return (
+    wanderJoin(parts, start, target, inventory, ctx, 'rte', ctx.random() < 0.7 ? 'inward' : 'mixed') ??
     joinHeads(parts, start, target, inventory, ctx, 'rte') ??
     ovalJoin(parts, start, target, inventory, ctx, 'rte', false)
   );
@@ -510,13 +512,18 @@ function tryPassingLoopWindow(
     [make(secondId, firstPair.first, true), make(firstId, secondPair.first, false)],
   ];
   const center = centroid(without.length ? without : parts);
+  const inward = ctx.random() < 0.65;
   const ranked = attempts
     .filter(
       ([a, b]) =>
         !placementCollides(a, without, ctx.catalog, ignore) &&
         !placementCollides(b, [...without, a], ctx.catalog, ignore),
     )
-    .sort((left, right) => divergeSpread(right, center, ctx) - divergeSpread(left, center, ctx));
+    .sort((left, right) =>
+      inward
+        ? divergeSpread(left, center, ctx) - divergeSpread(right, center, ctx)
+        : divergeSpread(right, center, ctx) - divergeSpread(left, center, ctx),
+    );
   for (const [a, b] of ranked) {
     const placed = [...without, a, b];
     const diverges = divergesOf(placed, ctx.catalog);
@@ -524,12 +531,29 @@ function tryPassingLoopWindow(
       continue;
     }
     const featureIgnore = [a.instanceId, b.instanceId, ...middleIds];
-    const first = extendSwitchHead(placed, diverges[0], inventory, ctx, featureIgnore);
+    const leftover = stockOf(inventory, placed);
+    const roomy = placed.length >= 40;
+    const generous = roomy && (leftover['curve-22'] ?? 0) >= 12 && (leftover['straight-16'] ?? 0) >= 4;
+    if (generous) {
+      const nested = wanderJoin(
+        placed,
+        diverges[0],
+        diverges[1],
+        inventory,
+        ctx,
+        'rte',
+        'inward',
+      );
+      if (nested && divergesOf(nested, ctx.catalog).length === 0 && nested.length > placed.length + 6) {
+        return nested;
+      }
+    }
+    const first = extendSwitchHead(placed, diverges[0], inventory, ctx, featureIgnore, roomy);
     const added = first.parts.filter((part) => !placed.some((item) => item.instanceId === part.instanceId));
     const second = extendSwitchHead(first.parts, diverges[1], inventory, ctx, [
       ...featureIgnore,
       ...added.map((part) => part.instanceId),
-    ]);
+    ], roomy);
     const joined = closePassingHeads(second.parts, first.head, second.head, inventory, ctx);
     if (joined && divergesOf(joined, ctx.catalog).length === 0) {
       return joined;
@@ -576,6 +600,7 @@ function extendSwitchHead(
   inventory: Record<string, number>,
   ctx: GenContext,
   extraIgnore: string[] = [],
+  inward = true,
 ): { parts: PlacedPart[]; head: WorldPort } {
   const owner = ownerOf(port, parts);
   if (!owner || ctx.catalog[owner.partId]?.category !== 'switch' || port.id !== 'diverge') {
@@ -584,15 +609,24 @@ function extendSwitchHead(
   if ((stockOf(inventory, parts)['curve-22'] ?? 0) <= 0) {
     return { parts, head: port };
   }
-  const order = owner.partId === 'switch-left' ? (['b', 'a'] as const) : (['a', 'b'] as const);
   const ignore = [...extraIgnore, owner.instanceId];
-  for (const portId of order) {
+  const center = centroid(parts);
+  const candidates: Array<{ parts: PlacedPart[]; head: WorldPort; radial: number }> = [];
+  for (const portId of ['a', 'b'] as const) {
     const move = placeOnHead('curve-22', portId, port, parts, ctx, 'par', ignore);
     if (move) {
-      return { parts: [...parts, move.part], head: move.head };
+      candidates.push({
+        parts: [...parts, move.part],
+        head: move.head,
+        radial: distance(move.head, center),
+      });
     }
   }
-  return { parts, head: port };
+  if (candidates.length === 0) {
+    return { parts, head: port };
+  }
+  candidates.sort((a, b) => (inward ? a.radial - b.radial : b.radial - a.radial));
+  return { parts: candidates[0].parts, head: candidates[0].head };
 }
 
 function outwardTurnOrder(
@@ -606,6 +640,15 @@ function outwardTurnOrder(
   const leftDist = left ? distance(left.head, center) : -1;
   const rightDist = right ? distance(right.head, center) : -1;
   return leftDist >= rightDist ? ['a', 'b'] : ['b', 'a'];
+}
+
+function inwardTurnOrder(
+  start: WorldPort,
+  parts: PlacedPart[],
+  ctx: GenContext,
+): Array<'a' | 'b'> {
+  const outward = outwardTurnOrder(start, parts, ctx);
+  return outward[0] === 'a' ? ['b', 'a'] : ['a', 'b'];
 }
 
 function joinOpenPairs(
@@ -633,30 +676,24 @@ function joinOpenPairs(
       if (!liveStart || !liveTarget) {
         continue;
       }
-      const startExt = extendSwitchHead(result, liveStart, inventory, ctx);
-      const targetExt = extendSwitchHead(startExt.parts, liveTarget, inventory, ctx);
-      const turns = outwardTurnOrder(startExt.head, targetExt.parts, ctx);
+      const inward = ctx.random() < 0.7;
+      const leftover = stockOf(inventory, result);
+      const generous =
+        result.length >= 40 && (leftover['curve-22'] ?? 0) >= 12 && (leftover['straight-16'] ?? 0) >= 4;
+      const startExt = generous
+        ? { parts: result, head: liveStart }
+        : extendSwitchHead(result, liveStart, inventory, ctx, [], inward);
+      const targetExt = generous
+        ? { parts: startExt.parts, head: liveTarget }
+        : extendSwitchHead(startExt.parts, liveTarget, inventory, ctx, [], inward);
+      const bias = inward ? 'inward' : ctx.random() < 0.5 ? 'mixed' : 'outward';
+      const turns = inward
+        ? inwardTurnOrder(startExt.head, targetExt.parts, ctx)
+        : outwardTurnOrder(startExt.head, targetExt.parts, ctx);
       const next =
-        ovalJoin(
-          targetExt.parts,
-          startExt.head,
-          targetExt.head,
-          inventory,
-          ctx,
-          prefix,
-          preferRoomy,
-          turns,
-        ) ??
-        ovalJoin(
-          targetExt.parts,
-          startExt.head,
-          targetExt.head,
-          inventory,
-          ctx,
-          prefix,
-          preferRoomy,
-          turns[0] === 'a' ? ['b', 'a'] : ['a', 'b'],
-        );
+        joinHeads(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix) ??
+        wanderJoin(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix, bias) ??
+        ovalJoin(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix, preferRoomy, turns);
       if (
         next &&
         targetClosed(next, ctx.catalog, targetExt.head) &&
@@ -715,8 +752,9 @@ function insertCrossover(parts: PlacedPart[], inventory: Record<string, number>,
     const without = parts.filter((item) => !triple.some((piece) => piece.instanceId === item.instanceId));
     const ignore = triple.map((item) => item.instanceId);
     const center = centroid(without.length ? without : parts);
+    const preferInward = ctx.random() < 0.65;
     let best: PlacedPart | null = null;
-    let bestOut = -1;
+    let bestOut = preferInward ? Number.POSITIVE_INFINITY : -1;
     for (const xoPort of ['a', 'b', 'c', 'd']) {
       const placed = tryAttach(part, xoPort, attachOn, without, ctx.catalog, nextId(ctx, 'xo'), ignore);
       if (!placed) {
@@ -724,7 +762,7 @@ function insertCrossover(parts: PlacedPart[], inventory: Record<string, number>,
       }
       const unused = worldPorts(ctx.catalog['double-crossover'], placed).filter((port) => port.id !== xoPort);
       const out = unused.reduce((sum, port) => sum + distance(port, center), 0);
-      if (out >= bestOut) {
+      if (preferInward ? out <= bestOut : out >= bestOut) {
         best = placed;
         bestOut = out;
       }
@@ -768,7 +806,9 @@ function seedCrossover(inventory: Record<string, number>, ctx: GenContext, roomy
         'straight-16': Math.max(4, Math.floor(straights * 0.5)),
       }
     : inventory;
-  const first = ovalJoin([seeded], a, b, firstStock, ctx, 'xo', roomy);
+  const first =
+    wanderJoin([seeded], a, b, firstStock, ctx, 'xo', 'mixed') ??
+    ovalJoin([seeded], a, b, firstStock, ctx, 'xo', roomy);
   if (!first) {
     return [seeded];
   }
@@ -781,7 +821,11 @@ function seedCrossover(inventory: Record<string, number>, ctx: GenContext, roomy
   if (!liveC || !liveD || !c || !d) {
     return first;
   }
-  return ovalJoin(first, liveC, liveD, inventory, ctx, 'xo', roomy) ?? first;
+  return (
+    wanderJoin(first, liveC, liveD, inventory, ctx, 'xo', 'inward') ??
+    ovalJoin(first, liveC, liveD, inventory, ctx, 'xo', roomy) ??
+    first
+  );
 }
 
 function insertCrossing(parts: PlacedPart[], inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
@@ -881,7 +925,9 @@ function closeKeerlus(
     if (!liveStart || !liveTarget) {
       continue;
     }
-    const joined = ovalJoin(parts, liveStart, liveTarget, inventory, ctx, 'kel');
+    const joined =
+      wanderJoin(parts, liveStart, liveTarget, inventory, ctx, 'kel', 'mixed') ??
+      ovalJoin(parts, liveStart, liveTarget, inventory, ctx, 'kel');
     if (joined && targetClosed(joined, ctx.catalog, liveTarget)) {
       return joined;
     }

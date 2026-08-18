@@ -2,7 +2,7 @@ import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { openPorts } from './connections';
 import { worldPorts } from './geometry';
 import { GenContext, nextId, rng } from './place';
-import { ovalJoin, organicRing } from './wander';
+import { ovalJoin, organicRing, wanderJoin } from './wander';
 
 describe('ovalJoin', () => {
   it('closes a switch through-route with the reversing-loop balloon', () => {
@@ -47,5 +47,35 @@ describe('ovalJoin', () => {
     expect(ring).toBeTruthy();
     expect(openPorts(ring!, CITY_TRACKS_BY_ID).length).toBe(0);
     expect(ring!.length).toBeGreaterThan(40);
+  });
+});
+
+describe('wanderJoin', () => {
+  it('closes two open heads with a mixed inward path', () => {
+    const ctx: GenContext = {
+      catalog: CITY_TRACKS_BY_ID,
+      random: rng(3),
+      deadline: Date.now() + 2000,
+      seq: 1,
+    };
+    const ring = organicRing({ 'straight-16': 16, 'curve-22': 16 }, ctx);
+    expect(ring).toBeTruthy();
+    const ports = openPorts(ring!, CITY_TRACKS_BY_ID);
+    expect(ports.length).toBe(0);
+    const without = ring!.slice(0, -1);
+    const heads = openPorts(without, CITY_TRACKS_BY_ID);
+    expect(heads.length).toBe(2);
+    const joined = wanderJoin(
+      without,
+      heads[0],
+      heads[1],
+      { 'straight-16': 24, 'curve-22': 40 },
+      ctx,
+      'rte',
+      'inward',
+    );
+    expect(joined).toBeTruthy();
+    expect(openPorts(joined!, CITY_TRACKS_BY_ID).length).toBe(0);
+    expect(joined!.length).toBeGreaterThan(without.length);
   });
 });

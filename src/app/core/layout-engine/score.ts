@@ -123,7 +123,7 @@ export function rectangleEnvelopePenalty(parts: PlacedPart[]): number {
   if (occupiedSides === 4 && cardinalRatio > 0.55) {
     const aspect = Math.max(width, height) / Math.max(1, Math.min(width, height));
     if (aspect < 2.4) {
-      return 36;
+      return 48;
     }
   }
   return 0;
@@ -181,6 +181,55 @@ function longestCircuitStraightRun(layout: TrackLayout): number {
   return longest;
 }
 
+function hasOppositeCurveBend(layout: TrackLayout, prefixes: string[]): boolean {
+  const ids = new Set(
+    layout.parts
+      .filter(
+        (part) =>
+          prefixes.some((prefix) => part.instanceId.startsWith(prefix)) && part.partId === 'curve-22',
+      )
+      .map((part) => part.instanceId),
+  );
+  for (const connection of layout.connections) {
+    if (!ids.has(connection.fromInstanceId) || !ids.has(connection.toInstanceId)) {
+      continue;
+    }
+    const fromTurn = connection.fromPortId === 'a' ? 1 : -1;
+    const toTurn = connection.toPortId === 'b' ? 1 : -1;
+    if (fromTurn * toTurn < 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Outer stadium bubbles: only cardinal straights and no S-bends. */
+function simpleBubblePenalty(layout: TrackLayout): number {
+  let penalty = 0;
+  for (const prefix of ['rte', 'xo', 'cr']) {
+    const pieces = layout.parts.filter(
+      (part) =>
+        part.instanceId.startsWith(prefix) &&
+        (part.partId === 'curve-22' || part.partId === 'straight-16'),
+    );
+    if (pieces.length < 14) {
+      continue;
+    }
+    const straights = pieces.filter((part) => part.partId === 'straight-16');
+    const curves = pieces.filter((part) => part.partId === 'curve-22');
+    if (straights.length < 2 || curves.length < 12) {
+      continue;
+    }
+    const cardinal = straights.filter((part) =>
+      [0, 90, 180, 270].some((heading) => headingDelta(part.rotation, heading) < 8),
+    ).length;
+    if (cardinal === straights.length && !hasOppositeCurveBend(layout, [prefix])) {
+      penalty += 22;
+    }
+  }
+  return penalty;
+}
+
 export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number {
   const parkingDelta = Math.abs(layout.parkingSpots.length - prefs.targetParkingSpots);
   const extraPark = Math.max(0, layout.parkingSpots.length - prefs.targetParkingSpots) * 16;
@@ -211,6 +260,7 @@ export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): 
     parkingRunwayPenalty(layout) -
     Math.max(0, longestCircuitStraightRun(layout) - 8) * 5 -
     rectangleEnvelopePenalty(layout.parts) -
+    simpleBubblePenalty(layout) -
     adjacentSwitchPairs(layout) * 24 -
     layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 40 : 4) -
     layout.score.flexPenalty * 8 -

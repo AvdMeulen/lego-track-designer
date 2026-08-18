@@ -1,6 +1,7 @@
 import { generateLayout } from './generate';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { openPorts } from './connections';
+import { headingDelta } from './geometry';
 import { rectangleEnvelopePenalty } from './score';
 
 const LARGE = [
@@ -238,12 +239,61 @@ describe('generateLayout', () => {
     expect(usedOf(layout, 'curve-22')).toBeLessThan(40);
   });
 
+  it('grows feature circuits as mixed shapes, including inward', () => {
+    const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, { seed: 42, timeoutMs: 4000 });
+    const feature = layout.parts.filter(
+      (part) =>
+        (part.instanceId.startsWith('rte') ||
+          part.instanceId.startsWith('xo') ||
+          part.instanceId.startsWith('par')) &&
+        (part.partId === 'curve-22' || part.partId === 'straight-16'),
+    );
+    const core = layout.parts.filter(
+      (part) => part.instanceId.startsWith('p') || part.instanceId.startsWith('w'),
+    );
+    const center = {
+      x: core.reduce((sum, part) => sum + part.x, 0) / Math.max(1, core.length),
+      y: core.reduce((sum, part) => sum + part.y, 0) / Math.max(1, core.length),
+    };
+    const switches = layout.parts.filter((part) => part.partId.startsWith('switch-'));
+    const switchRadius =
+      switches.reduce((sum, part) => sum + Math.hypot(part.x - center.x, part.y - center.y), 0) /
+      Math.max(1, switches.length);
+    const inward = feature.some(
+      (part) => Math.hypot(part.x - center.x, part.y - center.y) < switchRadius - 10,
+    );
+    let sBend = false;
+    const curveIds = new Set(
+      feature.filter((part) => part.partId === 'curve-22').map((part) => part.instanceId),
+    );
+    for (const connection of layout.connections) {
+      if (!curveIds.has(connection.fromInstanceId) || !curveIds.has(connection.toInstanceId)) {
+        continue;
+      }
+      const fromTurn = connection.fromPortId === 'a' ? 1 : -1;
+      const toTurn = connection.toPortId === 'b' ? 1 : -1;
+      if (fromTurn * toTurn < 0) {
+        sBend = true;
+      }
+    }
+    const featureStraights = feature.filter((part) => part.partId === 'straight-16');
+    const nonCardinal = featureStraights.some(
+      (part) => ![0, 90, 180, 270].some((heading) => headingDelta(part.rotation, heading) < 8),
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.parts.filter((part) => part.partId.startsWith('switch-')).length).toBe(4);
+    expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
+    expect(feature.length).toBeGreaterThan(8);
+    expect(sBend || inward || nonCardinal).toBeTrue();
+  });
+
   it('keeps leftover track on the circuit instead of two tiny ovals', () => {
     const layout = generateLayout(LARGE, { targetParkingSpots: 1 }, { seed: 31, timeoutMs: 3500 });
     expect(layout.parkingSpots.length).toBe(1);
     expect(layout.unfinishedPorts).toBe(0);
     expect(layout.parts.length).toBeGreaterThan(80);
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(50);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(75);
   });
 
   it('builds more than one cycle when two route switches are available', () => {

@@ -46,7 +46,7 @@ function reserveForFeatures(
   const totalCurves = inventory['curve-22'] ?? 0;
   const reservedCurves = Math.min(
     totalCurves,
-    plan.dualRoutes * 4 + plan.keerlussen * 16 + plan.crossovers * 16 + plan.crossings * 8,
+    plan.dualRoutes * 6 + plan.keerlussen * 16 + plan.crossovers * 16 + plan.crossings * 8,
   );
   const straights = inventory['straight-16'] ?? 0;
   const reservedPark = Math.min(plan.parking * 6, Math.max(0, straights - 8));
@@ -104,9 +104,9 @@ function buildCandidate(
   }
   parts = applyFeatures(parts, inventory, plan, ctx);
   const keepPark = plan.parking * 6;
-  parts = inflateLoop(parts, inventory, ctx, 12, keepPark);
-  parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
   parts = inflateLoop(parts, inventory, ctx, 16, keepPark);
+  parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
+  parts = inflateLoop(parts, inventory, ctx, 18, keepPark);
   parts = placeParking(parts, inventory, ctx, plan.parking);
   parts = inflateLoop(parts, inventory, ctx, 12, 0);
   return parts;
