@@ -12,7 +12,7 @@ Parking is **off by default**. The selector only offers `0 … min(2, switchCoun
 
 Expect:
 
-- An **organic closed circuit** — a wandering line that mixes curves and straights in the same ratio as the collection. Hairpins (six to eight same-way curves) and nested loops are expected. Not a four-sided rectangle or two long parallel runways.
+- An **organic closed circuit** built like a growing tree: the next piece is rolled from remaining stock (more leftover curves means a curve is more likely). Curves are laid in pairs. A switch sprouts a new random branch from the diverge. As stock runs down, heads steer toward each other so branches rejoin, the trunk closes, or a leftover diverge becomes a reversing loop.
 - **Sub-circuits** (passing loops, crossover bubbles) wander the same way, including **into the interior** of the main loop. They are not simple ovals glued to the outside.
 - **Both exits of every non-parking switch on a circuit.** Two switches become two different round trips. One leftover switch with parking off becomes a reversing loop (keerlus). With parking on, an odd leftover switch stays unused so only parking ends remain open.
 - **Parking** only when the user asks: one switch on the circuit and a mostly-straight siding.
@@ -21,7 +21,7 @@ Expect:
 ## Pipeline
 
 1. **TopologyPlan** from counts: parking, dual-route pairs, keerlus, crossover, crossing.
-2. **Organic wander** that spends the collection in curve/straight proportion, then homes to close. Hairpins and S-bends use extra curves. A wobbly ring is only a fallback.
+2. **Stock-weighted tree** that grows every open head from remaining pieces (curves in pairs). Switches sprout extra heads. As stock runs down, heads steer toward each other, then join: branches rejoin, the trunk closes, or a leftover diverge becomes a reversing loop. A ring or older wander is the fallback if the tree cannot close.
 3. **Features:** insert switches / crossover / crossing into that path. Grow a circuit from every new exit until it rejoins — a wandering mix of curves and straights, inward when there is room. Do not replace a large closed path with two tiny ovals. Dual-route switches sit on the same straight run so the second circuit can nest inside or wander beside the first.
 4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
 5. **Parking** last: a short siding from a switch (about a train length). Leftover straights and curves go into loop detours, not a runway.

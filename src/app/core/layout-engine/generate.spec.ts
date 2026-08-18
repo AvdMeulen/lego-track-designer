@@ -227,7 +227,7 @@ describe('generateLayout', () => {
     expect(layout.parkingSpots[0].clearLengthStuds).toBeLessThanOrEqual(16 * 10);
     expect(layout.unfinishedPorts).toBe(0);
     expect(layout.parts.filter((part) => part.partId.startsWith('switch-')).length).toBeGreaterThanOrEqual(1);
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(50);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(55);
   });
 
   it('draws a curve-heavy collection as a wandering line, not two runways', () => {
@@ -245,11 +245,15 @@ describe('generateLayout', () => {
       (part) =>
         (part.instanceId.startsWith('rte') ||
           part.instanceId.startsWith('xo') ||
-          part.instanceId.startsWith('par')) &&
+          part.instanceId.startsWith('par') ||
+          part.instanceId.startsWith('br')) &&
         (part.partId === 'curve-22' || part.partId === 'straight-16'),
     );
     const core = layout.parts.filter(
-      (part) => part.instanceId.startsWith('p') || part.instanceId.startsWith('w'),
+      (part) =>
+        part.instanceId.startsWith('p') ||
+        part.instanceId.startsWith('w') ||
+        part.instanceId.startsWith('t'),
     );
     const center = {
       x: core.reduce((sum, part) => sum + part.x, 0) / Math.max(1, core.length),

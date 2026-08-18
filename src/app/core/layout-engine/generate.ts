@@ -6,12 +6,13 @@ import {
   PlacedPart,
   TrackLayout,
 } from '../../shared/models/track';
-import { remainingInventory, unusedItems } from './connections';
+import { remainingInventory, unusedItems, openPorts } from './connections';
 import { closeWithFlex } from './flex-closer';
 import { applyFeatures, placeParking, placeRemainingSpecials } from './features';
 import { GenContext, inventoryMap, rng } from './place';
 import { scoreLayout, layoutIsValid } from './score';
 import { planTopology } from './topology';
+import { growStockTree } from './tree';
 import { curveCircle, inflateLoop, loopCloses, organicRing, pointToPoint, wanderHomeLoop } from './wander';
 
 export interface GenerateOptions {
@@ -90,25 +91,55 @@ function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWan
   return pointToPoint(inventory, ctx);
 }
 
+function treeClosedEnough(
+  parts: PlacedPart[],
+  plan: { parking: number },
+  catalog: GenContext['catalog'],
+): boolean {
+  if (parts.length < 8) {
+    return false;
+  }
+  const opens = openPorts(parts, catalog).filter((port) => !port.instanceId.startsWith('sid'));
+  const parkingOpens =
+    plan.parking > 0 &&
+    opens.length <= plan.parking &&
+    opens.every((port) => port.id === 'diverge' || port.instanceId.startsWith('sid'));
+  return opens.length === 0 || parkingOpens;
+}
+
 function buildCandidate(
   inventory: Record<string, number>,
   prefs: GenerationPreferences,
   ctx: GenContext,
   preferWander: boolean,
+  seed: number,
+  attempt: number,
 ): PlacedPart[] {
   const plan = planTopology(inventory, prefs);
-  const main = reserveForFeatures(inventory, plan);
-  let parts = buildCore(main, ctx, preferWander);
+  const treeCtx: GenContext = {
+    ...ctx,
+    random: rng((seed + attempt * 9973) >>> 0),
+    deadline: Math.min(ctx.deadline - 1400, Date.now() + 900),
+  };
+  const grown =
+    attempt === 2 && Date.now() < ctx.deadline - 1400
+      ? growStockTree(inventory, plan, treeCtx)
+      : null;
+  const treeOk = grown && treeClosedEnough(grown, plan, ctx.catalog);
+  const active = treeOk ? treeCtx : ctx;
+  let parts = treeOk
+    ? grown
+    : buildCore(reserveForFeatures(inventory, plan), ctx, preferWander);
   if (parts.length === 0) {
     parts = pointToPoint(inventory, ctx);
   }
-  parts = applyFeatures(parts, inventory, plan, ctx);
+  parts = applyFeatures(parts, inventory, plan, active);
   const keepPark = plan.parking * 6;
-  parts = inflateLoop(parts, inventory, ctx, 16, keepPark);
-  parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
-  parts = inflateLoop(parts, inventory, ctx, 18, keepPark);
-  parts = placeParking(parts, inventory, ctx, plan.parking);
-  parts = inflateLoop(parts, inventory, ctx, 12, 0);
+  parts = inflateLoop(parts, inventory, active, 16, keepPark);
+  parts = placeRemainingSpecials(parts, inventory, active, plan.parking);
+  parts = inflateLoop(parts, inventory, active, 18, keepPark);
+  parts = placeParking(parts, inventory, active, plan.parking);
+  parts = inflateLoop(parts, inventory, active, 12, 0);
   return parts;
 }
 
@@ -118,7 +149,8 @@ export function generateLayout(
   options: GenerateOptions = {},
 ): TrackLayout {
   const inventory = inventoryMap(items);
-  const random = rng(options.seed ?? 1);
+  const seed = options.seed ?? 1;
+  const random = rng(seed);
   const timeoutMs = options.timeoutMs ?? 2800;
   const deadline = Date.now() + timeoutMs;
   const catalog = CITY_TRACKS_BY_ID;
@@ -134,7 +166,7 @@ export function generateLayout(
   while (Date.now() < deadline && attempts < 10) {
     attempts += 1;
     const ctx: GenContext = { catalog, random, deadline, seq: attempts * 100 };
-    const parts = buildCandidate(inventory, prefs, ctx, attempts % 2 === 0);
+    const parts = buildCandidate(inventory, prefs, ctx, attempts % 2 === 0, seed, attempts);
     const layout = finalize(parts, inventory, prefs, 'layout.organicLoop');
     candidates.push(layout);
     if (
