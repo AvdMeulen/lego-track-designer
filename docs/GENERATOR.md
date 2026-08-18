@@ -13,7 +13,7 @@ Parking is **off by default**. The selector only offers `0 … min(2, switchCoun
 Expect:
 
 - An **organic closed circuit** built like a growing tree: the next piece is rolled from remaining stock (more leftover curves means a curve is more likely). Curves are laid in pairs. A switch sprouts a new random branch from the diverge. As stock runs down, heads steer toward each other so branches rejoin, the trunk closes, or a leftover diverge becomes a reversing loop.
-- **Sub-circuits** from switch diverges and crossover exits, including **into the interior**. When the tree grows the network, a switch starts a real branch that later rejoins. If the tree cannot close, a fallback may still use a short City passing loop so the switches are not left unused.
+- **Sub-circuits** from switch diverges and crossover exits, including **into the interior**. When the tree grows the network, a switch starts a real branch that later rejoins. On a fallback ring, spread switches join with a long detour (eight or more extra pieces). A short City passing loop is only used if that detour will not fit.
 - **Both exits of every non-parking switch on a circuit.** One leftover switch with parking off becomes a reversing loop (keerlus). With parking on, an odd leftover switch stays unused so only parking ends remain open.
 - **Parking** only when the user asks: one switch on the circuit and a mostly-straight siding.
 - **Most of the inventory used.** Leftovers are pieces that physically would overlap.
@@ -22,7 +22,7 @@ Expect:
 
 1. **TopologyPlan** from counts: parking, dual-route pairs, keerlus, crossover, crossing.
 2. **Stock-weighted tree** that grows every open head from remaining pieces (curves in pairs). Switches sprout extra heads. As stock runs down, heads steer toward each other, then join: branches rejoin, the trunk closes, or a leftover diverge becomes a reversing loop. A ring or older wander is the fallback if the tree cannot close.
-3. **Features:** insert switches / crossover / crossing into that path. Grow a circuit from every new exit until it rejoins. Do not replace a large closed path with two tiny ovals. Short City passing loops are only a fallback when a longer detour will not fit.
+3. **Features:** on a large core, insert the crossover first so a triple-straight still exists, then switches. Passing sidings keep four or more extra straights between the diverge curves. Short City two-curve passing loops are only a fallback. Grow a circuit from every new exit until it rejoins.
 4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
 5. **Parking** last: a short siding from a switch (about a train length). Leftover straights and curves go into loop detours, not a runway.
 6. Flex closes a leftover near-miss only. Fifteen curves must not close with flex.

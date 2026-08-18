@@ -67,6 +67,13 @@ describe('applyFeatures passing loop', () => {
       ctx,
     );
     expect(result.filter((part) => part.partId.startsWith('switch-')).length).toBe(4);
+    expect(result.some((part) => part.partId === 'double-crossover')).toBeTrue();
     expect(openPorts(result, CITY_TRACKS_BY_ID).length).toBe(0);
+    const detour = result.filter(
+      (part) =>
+        (part.instanceId.startsWith('rte') || part.instanceId.startsWith('par')) &&
+        (part.partId === 'curve-22' || part.partId === 'straight-16'),
+    );
+    expect(detour.length).toBeGreaterThan(8);
   });
 });

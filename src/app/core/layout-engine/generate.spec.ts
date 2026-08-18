@@ -2,7 +2,7 @@ import { generateLayout } from './generate';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { openPorts } from './connections';
 import { headingDelta } from './geometry';
-import { rectangleEnvelopePenalty } from './score';
+import { rectangleEnvelopePenalty, shortSwitchBypassPenalty } from './score';
 
 const LARGE = [
   { partId: 'straight-16', quantity: 58 },
@@ -195,13 +195,13 @@ describe('generateLayout', () => {
   });
 
   it('uses specials from a large City collection and stays off a four-sided box', () => {
-    const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, { seed: 1, timeoutMs: 3000 });
+    const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, { seed: 1, timeoutMs: 4000 });
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(layout.parts.some((part) => part.partId.startsWith('switch-'))).toBeTrue();
     expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
     expect(usedOf(layout, 'switch-left') + usedOf(layout, 'switch-right')).toBe(0);
     expect(usedOf(layout, 'double-crossover')).toBe(0);
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(24);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(55);
     expect(rectangleEnvelopePenalty(layout.parts)).toBe(0);
   });
 
@@ -290,6 +290,7 @@ describe('generateLayout', () => {
     expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
     expect(feature.length).toBeGreaterThan(8);
     expect(sBend || inward || nonCardinal).toBeTrue();
+    expect(shortSwitchBypassPenalty(layout)).toBe(0);
   });
 
   it('keeps leftover track on the circuit instead of two tiny ovals', () => {

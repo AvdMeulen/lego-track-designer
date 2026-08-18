@@ -391,13 +391,12 @@ function pickPassingSlices(
         }
         slice.forEach((part) => used.add(part.instanceId));
         slices.push(slice);
-        i += need;
-        if (slices.length >= bubbles) {
-          return;
-        }
+        break;
       }
     }
   };
+  take(10);
+  take(8);
   take(6);
   take(4);
   return slices;
@@ -448,6 +447,45 @@ function closePassingHeads(
   );
 }
 
+function closeLongPassing(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  ignore: string[],
+): PlacedPart[] | null {
+  const first = extendSwitchHead(parts, start, inventory, ctx, ignore, false);
+  const added = first.parts
+    .filter((part) => !parts.some((item) => item.instanceId === part.instanceId))
+    .map((part) => part.instanceId);
+  const liveTarget = openPorts(first.parts, ctx.catalog).find(
+    (port) => port.instanceId === target.instanceId && port.id === target.id,
+  );
+  if (!liveTarget) {
+    return null;
+  }
+  const second = extendSwitchHead(first.parts, liveTarget, inventory, ctx, [...ignore, ...added], false);
+  if (portsConnect(first.head, second.head)) {
+    return null;
+  }
+  const maxS = Math.min(10, stockOf(inventory, second.parts)['straight-16'] ?? 0);
+  for (let n = 4; n <= maxS; n += 1) {
+    const built = attachSequenceFrom(
+      second.parts,
+      first.head,
+      Array.from({ length: n }, () => ({ partId: 'straight-16' })),
+      second.head,
+      ctx,
+      'rte',
+    );
+    if (built && built.length >= parts.length + 6) {
+      return built;
+    }
+  }
+  return null;
+}
+
 function tryPassingLoop(
   parts: PlacedPart[],
   slice: PlacedPart[],
@@ -456,14 +494,24 @@ function tryPassingLoop(
   inventory: Record<string, number>,
   ctx: GenContext,
 ): PlacedPart[] | null {
-  if (slice.length >= 6) {
-    const compact = tryPassingLoopWindow(parts, slice.slice(0, 6), firstId, secondId, inventory, ctx);
-    if (compact) {
-      return compact;
+  const sizes = parts.length >= 32 ? [10, 8, 6, 4] : [6, 4];
+  for (const size of sizes) {
+    if (slice.length < size) {
+      continue;
     }
-  }
-  if (slice.length >= 4) {
-    return tryPassingLoopWindow(parts, slice.slice(0, 4), firstId, secondId, inventory, ctx);
+    const requireLong = parts.length >= 32 && size >= 8;
+    const next = tryPassingLoopWindow(
+      parts,
+      slice.slice(0, size),
+      firstId,
+      secondId,
+      inventory,
+      ctx,
+      requireLong,
+    );
+    if (next) {
+      return next;
+    }
   }
   return null;
 }
@@ -475,11 +523,15 @@ function tryPassingLoopWindow(
   secondId: string,
   inventory: Record<string, number>,
   ctx: GenContext,
+  requireLong = false,
 ): PlacedPart[] | null {
-  const span = slice.length >= 6 ? 6 : 4;
-  const window = slice.slice(0, span);
-  const replace = span === 6 ? [window[0], window[1], window[4], window[5]] : window;
-  const keepMiddle = span === 6 ? [window[2], window[3]] : [];
+  const span = slice.length;
+  if (span < 4) {
+    return null;
+  }
+  const window = slice;
+  const replace = [window[0], window[1], window[span - 2], window[span - 1]];
+  const keepMiddle = window.slice(2, span - 2);
   const replaceIds = new Set(replace.map((part) => part.instanceId));
   const without = parts.filter((part) => !replaceIds.has(part.instanceId));
   const middleIds = keepMiddle.map((part) => part.instanceId);
@@ -493,10 +545,7 @@ function tryPassingLoopWindow(
       .map((part) => part.instanceId),
   ];
   const firstPair = orderStraightPair({ first: window[0], second: window[1] });
-  const secondPair =
-    span === 6
-      ? orderStraightPair({ first: window[4], second: window[5] })
-      : orderStraightPair({ first: window[2], second: window[3] });
+  const secondPair = orderStraightPair({ first: window[span - 2], second: window[span - 1] });
   const make = (partId: string, pose: PlacedPart, flip: boolean): PlacedPart => {
     const placed: PlacedPart = {
       ...pose,
@@ -520,9 +569,9 @@ function tryPassingLoopWindow(
         !placementCollides(b, [...without, a], ctx.catalog, ignore),
     )
     .sort((left, right) =>
-      inward
-        ? divergeSpread(left, center, ctx) - divergeSpread(right, center, ctx)
-        : divergeSpread(right, center, ctx) - divergeSpread(left, center, ctx),
+      requireLong || !inward
+        ? divergeSpread(right, center, ctx) - divergeSpread(left, center, ctx)
+        : divergeSpread(left, center, ctx) - divergeSpread(right, center, ctx),
     );
   for (const [a, b] of ranked) {
     const placed = [...without, a, b];
@@ -533,19 +582,13 @@ function tryPassingLoopWindow(
     const featureIgnore = [a.instanceId, b.instanceId, ...middleIds];
     const leftover = stockOf(inventory, placed);
     const roomy = placed.length >= 40;
-    const generous = roomy && (leftover['curve-22'] ?? 0) >= 12 && (leftover['straight-16'] ?? 0) >= 4;
-    if (generous) {
-      const nested = wanderJoin(
-        placed,
-        diverges[0],
-        diverges[1],
-        inventory,
-        ctx,
-        'rte',
-        'inward',
-      );
-      if (nested && divergesOf(nested, ctx.catalog).length === 0 && nested.length > placed.length + 6) {
+    if (requireLong || (roomy && (leftover['curve-22'] ?? 0) >= 12 && (leftover['straight-16'] ?? 0) >= 4)) {
+      const nested = closeLongPassing(placed, diverges[0], diverges[1], inventory, ctx, featureIgnore);
+      if (nested && divergesOf(nested, ctx.catalog).length === 0) {
         return nested;
+      }
+      if (requireLong) {
+        continue;
       }
     }
     const first = extendSwitchHead(placed, diverges[0], inventory, ctx, featureIgnore, roomy);
@@ -1051,6 +1094,29 @@ function placeDualRoutes(
   return result;
 }
 
+function tryPlaceCrossover(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] {
+  const before = parts;
+  let result = insertCrossover(parts, inventory, ctx);
+  if (!result.some((part) => part.partId === 'double-crossover')) {
+    return before;
+  }
+  const opens = specialOpens(result, ctx.catalog, 'double-crossover');
+  if (opens.length >= 2) {
+    const oval =
+      ovalJoin(result, opens[0], opens[1], inventory, ctx, 'xo', false) ??
+      ovalJoin(result, opens[0], opens[1], inventory, ctx, 'xo', true);
+    if (oval && specialOpens(oval, ctx.catalog, 'double-crossover').length === 0) {
+      return oval;
+    }
+  }
+  result = joinOpenPairs(result, specialOpens(result, ctx.catalog, 'double-crossover'), inventory, ctx, 'xo', false);
+  return specialOpens(result, ctx.catalog, 'double-crossover').length > 0 ? before : result;
+}
+
 export function applyFeatures(
   parts: PlacedPart[],
   inventory: Record<string, number>,
@@ -1059,23 +1125,22 @@ export function applyFeatures(
 ): PlacedPart[] {
   let result = parts;
 
+  if (plan.crossovers > 0 && result.length >= 32) {
+    result = tryPlaceCrossover(result, inventory, ctx);
+  }
+
   if (plan.dualRoutes > 0) {
     result = placeDualRoutes(result, inventory, ctx, plan.dualRoutes, plan.parking === 0, plan.parking);
   }
 
-  const beforeXo = result;
-  result = insertCrossover(result, inventory, ctx);
-  if (result.some((part) => part.partId === 'double-crossover')) {
-    result = joinOpenPairs(result, specialOpens(result, ctx.catalog, 'double-crossover'), inventory, ctx, 'xo', true);
-    result = joinOpenPairs(result, specialOpens(result, ctx.catalog, 'double-crossover'), inventory, ctx, 'xo', false);
-    if (specialOpens(result, ctx.catalog, 'double-crossover').length > 0) {
-      result = beforeXo;
-    }
-  } else if (plan.crossovers > 0 && result.length < 16) {
-    const roomy = (inventory['curve-22'] ?? 0) >= 40 && (inventory['straight-16'] ?? 0) >= 20;
-    const seeded = seedCrossover(inventory, ctx, roomy);
-    if (seeded) {
-      result = seeded;
+  if (plan.crossovers > 0 && !result.some((part) => part.partId === 'double-crossover')) {
+    result = tryPlaceCrossover(result, inventory, ctx);
+    if (!result.some((part) => part.partId === 'double-crossover') && result.length < 16) {
+      const roomy = (inventory['curve-22'] ?? 0) >= 40 && (inventory['straight-16'] ?? 0) >= 20;
+      const seeded = seedCrossover(inventory, ctx, roomy);
+      if (seeded) {
+        result = seeded;
+      }
     }
   }
   result = insertCrossing(result, inventory, ctx);
