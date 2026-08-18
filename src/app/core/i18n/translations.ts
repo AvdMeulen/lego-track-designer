@@ -97,7 +97,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'note.gapTooLarge': 'Gap too large for flex.',
     'note.fewerParking': 'Fewer parking spots than requested.',
 
-    'layout.organicLoop': 'Organic loop from the pieces you own',
+    'layout.organicLoop': 'A design from your collection',
     'layout.roundedLoop': 'Rounded loop from curves and straights',
     'layout.parallels': 'Parallel tracks from a double crossover',
     'layout.pointToPoint': 'Point-to-point route',
@@ -216,7 +216,7 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
     'note.gapTooLarge': 'Gat te groot voor flex.',
     'note.fewerParking': 'Minder parkeerplekken dan gevraagd.',
 
-    'layout.organicLoop': 'Organische lus uit de stukken die je hebt',
+    'layout.organicLoop': 'Een ontwerp uit jouw collectie',
     'layout.roundedLoop': 'Afgeronde lus van bochten en rechte stukken',
     'layout.parallels': 'Parallelle banen vanuit een dubbele kruising',
     'layout.pointToPoint': 'Punt-tot-puntroute',
