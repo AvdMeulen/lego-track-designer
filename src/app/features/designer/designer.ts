@@ -38,12 +38,16 @@ export class Designer {
   async exportPng(): Promise<void> {
     const svg = this.canvasHost()?.nativeElement.querySelector('svg');
     if (svg) {
-      await exportSvgElementToPng(svg, 'lego-track-design.png', this.canvas()?.fullViewBox());
+      await exportSvgElementToPng(
+        svg,
+        `lego-track-design-${this.store.currentSeed()}.png`,
+        this.canvas()?.fullViewBox(),
+      );
     }
   }
 
   exportJson(): void {
-    downloadJson(`lego-track-snapshot-seed-${this.store.currentSeed()}.json`, this.store.exportSnapshot());
+    downloadJson(`lego-track-snapshot-${this.store.currentSeed()}.json`, this.store.exportSnapshot());
     this.snapshotStatus.set('designer.snapshotExported');
   }
 
