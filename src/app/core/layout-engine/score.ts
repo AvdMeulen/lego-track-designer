@@ -230,6 +230,80 @@ function simpleBubblePenalty(layout: TrackLayout): number {
   return penalty;
 }
 
+/** Two-curve bypasses between switch diverges are not a useful second route. */
+export function shortSwitchBypassPenalty(layout: TrackLayout, maxHops = 4): number {
+  const switches = layout.parts.filter((part) => CITY_TRACKS_BY_ID[part.partId]?.category === 'switch');
+  if (switches.length < 2) {
+    return 0;
+  }
+  const switchIds = new Set(switches.map((part) => part.instanceId));
+  const adj = new Map<string, string[]>();
+  const add = (from: string, to: string) => {
+    const list = adj.get(from) ?? [];
+    if (!list.includes(to)) {
+      list.push(to);
+      adj.set(from, list);
+    }
+  };
+  for (const connection of layout.connections) {
+    add(connection.fromInstanceId, connection.toInstanceId);
+    add(connection.toInstanceId, connection.fromInstanceId);
+  }
+  const divergeNeighbor = (instanceId: string): string | null => {
+    for (const connection of layout.connections) {
+      if (connection.fromInstanceId === instanceId && connection.fromPortId === 'diverge') {
+        return connection.toInstanceId;
+      }
+      if (connection.toInstanceId === instanceId && connection.toPortId === 'diverge') {
+        return connection.fromInstanceId;
+      }
+    }
+    return null;
+  };
+  const hopsBetween = (start: string, goal: string): number | null => {
+    if (start === goal) {
+      return 0;
+    }
+    const seen = new Set<string>([start, ...switchIds]);
+    seen.delete(start);
+    let frontier = [start];
+    let hops = 0;
+    while (frontier.length && hops <= maxHops) {
+      const next: string[] = [];
+      for (const node of frontier) {
+        if (node === goal) {
+          return hops;
+        }
+        for (const neighbor of adj.get(node) ?? []) {
+          if (seen.has(neighbor) || switchIds.has(neighbor)) {
+            continue;
+          }
+          seen.add(neighbor);
+          next.push(neighbor);
+        }
+      }
+      frontier = next;
+      hops += 1;
+    }
+    return null;
+  };
+  let pairs = 0;
+  for (let i = 0; i < switches.length; i += 1) {
+    for (let j = i + 1; j < switches.length; j += 1) {
+      const from = divergeNeighbor(switches[i].instanceId);
+      const to = divergeNeighbor(switches[j].instanceId);
+      if (!from || !to) {
+        continue;
+      }
+      const hops = hopsBetween(from, to);
+      if (hops !== null && hops <= maxHops) {
+        pairs += 1;
+      }
+    }
+  }
+  return pairs * 48;
+}
+
 export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): number {
   const parkingDelta = Math.abs(layout.parkingSpots.length - prefs.targetParkingSpots);
   const extraPark = Math.max(0, layout.parkingSpots.length - prefs.targetParkingSpots) * 16;
@@ -261,6 +335,7 @@ export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): 
     Math.max(0, longestCircuitStraightRun(layout) - 8) * 5 -
     rectangleEnvelopePenalty(layout.parts) -
     simpleBubblePenalty(layout) -
+    shortSwitchBypassPenalty(layout) -
     adjacentSwitchPairs(layout) * 24 -
     layout.score.unfinishedPenalty * (layout.score.routeBonus > 0 ? 40 : 4) -
     layout.score.flexPenalty * 8 -

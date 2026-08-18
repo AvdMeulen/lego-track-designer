@@ -104,7 +104,11 @@ function treeClosedEnough(
     plan.parking > 0 &&
     opens.length <= plan.parking &&
     opens.every((port) => port.id === 'diverge' || port.instanceId.startsWith('sid'));
-  return opens.length === 0 || parkingOpens;
+  if (opens.length !== 0 && !parkingOpens) {
+    return false;
+  }
+  const used = parts.filter((part) => part.partId === 'straight-16' || part.partId === 'curve-22').length;
+  return used >= 24;
 }
 
 function buildCandidate(
@@ -119,10 +123,10 @@ function buildCandidate(
   const treeCtx: GenContext = {
     ...ctx,
     random: rng((seed + attempt * 9973) >>> 0),
-    deadline: Math.min(ctx.deadline - 1400, Date.now() + 900),
+    deadline: Math.min(ctx.deadline - 1200, Date.now() + 1100),
   };
   const grown =
-    attempt === 2 && Date.now() < ctx.deadline - 1400
+    attempt === 2 && Date.now() < ctx.deadline - 1200
       ? growStockTree(inventory, plan, treeCtx)
       : null;
   const treeOk = grown && treeClosedEnough(grown, plan, ctx.catalog);
@@ -151,7 +155,7 @@ export function generateLayout(
   const inventory = inventoryMap(items);
   const seed = options.seed ?? 1;
   const random = rng(seed);
-  const timeoutMs = options.timeoutMs ?? 2800;
+  const timeoutMs = options.timeoutMs ?? 4000;
   const deadline = Date.now() + timeoutMs;
   const catalog = CITY_TRACKS_BY_ID;
   const candidates: TrackLayout[] = [];

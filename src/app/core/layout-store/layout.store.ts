@@ -144,7 +144,7 @@ export class LayoutStore {
     this.preferences.set(prefs);
     const layout = generateLayout(used, prefs, {
       seed: this.seed,
-      timeoutMs: 2800,
+      timeoutMs: 4000,
       previous: this.layout().parts,
     });
     this.usedInventory.set(used);

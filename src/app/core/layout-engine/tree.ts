@@ -17,9 +17,6 @@ interface Turtle {
   prefix: string;
   straightRun: number;
   grown: number;
-  /** After the first switch of a passing pair, grow two straights then plant the mate. */
-  awaitMate: boolean;
-  mateHand: string | null;
 }
 
 function remainingTrack(inventory: Record<string, number>, parts: PlacedPart[]): {
@@ -84,22 +81,6 @@ function placeSwitchOnHead(
   return null;
 }
 
-function oppositeHand(partId: string, left: number, right: number): string | null {
-  if (partId === 'switch-left' && right > 0) {
-    return 'switch-right';
-  }
-  if (partId === 'switch-right' && left > 0) {
-    return 'switch-left';
-  }
-  if (left > 0) {
-    return 'switch-left';
-  }
-  if (right > 0) {
-    return 'switch-right';
-  }
-  return null;
-}
-
 /**
  * Grow a tree of paths weighted by remaining stock. Curves are placed in pairs.
  * A switch sprouts a new random branch from the diverge. When stock runs low,
@@ -149,8 +130,6 @@ export function growStockTree(
       prefix: 't',
       straightRun: startId === 'straight-16' ? 1 : 0,
       grown: 1,
-      awaitMate: false,
-      mateHand: null,
     },
   ];
   const startTotal = startCurves + startStraights;
@@ -288,8 +267,6 @@ export function growStockTree(
       prefix: 'br',
       straightRun: 0,
       grown: 0,
-      awaitMate: false,
-      mateHand: null,
     });
     return true;
   };
@@ -303,11 +280,19 @@ export function growStockTree(
     if (portsConnect(liveStart, liveTarget)) {
       return false;
     }
-    if (distance(liveStart, liveTarget) > 72) {
+    const gap = distance(liveStart, liveTarget);
+    if (gap < 80 || gap > 160) {
       return false;
     }
-    const next = joinHeads(parts, liveStart, liveTarget, inventory, ctx, 'jn');
-    if (next && targetClosed(next, ctx.catalog, liveTarget) && targetClosed(next, ctx.catalog, liveStart)) {
+    const next =
+      wanderJoin(parts, liveStart, liveTarget, inventory, ctx, 'jn', 'mixed') ??
+      joinHeads(parts, liveStart, liveTarget, inventory, ctx, 'jn');
+    if (
+      next &&
+      next.length >= parts.length + 8 &&
+      targetClosed(next, ctx.catalog, liveTarget) &&
+      targetClosed(next, ctx.catalog, liveStart)
+    ) {
       parts = next;
       pruneTurtles();
       return true;
@@ -354,60 +339,28 @@ export function growStockTree(
     }
     turtle.head = live;
     const target = nearestTarget(turtle, live);
-    const canHomeBranch = turtle.prefix === 't' || turtle.grown >= 6 || solving;
+    const canHomeBranch = turtle.prefix === 't' || turtle.grown >= 12 || solving;
 
-    if (canHomeBranch && homing > 0.25 && tryJoinTurtle(turtle, target)) {
+    if (canHomeBranch && homing > 0.35 && tryJoinTurtle(turtle, target)) {
       continue;
     }
 
-    if (
-      turtle.awaitMate &&
-      turtle.straightRun >= 2 &&
-      turtle.mateHand &&
-      planted < switchBudget
-    ) {
-      const stockNow = remainingTrack(inventory, parts);
-      const hand =
-        turtle.mateHand === 'switch-left' && stockNow.left > 0
-          ? 'switch-left'
-          : turtle.mateHand === 'switch-right' && stockNow.right > 0
-            ? 'switch-right'
-            : oppositeHand(turtle.mateHand, stockNow.left, stockNow.right);
-      if (hand && plantSwitch(turtle, hand)) {
-        turtle.awaitMate = false;
-        turtle.mateHand = null;
-        continue;
-      }
-    }
-
-    const wantSwitch = planted < switchBudget && !turtle.awaitMate && spent < 0.62;
+    const wantSwitch = planted < switchBudget && spent < 0.55;
     if (
       wantSwitch &&
-      turtle.straightRun >= 1 &&
-      parts.length >= 6 &&
+      parts.length >= 8 &&
       (stock.left > 0 || stock.right > 0) &&
-      (ctx.random() < 0.28 || (planted === 0 && remaining < startTotal * 0.55))
+      (ctx.random() < 0.32 || (planted === 0 && remaining < startTotal * 0.6))
     ) {
       const hand = stock.left > 0 && (stock.right === 0 || ctx.random() < 0.5) ? 'switch-left' : 'switch-right';
       const available = hand === 'switch-left' ? stock.left : stock.right;
-      const startOfPair = planted < plan.dualRoutes * 2 && planted % 2 === 0;
       if (available > 0 && plantSwitch(turtle, hand)) {
-        if (startOfPair) {
-          turtle.awaitMate = true;
-          turtle.mateHand = oppositeHand(hand, stock.left, stock.right);
-        }
-        continue;
-      }
-    }
-
-    if (turtle.awaitMate && turtle.straightRun < 2 && stock.straights > 0) {
-      if (extendStraight(turtle)) {
         continue;
       }
     }
 
     let kind = pickWeighted(stock.straights, stock.curves, ctx.random);
-    if (turtle.straightRun >= 3 && stock.curves >= 2) {
+    if (turtle.straightRun >= 2 && stock.curves >= 2) {
       kind = 'curves';
     }
     if (kind === 'straight' && stock.straights <= 0) {
@@ -483,14 +436,20 @@ function closeTree(
       return false;
     }
     const next =
-      joinHeads(result, liveStart, liveTarget, inventory, ctx, 'jn') ??
+      wanderJoin(result, liveStart, liveTarget, inventory, ctx, 'jn', 'mixed') ??
+      (distance(liveStart, liveTarget) > 48
+        ? joinHeads(result, liveStart, liveTarget, inventory, ctx, 'jn')
+        : null) ??
       (Date.now() < ctx.deadline - 40
         ? ovalJoin(result, liveStart, liveTarget, inventory, ctx, 'jn', false)
-        : null) ??
-      (Date.now() < ctx.deadline - 120
-        ? wanderJoin(result, liveStart, liveTarget, inventory, ctx, 'jn', 'mixed')
         : null);
-    if (next && targetClosed(next, ctx.catalog, liveTarget) && targetClosed(next, ctx.catalog, liveStart)) {
+    const divergePair = liveStart.id === 'diverge' && liveTarget.id === 'diverge';
+    if (
+      next &&
+      (!divergePair || next.length >= result.length + 8) &&
+      targetClosed(next, ctx.catalog, liveTarget) &&
+      targetClosed(next, ctx.catalog, liveStart)
+    ) {
       result = next;
       return true;
     }
