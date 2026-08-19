@@ -48,6 +48,22 @@ describe('ovalJoin', () => {
     expect(openPorts(ring!, CITY_TRACKS_BY_ID).length).toBe(0);
     expect(ring!.length).toBeGreaterThan(40);
   });
+
+  it('builds a wavy eight-corner loop instead of a two-axis diamond', () => {
+    const ctx: GenContext = {
+      catalog: CITY_TRACKS_BY_ID,
+      random: rng(50),
+      deadline: Date.now() + 2000,
+      seq: 1,
+    };
+    const ring = organicRing({ 'straight-16': 50, 'curve-22': 81 }, ctx);
+    expect(ring).toBeTruthy();
+    const straights = ring!.filter((part) => part.partId === 'straight-16');
+    const axes = new Set(
+      straights.map((part) => Math.round(((((part.rotation % 180) + 180) % 180) / 22.5) % 8)),
+    );
+    expect(axes.size).toBeGreaterThanOrEqual(3);
+  });
 });
 
 describe('wanderJoin', () => {

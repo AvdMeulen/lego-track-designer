@@ -21,7 +21,7 @@ Expect:
 ## Pipeline
 
 1. **TopologyPlan** from counts: parking, dual-route pairs, keerlus, crossover, crossing.
-2. **Stock-weighted tree** that grows every open head from remaining pieces (curves in pairs). Switches sprout extra heads. As stock runs down, heads steer toward each other, then join: branches rejoin, the trunk closes, or a leftover diverge becomes a reversing loop. A ring or older wander is the fallback if the tree cannot close.
+2. **Stock-weighted tree** that grows every open head from remaining pieces (curves in pairs). Switches sprout extra heads. As stock runs down, heads steer toward each other, then join: branches rejoin, the trunk closes, or a leftover diverge becomes a reversing loop. Wander is tried first. If it cannot close, a wavy eight-corner loop is the fallback instead of a four-sided diamond.
 3. **Features:** on a large core, insert the crossover first so a triple-straight still exists, then switches. Passing sidings keep four or more extra straights between the diverge curves. Short City two-curve passing loops are only a fallback. Grow a circuit from every new exit until it rejoins.
 4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
 5. **Parking** last: a short siding from a switch (about a train length). Leftover straights and curves go into loop detours, not a runway.
@@ -40,7 +40,7 @@ Expect:
 
 Rewarded: unused rigid pieces near zero, specials used, independent cycles (route choice), parking match, heading variety as a bonus.
 
-Penalized: unused specials, unfinished ports on a loop, extra parking above the target, adjacent switches, flex, a **four-sided cardinal rectangle envelope**, long straight runways, simple outer stadium bubbles on feature circuits, and **tiny two-curve bypasses** between switch diverges.
+Penalized: unused specials, unfinished ports on a loop, extra parking above the target, adjacent switches, flex, a **four-sided cardinal rectangle envelope**, a **two-heading diamond or parallelogram**, long straight runways, simple outer stadium bubbles on feature circuits, and **tiny two-curve bypasses** between switch diverges.
 
 ## Snapshots
 

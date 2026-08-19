@@ -1,2 +1,2 @@
 /** App SemVer. Keep identical to `version` in package.json. */
-export const APP_VERSION = '1.2.4';
+export const APP_VERSION = '1.2.5';

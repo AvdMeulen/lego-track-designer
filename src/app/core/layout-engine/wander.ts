@@ -457,8 +457,8 @@ export function wanderHomeLoop(
   let curveRun = startId === 'curve-22' ? 1 : 0;
   const total = straights + curves;
   const maxParts = Math.min(160, 2 + total);
-  const minParts = Math.min(maxParts - 8, Math.max(16, Math.floor(total * (total > 40 ? 0.55 : 0.35))));
-  const exploreUntil = Math.max(minParts, Math.floor(total * 0.62));
+  const minParts = Math.min(maxParts - 8, Math.max(16, Math.floor(total * (total > 40 ? 0.4 : 0.35))));
+  const exploreUntil = Math.max(minParts, Math.floor(total * 0.55));
   const padsWanted = straights >= 12 ? (straights >= 28 ? 2 : 1) : 0;
   let padsPlaced = 0;
 
@@ -756,11 +756,25 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
     skip: extra === 0,
     turns: irregular,
   };
-  const eight = {
+  const eightWavy = {
     s: straights,
-    extraCurves: Math.min(extra, 8),
+    extraCurves: Math.min(extra, 12),
     corners: 8 as const,
     skip: false,
+    turns: undefined as number[] | undefined,
+  };
+  const eightMid = {
+    s: straights,
+    extraCurves: Math.min(extra, 4),
+    corners: 8 as const,
+    skip: false,
+    turns: undefined as number[] | undefined,
+  };
+  const eightSkip = {
+    s: straights,
+    extraCurves: 0,
+    corners: 8 as const,
+    skip: true,
     turns: undefined as number[] | undefined,
   };
   const rest: Array<{
@@ -775,7 +789,10 @@ export function organicRing(inventory: Record<string, number>, ctx: GenContext):
     { s: Math.max(4, evenS / 2), extraCurves: 0, corners: 4, skip: true, turns: [4, 4, 4, 4] },
     { s: 4, extraCurves: 0, corners: 4, skip: true, turns: [4, 4, 4, 4] },
   ];
-  const tries = [four, square, eight, ...rest];
+  const large = straights + curves > 40;
+  const tries = large
+    ? [eightWavy, eightMid, eightSkip, square, four, ...rest]
+    : [four, square, eightWavy, ...rest];
   for (const attempt of tries) {
     const built = ringWithCorners(
       attempt.s,
@@ -809,13 +826,21 @@ function ringWithCorners(
   const half = corners / 2;
   const pairOffset = Math.floor(ctx.random() * half);
   const other = (pairOffset + 1) % half;
-  const pad = straights >= 12 ? 6 : Math.min(6, Math.floor((straights - (straights % 2)) / 4) * 2 || 4);
-  while (straightLeft >= 2 && sides[pairOffset] < pad) {
-    sides[pairOffset] += 1;
-    sides[pairOffset + half] += 1;
-    straightLeft -= 2;
+  const pad =
+    corners === 8
+      ? Math.min(8, Math.max(0, Math.floor(straightLeft / 4)))
+      : straights >= 12
+        ? 4
+        : Math.min(6, Math.floor((straights - (straights % 2)) / 4) * 2 || 4);
+  const padPairs = corners === 8 ? [pairOffset, other] : [pairOffset];
+  for (const side of padPairs) {
+    while (straightLeft >= 2 && sides[side] < pad) {
+      sides[side] += 1;
+      sides[side + half] += 1;
+      straightLeft -= 2;
+    }
   }
-  if (straights >= 24 && ctx.random() < 0.45) {
+  if (corners === 4 && straights >= 24 && ctx.random() < 0.45) {
     const secondPad = Math.min(pad, Math.floor(straightLeft / 2));
     while (straightLeft >= 2 && sides[other] < secondPad) {
       sides[other] += 1;
@@ -823,8 +848,17 @@ function ringWithCorners(
       straightLeft -= 2;
     }
   }
+  if (corners === 8) {
+    for (let side = 0; side < half && straightLeft >= 2; side += 1) {
+      while (sides[side] < 2 && straightLeft >= 2) {
+        sides[side] += 1;
+        sides[side + half] += 1;
+        straightLeft -= 2;
+      }
+    }
+  }
   while (straightLeft >= 2) {
-    const side = ctx.random() < 0.7 ? pairOffset : other;
+    const side = Math.floor(ctx.random() * half);
     sides[side] += 1;
     sides[side + half] += 1;
     straightLeft -= 2;

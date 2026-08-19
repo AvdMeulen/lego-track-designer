@@ -120,13 +120,31 @@ export function rectangleEnvelopePenalty(parts: PlacedPart[]): number {
     [0, 90, 180, 270].some((heading) => headingDelta(part.rotation, heading) < 8),
   ).length;
   const cardinalRatio = cardinal / straights.length;
-  if (occupiedSides === 4 && cardinalRatio > 0.55) {
+  const axes = straightHeadingAxes(straights);
+  if (occupiedSides === 4 && cardinalRatio > 0.55 && axes <= 2) {
     const aspect = Math.max(width, height) / Math.max(1, Math.min(width, height));
     if (aspect < 2.4) {
       return 48;
     }
   }
   return 0;
+}
+
+function straightHeadingAxes(straights: PlacedPart[]): number {
+  return new Set(
+    straights.map((part) => Math.round(((((part.rotation % 180) + 180) % 180) / 22.5) % 8)),
+  ).size;
+}
+
+/** A rhombus / parallelogram uses two straight headings, including a 22.5° diamond. */
+export function twoAxisLoopPenalty(parts: PlacedPart[]): number {
+  const straights = parts.filter(
+    (part) => part.partId === 'straight-16' && !part.instanceId.startsWith('sid'),
+  );
+  if (straights.length < 16) {
+    return 0;
+  }
+  return straightHeadingAxes(straights) <= 2 ? 40 : 0;
 }
 
 function parkingRunwayPenalty(layout: TrackLayout): number {
@@ -334,6 +352,7 @@ export function scoreLayout(layout: TrackLayout, prefs: GenerationPreferences): 
     parkingRunwayPenalty(layout) -
     Math.max(0, longestCircuitStraightRun(layout) - 8) * 5 -
     rectangleEnvelopePenalty(layout.parts) -
+    twoAxisLoopPenalty(layout.parts) -
     simpleBubblePenalty(layout) -
     shortSwitchBypassPenalty(layout) -
     adjacentSwitchPairs(layout) * 24 -

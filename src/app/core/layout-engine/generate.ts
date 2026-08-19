@@ -68,9 +68,15 @@ function reserveForFeatures(
 function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWander: boolean): PlacedPart[] {
   const curves = inventory['curve-22'] ?? 0;
   const straights = inventory['straight-16'] ?? 0;
+  const total = straights + curves;
   if (curves >= 16) {
-    if (preferWander || straights + curves > 40) {
-      const wandered = wanderHomeLoop(inventory, ctx);
+    const wanderMs = total > 80 ? 850 : 650;
+    const wanderCtx: GenContext = {
+      ...ctx,
+      deadline: Math.min(ctx.deadline - 1000, Date.now() + wanderMs),
+    };
+    if (preferWander || total > 40) {
+      const wandered = wanderHomeLoop(inventory, wanderCtx);
       if (wandered && loopCloses(wandered, ctx.catalog)) {
         return wandered;
       }
@@ -79,9 +85,11 @@ function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWan
     if (ring && loopCloses(ring, ctx.catalog)) {
       return ring;
     }
-    const wandered = wanderHomeLoop(inventory, ctx);
-    if (wandered && loopCloses(wandered, ctx.catalog)) {
-      return wandered;
+    if (Date.now() < wanderCtx.deadline) {
+      const wandered = wanderHomeLoop(inventory, wanderCtx);
+      if (wandered && loopCloses(wandered, ctx.catalog)) {
+        return wandered;
+      }
     }
     const circle = curveCircle(ctx, 16);
     if (circle) {
@@ -120,17 +128,18 @@ function buildCandidate(
   attempt: number,
 ): PlacedPart[] {
   const plan = planTopology(inventory, prefs);
+  const rigid = (inventory['straight-16'] ?? 0) + (inventory['curve-22'] ?? 0);
+  const treeMs = rigid > 80 ? 1500 : 1100;
   const treeCtx: GenContext = {
     ...ctx,
     random: rng((seed + attempt * 9973) >>> 0),
-    deadline: Math.min(ctx.deadline - 1200, Date.now() + 1100),
+    deadline: Math.min(ctx.deadline - 900, Date.now() + treeMs),
   };
-  const grown =
-    attempt === 2 && Date.now() < ctx.deadline - 1200
-      ? growStockTree(inventory, plan, treeCtx)
-      : null;
+  const tryTree =
+    Date.now() < ctx.deadline - 900 && (rigid > 80 ? attempt === 1 : attempt === 2);
+  const grown = tryTree ? growStockTree(inventory, plan, treeCtx) : null;
   const treeOk = grown && treeClosedEnough(grown, plan, ctx.catalog);
-  const active = treeOk ? treeCtx : ctx;
+  const active = treeOk ? { ...treeCtx, deadline: ctx.deadline } : ctx;
   let parts = treeOk
     ? grown
     : buildCore(reserveForFeatures(inventory, plan), ctx, preferWander);

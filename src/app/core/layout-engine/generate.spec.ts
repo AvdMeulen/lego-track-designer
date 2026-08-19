@@ -201,7 +201,7 @@ describe('generateLayout', () => {
     expect(layout.parts.some((part) => part.partId === 'double-crossover')).toBeTrue();
     expect(usedOf(layout, 'switch-left') + usedOf(layout, 'switch-right')).toBe(0);
     expect(usedOf(layout, 'double-crossover')).toBe(0);
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(55);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(60);
     expect(rectangleEnvelopePenalty(layout.parts)).toBe(0);
   });
 
@@ -227,7 +227,23 @@ describe('generateLayout', () => {
     expect(layout.parkingSpots[0].clearLengthStuds).toBeLessThanOrEqual(16 * 10);
     expect(layout.unfinishedPorts).toBe(0);
     expect(layout.parts.filter((part) => part.partId.startsWith('switch-')).length).toBeGreaterThanOrEqual(1);
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(55);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(60);
+  });
+
+  it('grows a large City collection as a wander, tree, or wavy loop, not a four-sided diamond', () => {
+    const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, { seed: 50, timeoutMs: 4000 });
+    const grown = layout.parts.filter((part) =>
+      ['w', 't', 'br'].some((prefix) => part.instanceId.startsWith(prefix)),
+    ).length;
+    const straights = layout.parts.filter(
+      (part) => part.partId === 'straight-16' && !part.instanceId.startsWith('sid'),
+    );
+    const axes = new Set(
+      straights.map((part) => Math.round(((((part.rotation % 180) + 180) % 180) / 22.5) % 8)),
+    );
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.unfinishedPorts).toBe(0);
+    expect(grown > 24 || axes.size >= 3).toBeTrue();
   });
 
   it('draws a curve-heavy collection as a wandering line, not two runways', () => {
@@ -236,7 +252,7 @@ describe('generateLayout', () => {
     const straights = layout.parts.filter((part) => part.partId === 'straight-16').length;
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(curves).toBeGreaterThan(straights);
-    expect(usedOf(layout, 'curve-22')).toBeLessThan(40);
+    expect(usedOf(layout, 'curve-22')).toBeLessThan(45);
   });
 
   it('grows feature circuits as mixed shapes, including inward', () => {
