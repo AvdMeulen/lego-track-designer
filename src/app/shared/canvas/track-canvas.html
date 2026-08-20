@@ -31,8 +31,8 @@
   @for (item of drawnParts(); track item.part.instanceId) {
     <g
       class="part"
+      [attr.data-label]="item.part.label"
       [class.selected]="selectedLabel() === item.part.label"
-      (click)="select(item.part)"
     >
       @if (item.path) {
         <path class="flex-outline" [attr.d]="item.path" />

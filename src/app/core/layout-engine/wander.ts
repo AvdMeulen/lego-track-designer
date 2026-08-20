@@ -201,24 +201,32 @@ export function wanderJoin(
   ctx: GenContext,
   prefix: string,
   bias: WanderBias = 'mixed',
+  minAdded = 0,
 ): PlacedPart[] | null {
   if (portsConnect(start, target)) {
     return parts;
   }
   if (Date.now() > ctx.deadline - 180) {
-    return joinHeads(parts, start, target, inventory, ctx, prefix);
+    return minAdded > 0 ? null : joinHeads(parts, start, target, inventory, ctx, prefix);
   }
   const center = centroidOf(parts);
   const left0 = stockOf(inventory, parts);
   const total = (left0['curve-22'] ?? 0) + (left0['straight-16'] ?? 0);
   if (total < 2) {
-    return joinHeads(parts, start, target, inventory, ctx, prefix);
+    return minAdded > 0 ? null : joinHeads(parts, start, target, inventory, ctx, prefix);
   }
-  const budget = Math.min(18, Math.max(6, Math.floor(total * 0.22)));
-  const exploreUntil = Math.min(
-    budget - 2,
-    4 + Math.floor(ctx.random() * Math.max(3, Math.floor(budget * 0.4))),
-  );
+  const budget =
+    minAdded > 0
+      ? Math.min(22, Math.max(minAdded + 4, Math.floor(total * 0.35)))
+      : Math.min(18, Math.max(6, Math.floor(total * 0.22)));
+  const exploreUntil =
+    minAdded > 0
+      ? Math.min(budget - 2, Math.max(minAdded, 6 + Math.floor(ctx.random() * 4)))
+      : Math.min(
+          budget - 2,
+          4 + Math.floor(ctx.random() * Math.max(3, Math.floor(budget * 0.4))),
+        );
+  const longEnough = (closed: PlacedPart[]) => closed.length - parts.length >= minAdded;
 
   let trail = [...parts];
   let head = start;
@@ -317,9 +325,15 @@ export function wanderJoin(
     return bias === 'inward' ? (da <= db ? 'a' : 'b') : da >= db ? 'a' : 'b';
   };
 
-  for (let step = 0; step < 90 && Date.now() < ctx.deadline; step += 1) {
+  for (let step = 0; step < (minAdded > 0 ? 40 : 90) && Date.now() < ctx.deadline; step += 1) {
     if (portsConnect(head, target)) {
-      return trail;
+      if (longEnough(trail)) {
+        return trail;
+      }
+      if (!restore()) {
+        break;
+      }
+      continue;
     }
     const added = trail.length - parts.length;
     if (backtracks > 24 || added > budget) {
@@ -338,8 +352,8 @@ export function wanderJoin(
     if (mustHome) {
       const closed =
         joinHeads(trail, head, target, inventory, ctx, prefix) ??
-        ovalJoin(trail, head, target, inventory, ctx, prefix, false);
-      if (closed && targetClosed(closed, ctx.catalog, target)) {
+        (minAdded > 0 ? null : ovalJoin(trail, head, target, inventory, ctx, prefix, false));
+      if (closed && targetClosed(closed, ctx.catalog, target) && longEnough(closed)) {
         return closed;
       }
       if (!restore()) {
@@ -414,13 +428,13 @@ export function wanderJoin(
     commit(chosen);
   }
 
-  if (portsConnect(head, target)) {
+  if (portsConnect(head, target) && longEnough(trail)) {
     return trail;
   }
   const closed =
     joinHeads(trail, head, target, inventory, ctx, prefix) ??
-    ovalJoin(trail, head, target, inventory, ctx, prefix, false);
-  return closed && targetClosed(closed, ctx.catalog, target) ? closed : null;
+    (minAdded > 0 ? null : ovalJoin(trail, head, target, inventory, ctx, prefix, false));
+  return closed && targetClosed(closed, ctx.catalog, target) && longEnough(closed) ? closed : null;
 }
 
 export function wanderHomeLoop(
@@ -1020,6 +1034,7 @@ export function inflateLoop(
   ctx: GenContext,
   maxSteps = 20,
   keepStraights = 0,
+  preferNested = false,
 ): PlacedPart[] {
   let result = parts;
   const coreClosed = () =>
@@ -1044,7 +1059,7 @@ export function inflateLoop(
     const nested = candidates.filter((part) =>
       ['rte', 'xo', 'par', 'cr', 'kel'].some((prefix) => part.instanceId.startsWith(prefix)),
     );
-    const pool = nested.length > 0 && ctx.random() < 0.6 ? nested : candidates;
+    const pool = nested.length > 0 && (preferNested || ctx.random() < 0.6) ? nested : candidates;
     let inflated = false;
     const tries = Math.min(4, pool.length);
     for (let attempt = 0; attempt < tries && !inflated; attempt += 1) {
@@ -1061,12 +1076,13 @@ export function inflateLoop(
       }
       const leftovers = stockOf(inventory, without);
       const roomy = (leftovers['curve-22'] ?? 0) >= 20 && (leftovers['straight-16'] ?? 0) >= 8;
-      const joined =
-        tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
-        (roomy || (leftovers['curve-22'] ?? 0) >= 16
-          ? ovalJoin(without, heads[0], heads[1], inventory, ctx, 'inf', roomy)
-          : null) ??
-        joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf');
+      const joined = preferNested
+        ? tryOffsetDetour(without, heads[0], heads[1], inventory, ctx)
+        : (tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
+          (roomy || (leftovers['curve-22'] ?? 0) >= 16
+            ? ovalJoin(without, heads[0], heads[1], inventory, ctx, 'inf', roomy)
+            : null) ??
+          joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf'));
       if (!joined || joined.length <= result.length) {
         continue;
       }

@@ -10,7 +10,7 @@ import {
   switchCountOf,
 } from '../../shared/models/track';
 import { buildSnapshot, DesignerSnapshot } from '../export/snapshot';
-import { emptyLayout, generateLayout } from '../layout-engine/generate';
+import { emptyLayout, generateLayoutAsync, GeneratePhaseSnapshot } from '../layout-engine/generate';
 import { InventoryStore } from '../inventory/inventory.store';
 import { BrowserStorage } from '../storage/browser-storage';
 
@@ -29,6 +29,16 @@ function inventoryKey(items: InventoryItem[] | null | undefined): string {
     .join('|');
 }
 
+function paintAndDwell(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.setTimeout(resolve, ms);
+      });
+    });
+  });
+}
+
 @Injectable({ providedIn: 'root' })
 export class LayoutStore {
   private readonly inventory = inject(InventoryStore);
@@ -37,6 +47,7 @@ export class LayoutStore {
   readonly preferences = signal<GenerationPreferences>(DEFAULT_PREFERENCES);
   readonly layout = signal<TrackLayout>(emptyLayout());
   readonly generating = signal(false);
+  readonly generatePhase = signal<GeneratePhaseSnapshot | null>(null);
   readonly selectedLabel = signal<number | null>(null);
   private readonly usedInventory = signal<InventoryItem[] | null>(null);
   private seed = 1;
@@ -133,25 +144,37 @@ export class LayoutStore {
 
   private startRun(): void {
     this.generating.set(true);
+    this.generatePhase.set(null);
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => this.finishRun());
+      requestAnimationFrame(() => void this.finishRun());
     });
   }
 
-  private finishRun(): void {
+  private async finishRun(): Promise<void> {
     const used = this.inventory.snapshot();
     const prefs = normalizePreferences(this.preferences(), switchCountOf(used));
     this.preferences.set(prefs);
-    const layout = generateLayout(used, prefs, {
-      seed: this.seed,
-      timeoutMs: 4000,
-      previous: this.layout().parts,
-    });
-    this.usedInventory.set(used);
-    this.layout.set(layout);
-    this.selectedLabel.set(null);
-    this.persist();
-    this.generating.set(false);
+    const previous = this.layout().parts;
+    try {
+      const layout = await generateLayoutAsync(used, prefs, {
+        seed: this.seed,
+        timeoutMs: 4000,
+        previous,
+        onPhase: async (snapshot) => {
+          this.generatePhase.set(snapshot);
+          this.layout.set(snapshot.layout);
+          this.selectedLabel.set(null);
+          await paintAndDwell(snapshot.phase === 'done' ? 160 : 280);
+        },
+      });
+      this.usedInventory.set(used);
+      this.layout.set(layout);
+      this.selectedLabel.set(null);
+      this.persist();
+    } finally {
+      this.generatePhase.set(null);
+      this.generating.set(false);
+    }
   }
 
   private persist(): void {

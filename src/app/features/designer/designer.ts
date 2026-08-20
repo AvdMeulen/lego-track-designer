@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { exportSvgElementToPng } from '../../core/export/png-export';
@@ -18,8 +18,22 @@ export class Designer {
   private readonly canvasHost = viewChild<ElementRef<HTMLElement>>('canvasHost');
   private readonly canvas = viewChild(TrackCanvas);
   private readonly snapshotFile = viewChild<ElementRef<HTMLInputElement>>('snapshotFile');
+  private readonly pieceList = viewChild<ElementRef<HTMLUListElement>>('pieceList');
 
   protected readonly snapshotStatus = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      const label = this.store.selectedLabel();
+      const list = this.pieceList()?.nativeElement;
+      if (label == null || !list) {
+        return;
+      }
+      queueMicrotask(() => {
+        list.querySelector<HTMLElement>('li.active')?.scrollIntoView({ block: 'nearest' });
+      });
+    });
+  }
 
   setParking(value: string): void {
     const parsed = Number(value);

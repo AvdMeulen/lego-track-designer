@@ -14,7 +14,7 @@ import {
   transformPolygon,
 } from '../../core/layout-engine/geometry';
 import { TPipe } from '../../core/i18n/t.pipe';
-import { PlacedPart, TrackLayout } from '../models/track';
+import { TrackLayout } from '../models/track';
 
 @Component({
   selector: 'app-track-canvas',
@@ -27,7 +27,7 @@ export class TrackCanvas {
 
   readonly layout = input.required<TrackLayout>();
   readonly selectedLabel = input<number | null>(null);
-  readonly partSelect = output<number>();
+  readonly partSelect = output<number | null>();
 
   readonly panX = signal(0);
   readonly panY = signal(0);
@@ -35,6 +35,7 @@ export class TrackCanvas {
   readonly dragging = signal(false);
 
   private moved = false;
+  private pressLabel: number | null = null;
   private dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
 
   readonly world = computed(() => {
@@ -146,7 +147,7 @@ export class TrackCanvas {
   onPointerDown(event: PointerEvent): void {
     event.preventDefault();
     window.getSelection()?.removeAllRanges();
-    (event.currentTarget as SVGSVGElement).setPointerCapture(event.pointerId);
+    this.pressLabel = labelOf(event.target);
     this.dragging.set(true);
     this.moved = false;
     this.dragStart = {
@@ -155,6 +156,14 @@ export class TrackCanvas {
       panX: this.panX(),
       panY: this.panY(),
     };
+    const target = event.currentTarget as SVGSVGElement;
+    try {
+      if (event.isPrimary !== false && event.pointerId >= 1) {
+        target.setPointerCapture(event.pointerId);
+      }
+    } catch {
+      return;
+    }
   }
 
   onPointerMove(event: PointerEvent): void {
@@ -176,6 +185,10 @@ export class TrackCanvas {
 
   onPointerUp(): void {
     this.dragging.set(false);
+    if (!this.moved) {
+      this.partSelect.emit(this.pressLabel);
+    }
+    this.pressLabel = null;
   }
 
   onContextMenu(event: Event): void {
@@ -200,10 +213,14 @@ export class TrackCanvas {
     this.zoom.set(newZoom);
   }
 
-  select(part: PlacedPart): void {
-    if (this.moved) {
-      return;
-    }
-    this.partSelect.emit(part.label);
+}
+
+function labelOf(target: EventTarget | null): number | null {
+  const el = target instanceof Element ? target.closest('[data-label]') : null;
+  const raw = el?.getAttribute('data-label');
+  if (!raw) {
+    return null;
   }
+  const label = Number(raw);
+  return Number.isFinite(label) ? label : null;
 }

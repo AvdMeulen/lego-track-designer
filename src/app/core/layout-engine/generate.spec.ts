@@ -1,4 +1,4 @@
-import { generateLayout } from './generate';
+import { generateLayout, generateLayoutAsync } from './generate';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { openPorts } from './connections';
 import { headingDelta } from './geometry';
@@ -352,5 +352,25 @@ describe('generateLayout', () => {
     expect(first.parts.length).toBeGreaterThan(16);
     expect(second.parts.length).toBeGreaterThan(16);
     expect(pose(second.parts)).not.toBe(pose(first.parts));
+  });
+
+  it('emits pipeline phases during an async run', async () => {
+    const phases: string[] = [];
+    const layout = await generateLayoutAsync(
+      [{ partId: 'curve-22', quantity: 16 }],
+      { targetParkingSpots: 0 },
+      {
+        seed: 1,
+        timeoutMs: 1500,
+        onPhase: (snapshot) => {
+          phases.push(snapshot.phase);
+          expect(snapshot.layout.parts.length).toBeGreaterThan(0);
+        },
+      },
+    );
+    expect(phases[0]).toBe('core');
+    expect(phases).toContain('candidate');
+    expect(phases[phases.length - 1]).toBe('done');
+    expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBe(16);
   });
 });

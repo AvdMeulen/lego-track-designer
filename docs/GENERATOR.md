@@ -22,11 +22,11 @@ Expect:
 
 1. **TopologyPlan** from counts: parking, dual-route pairs, keerlus, crossover, crossing.
 2. **Stock-weighted tree** that grows every open head from remaining pieces (curves in pairs). Switches sprout extra heads. As stock runs down, heads steer toward each other, then join: branches rejoin, the trunk closes, or a leftover diverge becomes a reversing loop. Wander is tried first. If it cannot close, a wavy eight-corner loop is the fallback instead of a four-sided diamond.
-3. **Features:** on a large core, insert the crossover first so a triple-straight still exists, then switches. Passing sidings keep four or more extra straights between the diverge curves. Short City two-curve passing loops are only a fallback. Grow a circuit from every new exit until it rejoins.
-4. **Inflate** leftover straights and curves as detours on a closed loop, keeping a few straights if parking is on.
+3. **Features:** on a large core, insert the crossover first so a triple-straight still exists. Switch diverges and crossover exits grow a wander branch (eight or more mixed pieces), not a stadium of two curves plus a run of straights. A compact City two-curve passing loop is only a last resort if that branch will not fit.
+4. **Inflate** leftover straights and curves as detours. A first pass puts S-bends on switch/crossover circuits so stadium bubbles get wiggles instead of leftover sitting unused.
 5. **Parking** last: a short siding from a switch (about a train length). Leftover straights and curves go into loop detours, not a runway.
 6. Flex closes a leftover near-miss only. Fifteen curves must not close with flex.
-7. Score candidates within the timeout; pick the best.
+7. Score candidates within the timeout; pick the best. In the designer the run is shown **phase by phase** (core, crossover, switch branches, detours, parking, next candidate) so you can see how the circuit is built. `generateLayout()` stays synchronous for tests; the UI uses `generateLayoutAsync()`.
 
 ## City geometry that the generator depends on
 

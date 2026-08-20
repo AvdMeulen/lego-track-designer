@@ -8,17 +8,33 @@ import {
 } from '../../shared/models/track';
 import { remainingInventory, unusedItems, openPorts } from './connections';
 import { closeWithFlex } from './flex-closer';
-import { applyFeatures, placeParking, placeRemainingSpecials } from './features';
+import { applyCrossover, applyRouteFeatures, placeParking, placeRemainingSpecials } from './features';
 import { GenContext, inventoryMap, rng } from './place';
 import { scoreLayout, layoutIsValid } from './score';
 import { planTopology } from './topology';
 import { growStockTree } from './tree';
 import { curveCircle, inflateLoop, loopCloses, organicRing, pointToPoint, wanderHomeLoop } from './wander';
 
+export type GeneratePhase = 'core' | 'crossover' | 'routes' | 'inflate' | 'parking' | 'candidate' | 'done';
+
+export interface GeneratePhaseSnapshot {
+  phase: GeneratePhase;
+  attempt: number;
+  layout: TrackLayout;
+}
+
 export interface GenerateOptions {
   seed?: number;
   timeoutMs?: number;
   previous?: PlacedPart[];
+  onPhase?: (snapshot: GeneratePhaseSnapshot) => void | Promise<void>;
+}
+
+interface GenerateStep {
+  phase: GeneratePhase;
+  attempt: number;
+  parts?: PlacedPart[];
+  layout?: TrackLayout;
 }
 
 function finalize(
@@ -99,6 +115,29 @@ function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWan
   return pointToPoint(inventory, ctx);
 }
 
+function previewLayout(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  prefs: GenerationPreferences,
+  message: string,
+): TrackLayout {
+  const labeled = parts.map((part, index) => ({ ...part, label: index + 1 }));
+  const layout = analyzeLayout(labeled, CITY_TRACKS_BY_ID, unusedItems(inventory, labeled), message);
+  layout.score.total = scoreLayout(layout, prefs);
+  return layout;
+}
+
+function applyPause(clock: { deadline: number }, ctx: GenContext, extra: GenContext | null, pause: number | void): void {
+  if (typeof pause !== 'number' || pause <= 0) {
+    return;
+  }
+  clock.deadline += pause;
+  ctx.deadline = clock.deadline;
+  if (extra && extra !== ctx) {
+    extra.deadline = clock.deadline;
+  }
+}
+
 function treeClosedEnough(
   parts: PlacedPart[],
   plan: { parking: number },
@@ -119,14 +158,15 @@ function treeClosedEnough(
   return used >= 24;
 }
 
-function buildCandidate(
+function* buildCandidateSteps(
   inventory: Record<string, number>,
   prefs: GenerationPreferences,
   ctx: GenContext,
   preferWander: boolean,
   seed: number,
   attempt: number,
-): PlacedPart[] {
+  clock: { deadline: number },
+): Generator<GenerateStep, PlacedPart[], number | void> {
   const plan = planTopology(inventory, prefs);
   const rigid = (inventory['straight-16'] ?? 0) + (inventory['curve-22'] ?? 0);
   const treeMs = rigid > 80 ? 1500 : 1100;
@@ -146,26 +186,64 @@ function buildCandidate(
   if (parts.length === 0) {
     parts = pointToPoint(inventory, ctx);
   }
-  parts = applyFeatures(parts, inventory, plan, active);
+  applyPause(clock, ctx, active, yield { phase: 'core', attempt, parts });
+
+  const afterCrossover = applyCrossover(parts, inventory, plan, active);
+  if (afterCrossover !== parts) {
+    parts = afterCrossover;
+    applyPause(clock, ctx, active, yield { phase: 'crossover', attempt, parts });
+  }
+
+  const afterRoutes = applyRouteFeatures(parts, inventory, plan, active);
+  if (afterRoutes !== parts) {
+    parts = afterRoutes;
+    applyPause(clock, ctx, active, yield { phase: 'routes', attempt, parts });
+  } else {
+    parts = afterRoutes;
+  }
+
+  const beforeInflate = parts;
   const keepPark = plan.parking * 6;
+  parts = inflateLoop(parts, inventory, active, 14, keepPark, true);
   parts = inflateLoop(parts, inventory, active, 16, keepPark);
   parts = placeRemainingSpecials(parts, inventory, active, plan.parking);
   parts = inflateLoop(parts, inventory, active, 18, keepPark);
+  if (parts !== beforeInflate) {
+    applyPause(clock, ctx, active, yield { phase: 'inflate', attempt, parts });
+  }
+
+  const beforePark = parts;
   parts = placeParking(parts, inventory, active, plan.parking);
   parts = inflateLoop(parts, inventory, active, 12, 0);
+  if (parts !== beforePark) {
+    applyPause(clock, ctx, active, yield { phase: 'parking', attempt, parts });
+  }
   return parts;
 }
 
-export function generateLayout(
+function snapshotOf(
+  phase: GeneratePhase,
+  attempt: number,
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  prefs: GenerationPreferences,
+): GeneratePhaseSnapshot {
+  return {
+    phase,
+    attempt,
+    layout: previewLayout(parts, inventory, prefs, `phase.${phase}`),
+  };
+}
+
+function* generateLayoutSteps(
   items: { partId: string; quantity: number }[],
-  prefs: GenerationPreferences = DEFAULT_PREFERENCES,
-  options: GenerateOptions = {},
-): TrackLayout {
+  prefs: GenerationPreferences,
+  options: GenerateOptions,
+): Generator<GenerateStep, TrackLayout, number | void> {
   const inventory = inventoryMap(items);
   const seed = options.seed ?? 1;
   const random = rng(seed);
-  const timeoutMs = options.timeoutMs ?? 4000;
-  const deadline = Date.now() + timeoutMs;
+  const clock = { deadline: Date.now() + (options.timeoutMs ?? 4000) };
   const catalog = CITY_TRACKS_BY_ID;
   const candidates: TrackLayout[] = [];
 
@@ -176,12 +254,26 @@ export function generateLayout(
   const fifteenCurves = (inventory['curve-22'] ?? 0) === 15;
   const previousKey = options.previous?.length ? poseKey(options.previous) : '';
   let attempts = 0;
-  while (Date.now() < deadline && attempts < 10) {
+  while (Date.now() < clock.deadline && attempts < 10) {
     attempts += 1;
-    const ctx: GenContext = { catalog, random, deadline, seq: attempts * 100 };
-    const parts = buildCandidate(inventory, prefs, ctx, attempts % 2 === 0, seed, attempts);
+    const ctx: GenContext = { catalog, random, deadline: clock.deadline, seq: attempts * 100 };
+    const parts = yield* buildCandidateSteps(
+      inventory,
+      prefs,
+      ctx,
+      attempts % 2 === 0,
+      seed,
+      attempts,
+      clock,
+    );
     const layout = finalize(parts, inventory, prefs, 'layout.organicLoop');
     candidates.push(layout);
+    applyPause(
+      clock,
+      ctx,
+      null,
+      yield { phase: 'candidate', attempt: attempts, layout },
+    );
     if (
       layout.score.routeBonus > 0 &&
       layout.unfinishedPorts === 0 &&
@@ -193,10 +285,25 @@ export function generateLayout(
     }
   }
 
+  const best = pickBest(candidates, inventory, fifteenCurves, previousKey, prefs);
+  applyPause(clock, { catalog, random, deadline: clock.deadline, seq: 0 }, null, yield {
+    phase: 'done',
+    attempt: Math.max(1, attempts),
+    layout: best,
+  });
+  return best;
+}
+
+function pickBest(
+  candidates: TrackLayout[],
+  inventory: Record<string, number>,
+  fifteenCurves: boolean,
+  previousKey: string,
+  prefs: GenerationPreferences,
+): TrackLayout {
   if (candidates.length === 0) {
     return finalize([], inventory, prefs, 'layout.couldNotPlace');
   }
-
   const usable = fifteenCurves
     ? candidates.filter((layout) => layout.score.routeBonus === 0)
     : candidates;
@@ -223,6 +330,48 @@ export function generateLayout(
     best.message = 'layout.couldNotPlace';
   }
   return best;
+}
+
+export function generateLayout(
+  items: { partId: string; quantity: number }[],
+  prefs: GenerationPreferences = DEFAULT_PREFERENCES,
+  options: GenerateOptions = {},
+): TrackLayout {
+  const steps = generateLayoutSteps(items, prefs, options);
+  let step = steps.next();
+  while (!step.done) {
+    step = steps.next(0);
+  }
+  return step.value;
+}
+
+export async function generateLayoutAsync(
+  items: { partId: string; quantity: number }[],
+  prefs: GenerationPreferences = DEFAULT_PREFERENCES,
+  options: GenerateOptions = {},
+): Promise<TrackLayout> {
+  const inventory = inventoryMap(items);
+  const steps = generateLayoutSteps(items, prefs, options);
+  let step = steps.next();
+  while (!step.done) {
+    const started = Date.now();
+    if (options.onPhase) {
+      await options.onPhase(toSnapshot(step.value, inventory, prefs));
+    }
+    step = steps.next(Date.now() - started);
+  }
+  return step.value;
+}
+
+function toSnapshot(
+  step: GenerateStep,
+  inventory: Record<string, number>,
+  prefs: GenerationPreferences,
+): GeneratePhaseSnapshot {
+  if (step.layout) {
+    return { phase: step.phase, attempt: step.attempt, layout: step.layout };
+  }
+  return snapshotOf(step.phase, step.attempt, step.parts ?? [], inventory, prefs);
 }
 
 function unusedRigidTrack(layout: TrackLayout): number {

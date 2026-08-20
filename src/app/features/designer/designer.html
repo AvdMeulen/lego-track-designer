@@ -6,13 +6,19 @@
       (partSelect)="store.select($event)"
     />
     @if (store.generating()) {
-      <div class="busy" role="status" aria-live="polite">
+      <div class="busy-chip" role="status" aria-live="polite">
         <span class="busy-studs" aria-hidden="true">
           <span></span>
           <span></span>
           <span></span>
         </span>
-        <p>{{ 'designer.searching' | t }}</p>
+        <p>
+          @if (store.generatePhase(); as phase) {
+            {{ ('phase.' + phase.phase) | t: { n: phase.attempt } }}
+          } @else {
+            {{ 'designer.searching' | t }}
+          }
+        </p>
       </div>
     }
   </div>
@@ -20,7 +26,11 @@
   <aside class="panel float">
     <h1>
       @if (store.generating()) {
-        {{ 'designer.searching' | t }}
+        @if (store.generatePhase(); as phase) {
+          {{ ('phase.' + phase.phase) | t: { n: phase.attempt } }}
+        } @else {
+          {{ 'designer.searching' | t }}
+        }
       } @else {
         {{ (store.layout().message || 'designer.empty') | t }}
       }
@@ -88,7 +98,7 @@
 
     <aside class="tile piece-box">
       <h2>{{ 'designer.pieceList' | t }}</h2>
-      <ul class="piece-list">
+      <ul class="piece-list" #pieceList>
         @for (part of store.layout().parts; track part.instanceId) {
           <li
             [class.active]="store.selectedLabel() === part.label"
@@ -110,7 +120,7 @@
         type="button"
         class="io-btn"
         (click)="exportPng()"
-        [disabled]="store.layout().parts.length === 0"
+        [disabled]="store.generating() || store.layout().parts.length === 0"
         [attr.title]="'designer.exportPngHint' | t"
         [attr.aria-label]="'designer.exportPngHint' | t"
       >

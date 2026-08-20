@@ -455,6 +455,16 @@ function closeLongPassing(
   ctx: GenContext,
   ignore: string[],
 ): PlacedPart[] | null {
+  if (parts.length >= 40 && Date.now() < ctx.deadline - 400) {
+    const leftover = stockOf(inventory, parts);
+    if ((leftover['curve-22'] ?? 0) + (leftover['straight-16'] ?? 0) >= 8) {
+      const bias = ctx.random() < 0.7 ? 'outward' : 'mixed';
+      const wandered = wanderJoin(parts, start, target, inventory, ctx, 'rte', bias, 8);
+      if (wandered && wandered.length >= parts.length + 8) {
+        return wandered;
+      }
+    }
+  }
   const first = extendSwitchHead(parts, start, inventory, ctx, ignore, false);
   const added = first.parts
     .filter((part) => !parts.some((item) => item.instanceId === part.instanceId))
@@ -493,8 +503,9 @@ function tryPassingLoop(
   secondId: string,
   inventory: Record<string, number>,
   ctx: GenContext,
+  minSize = 4,
 ): PlacedPart[] | null {
-  const sizes = parts.length >= 32 ? [10, 8, 6, 4] : [6, 4];
+  const sizes = (parts.length >= 32 ? [10, 8, 6, 4] : [6, 4]).filter((size) => size >= minSize);
   for (const size of sizes) {
     if (slice.length < size) {
       continue;
@@ -621,15 +632,19 @@ function insertPassingLoops(
   inventory: Record<string, number>,
   ctx: GenContext,
   bubbles: number,
+  minSize = 4,
 ): PlacedPart[] {
   let result = parts;
   const slices = pickPassingSlices(straightPairs(result, ctx.catalog), bubbles, ctx.random);
   for (const slice of slices) {
+    if (slice.length < minSize) {
+      continue;
+    }
     const queue = switchQueue(inventory, result);
     if (queue.length < 2) {
       break;
     }
-    const next = tryPassingLoop(result, slice, queue[0], queue[1], inventory, ctx);
+    const next = tryPassingLoop(result, slice, queue[0], queue[1], inventory, ctx, minSize);
     if (next) {
       result = next;
     }
@@ -701,6 +716,7 @@ function joinOpenPairs(
   ctx: GenContext,
   prefix: string,
   preferRoomy = false,
+  organicOnly = false,
 ): PlacedPart[] {
   let result = parts;
   const remaining = [...starts];
@@ -733,10 +749,11 @@ function joinOpenPairs(
       const turns = inward
         ? inwardTurnOrder(startExt.head, targetExt.parts, ctx)
         : outwardTurnOrder(startExt.head, targetExt.parts, ctx);
-      const next =
-        joinHeads(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix) ??
-        wanderJoin(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix, bias) ??
-        ovalJoin(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix, preferRoomy, turns);
+      const next = organicOnly
+        ? wanderJoin(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix, bias, 8)
+        : (joinHeads(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix) ??
+          wanderJoin(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix, bias) ??
+          ovalJoin(targetExt.parts, startExt.head, targetExt.head, inventory, ctx, prefix, preferRoomy, turns));
       if (
         next &&
         targetClosed(next, ctx.catalog, targetExt.head) &&
@@ -1064,7 +1081,26 @@ function placeDualRoutes(
   const large = parts.length >= 16;
   if (large) {
     const before = parts;
-    let result = insertPassingLoops(parts, inventory, ctx, count);
+    let result =
+      parts.length >= 40 ? insertPassingLoops(parts, inventory, ctx, count, 8) : insertPassingLoops(parts, inventory, ctx, count);
+    const placed = result.filter((part) => part.partId.startsWith('switch-')).length;
+    const need = Math.max(0, count * 2 - placed);
+    if (need === 0 && divergesOf(result, ctx.catalog).length === 0 && placed > 0) {
+      return result;
+    }
+    if (parts.length >= 40 && need > 0 && ctx.deadline - Date.now() > 700) {
+      result = insertSwitches(result, inventory, ctx, need, 'rte', false);
+      const afterSwitches = result.length;
+      result = joinOpenPairs(result, divergesOf(result, ctx.catalog), inventory, ctx, 'rte', false, true);
+      if (
+        divergesOf(result, ctx.catalog).length === 0 &&
+        result.filter((part) => part.partId.startsWith('switch-')).length >= count * 2 &&
+        result.length - afterSwitches >= 8
+      ) {
+        return result;
+      }
+    }
+    result = insertPassingLoops(parts, inventory, ctx, count);
     if (divergesOf(result, ctx.catalog).length === 0 && result.some((part) => part.partId.startsWith('switch-'))) {
       return result;
     }
@@ -1106,6 +1142,13 @@ function tryPlaceCrossover(
   }
   const opens = specialOpens(result, ctx.catalog, 'double-crossover');
   if (opens.length >= 2) {
+    if (result.length >= 40 && ctx.deadline - Date.now() > 500) {
+      const bias = ctx.random() < 0.7 ? 'outward' : 'mixed';
+      const walked = wanderJoin(result, opens[0], opens[1], inventory, ctx, 'xo', bias, 8);
+      if (walked && specialOpens(walked, ctx.catalog, 'double-crossover').length === 0) {
+        return walked;
+      }
+    }
     const oval =
       ovalJoin(result, opens[0], opens[1], inventory, ctx, 'xo', false) ??
       ovalJoin(result, opens[0], opens[1], inventory, ctx, 'xo', true);
@@ -1117,17 +1160,25 @@ function tryPlaceCrossover(
   return specialOpens(result, ctx.catalog, 'double-crossover').length > 0 ? before : result;
 }
 
-export function applyFeatures(
+export function applyCrossover(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  plan: TopologyPlan,
+  ctx: GenContext,
+): PlacedPart[] {
+  if (plan.crossovers > 0 && parts.length >= 32) {
+    return tryPlaceCrossover(parts, inventory, ctx);
+  }
+  return parts;
+}
+
+export function applyRouteFeatures(
   parts: PlacedPart[],
   inventory: Record<string, number>,
   plan: TopologyPlan,
   ctx: GenContext,
 ): PlacedPart[] {
   let result = parts;
-
-  if (plan.crossovers > 0 && result.length >= 32) {
-    result = tryPlaceCrossover(result, inventory, ctx);
-  }
 
   if (plan.dualRoutes > 0) {
     result = placeDualRoutes(result, inventory, ctx, plan.dualRoutes, plan.parking === 0, plan.parking);
@@ -1166,6 +1217,15 @@ export function applyFeatures(
   }
 
   return result;
+}
+
+export function applyFeatures(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  plan: TopologyPlan,
+  ctx: GenContext,
+): PlacedPart[] {
+  return applyRouteFeatures(applyCrossover(parts, inventory, plan, ctx), inventory, plan, ctx);
 }
 
 export function placeParking(
