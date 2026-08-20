@@ -30,7 +30,11 @@ JSON snapshot import/export. Switch artwork as one S. Generator prefers closed l
 
 ## Slice G — Organic generator (done)
 
-Path-first generator: wander in 22.5° steps, close every switch exit except requested parking, spend leftovers as detours. No rectangle template and no passing lanes. Parking options follow switch count; default is 0.
+Path-first generator: wander in 22.5° steps, close every switch exit except requested parking, spend leftovers as detours. No rectangle template. Parking options follow switch count; default is 0.
+
+## Slice H — Useful switch branches (done)
+
+Switches and the crossover grow a wander branch (eight or more mixed pieces) instead of a stadium oval or a two-curve City passing bubble. Compact passing stays a last resort. The designer shows each generation phase on the canvas. Details: [GENERATOR.md](GENERATOR.md).
 
 ## Later
 

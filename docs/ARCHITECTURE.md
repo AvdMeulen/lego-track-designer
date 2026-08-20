@@ -32,7 +32,7 @@ Catalog → inventory page → inventory store → designer → `generateLayout`
 
 ## Engine
 
-Closed organic wander first (or a 16-curve core plus inflate), then features: dual-route switch pairs, keerlus, crossover, 90° crossing, at most `targetParkingSpots` sidings. Score picks among candidates. Flex closes a leftover near-miss only.
+Grow a closed organic core first (stock-weighted tree or wander-home; wavy eight-corner ring if those cannot close). Then features: a long wander branch from each switch/crossover, compact City passing only as fallback, keerlus, 90° crossing, at most `targetParkingSpots` sidings. Score picks among candidates. Flex closes a leftover near-miss only.
 
 Details, instance-id prefixes, and snapshot-driven rules: [GENERATOR.md](GENERATOR.md).
 
