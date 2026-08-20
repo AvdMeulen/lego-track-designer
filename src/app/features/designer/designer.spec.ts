@@ -35,6 +35,16 @@ describe('Designer', () => {
     expect(compiled.querySelector('.io')).toBeTruthy();
     expect(compiled.querySelector('.unused')).toBeFalsy();
     expect(compiled.querySelector('.workspace')).toBeTruthy();
+    expect(compiled.querySelector('.busy')).toBeFalsy();
+  });
+
+  it('shows a busy overlay while generating', () => {
+    const store = TestBed.inject(LayoutStore);
+    store.generating.set(true);
+    fixture.detectChanges();
+    const overlay = fixture.nativeElement.querySelector('.busy') as HTMLElement;
+    expect(overlay).toBeTruthy();
+    expect(overlay.textContent).toContain('Searching');
   });
 
   it('selects a circuit piece in the piece list', () => {

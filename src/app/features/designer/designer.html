@@ -6,19 +6,16 @@
       (partSelect)="store.select($event)"
     />
     @if (store.generating()) {
-      <div class="busy-chip" role="status" aria-live="polite">
+      <div class="busy" role="status" aria-live="polite">
         <span class="busy-studs" aria-hidden="true">
           <span></span>
           <span></span>
           <span></span>
         </span>
-        <p>
-          @if (store.generatePhase(); as phase) {
-            {{ ('phase.' + phase.phase) | t: { n: phase.attempt } }}
-          } @else {
-            {{ 'designer.searching' | t }}
-          }
-        </p>
+        <p>{{ 'designer.searching' | t }}</p>
+        @if (store.generatePhase(); as phase) {
+          <p class="busy-phase">{{ ('phase.' + phase.phase) | t: { n: phase.attempt } }}</p>
+        }
       </div>
     }
   </div>
