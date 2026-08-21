@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   CM_NUDGE_LARGE_STUDS,
@@ -22,7 +22,7 @@ import { FloorPlanStore } from '../../core/floor-plan/floor-plan.store';
 import { TPipe } from '../../core/i18n/t.pipe';
 import { FloorPlan, FloorShape, formatLengthCm } from '../../shared/models/floor-plan';
 import { Point } from '../../shared/models/track';
-import { boundsOf, distance } from '../../core/layout-engine/geometry';
+import { distance } from '../../core/layout-engine/geometry';
 
 type EditorFocus =
   | { kind: 'vertex'; shapeId: string; index: number; role: 'outer' | 'obstacle' }
@@ -60,34 +60,21 @@ export class Room {
     shape?: FloorShape;
   } | null = null;
 
-  readonly world = computed(() => {
-    const plan = this.store.plan();
-    const extra = this.drawing() ?? [];
-    const points = [
-      ...plan.outer.points,
-      ...plan.obstacles.flatMap((shape) => shape.points),
-      ...extra,
-    ];
-    const bounds = points.length ? boundsOf(points) : floorBounds(plan);
-    const pad = 36;
-    return {
-      minX: bounds.minX - pad,
-      minY: bounds.minY - pad,
-      width: Math.max(120, bounds.maxX - bounds.minX + pad * 2),
-      height: Math.max(90, bounds.maxY - bounds.minY + pad * 2),
-    };
-  });
+  private readonly contentFrame = this.paddedFrame(this.store.plan());
+  private readonly frame = signal(this.contentFrame);
+
+  constructor() {
+    afterNextRender(() => this.syncFrameToViewport());
+  }
 
   readonly view = computed(() => {
-    const world = this.world();
+    const frame = this.frame();
     const zoom = this.zoom();
-    return {
-      minX: world.minX + this.panX(),
-      minY: world.minY + this.panY(),
-      width: world.width / zoom,
-      height: world.height / zoom,
-      box: `${world.minX + this.panX()} ${world.minY + this.panY()} ${world.width / zoom} ${world.height / zoom}`,
-    };
+    const minX = frame.minX + this.panX();
+    const minY = frame.minY + this.panY();
+    const width = frame.width / zoom;
+    const height = frame.height / zoom;
+    return { minX, minY, width, height, box: `${minX} ${minY} ${width} ${height}` };
   });
 
   readonly drawn = computed(() => {
@@ -223,16 +210,12 @@ export class Room {
       return;
     }
     if (this.drag.kind === 'pan') {
-      const view = this.view();
-      const svg = this.svg()?.nativeElement;
-      if (!svg) {
+      const delta = this.screenDeltaToWorld(event.clientX - this.drag.start.x, event.clientY - this.drag.start.y);
+      if (!delta) {
         return;
       }
-      const rect = svg.getBoundingClientRect();
-      const dx = ((event.clientX - this.drag.start.x) * view.width) / Math.max(rect.width, 1);
-      const dy = ((event.clientY - this.drag.start.y) * view.height) / Math.max(rect.height, 1);
-      this.panX.set(this.drag.panX - dx);
-      this.panY.set(this.drag.panY - dy);
+      this.panX.set(this.drag.panX - delta.x);
+      this.panY.set(this.drag.panY - delta.y);
       return;
     }
     const shape = this.drag.shape ?? shapeById(plan, this.drag.shapeId ?? '');
@@ -277,9 +260,9 @@ export class Room {
     if (newZoom === oldZoom) {
       return;
     }
-    const world = this.world();
-    this.panX.update((x) => x + (world.width / oldZoom - world.width / newZoom) / 2);
-    this.panY.update((y) => y + (world.height / oldZoom - world.height / newZoom) / 2);
+    const frame = this.frame();
+    this.panX.update((x) => x + (frame.width / oldZoom - frame.width / newZoom) / 2);
+    this.panY.update((y) => y + (frame.height / oldZoom - frame.height / newZoom) / 2);
     this.zoom.set(newZoom);
   }
 
@@ -315,6 +298,11 @@ export class Room {
       this.store.replaceActive(replaceShape(plan, next));
     }
     this.focus.set(null);
+  }
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.syncFrameToViewport();
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -423,15 +411,55 @@ export class Room {
 
   private pointerWorld(event: PointerEvent): Point | null {
     const svg = this.svg()?.nativeElement;
-    if (!svg) {
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) {
       return null;
     }
-    const rect = svg.getBoundingClientRect();
-    const view = this.view();
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const world = point.matrixTransform(ctm.inverse());
+    return { x: world.x, y: world.y };
+  }
+
+  private screenDeltaToWorld(dx: number, dy: number): Point | null {
+    const ctm = this.svg()?.nativeElement?.getScreenCTM();
+    if (!ctm) {
+      return null;
+    }
+    return { x: dx / ctm.a, y: dy / ctm.d };
+  }
+
+  private syncFrameToViewport(): void {
+    const rect = this.svg()?.nativeElement?.getBoundingClientRect();
+    if (!rect?.width || !rect.height) {
+      return;
+    }
+    this.frame.set(this.expandToAspect(this.contentFrame, rect.width / rect.height));
+  }
+
+  private paddedFrame(plan: FloorPlan): { minX: number; minY: number; width: number; height: number } {
+    const bounds = floorBounds(plan);
+    const pad = 36;
     return {
-      x: view.minX + ((event.clientX - rect.left) / Math.max(rect.width, 1)) * view.width,
-      y: view.minY + ((event.clientY - rect.top) / Math.max(rect.height, 1)) * view.height,
+      minX: bounds.minX - pad,
+      minY: bounds.minY - pad,
+      width: Math.max(120, bounds.maxX - bounds.minX + pad * 2),
+      height: Math.max(90, bounds.maxY - bounds.minY + pad * 2),
     };
+  }
+
+  private expandToAspect(
+    box: { minX: number; minY: number; width: number; height: number },
+    aspect: number,
+  ): { minX: number; minY: number; width: number; height: number } {
+    const current = box.width / box.height;
+    if (aspect > current) {
+      const width = box.height * aspect;
+      return { minX: box.minX - (width - box.width) / 2, minY: box.minY, width, height: box.height };
+    }
+    const height = box.width / aspect;
+    return { minX: box.minX, minY: box.minY - (height - box.height) / 2, width: box.width, height };
   }
 
   private shapeView(

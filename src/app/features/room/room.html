@@ -5,6 +5,7 @@
       class="canvas"
       [class.add]="addMode()"
       [attr.viewBox]="view().box"
+      preserveAspectRatio="xMidYMid meet"
       role="img"
       [attr.aria-label]="'room.aria' | t"
       (pointerdown)="onPointerDown($event)"
@@ -14,13 +15,7 @@
       (contextmenu)="onContextMenu($event)"
       (wheel)="onWheel($event)"
     >
-      <rect
-        class="backdrop"
-        [attr.x]="view().minX"
-        [attr.y]="view().minY"
-        [attr.width]="view().width"
-        [attr.height]="view().height"
-      />
+      <rect class="backdrop" x="-1e6" y="-1e6" width="2e6" height="2e6" />
 
       <polygon class="floor" [attr.points]="drawn().outer.polygon" />
 
