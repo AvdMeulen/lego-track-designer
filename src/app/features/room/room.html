@@ -39,7 +39,7 @@
       }
 
       @for (obstacle of drawn().obstacles; track obstacle.id) {
-        @for (edge of obstacle.edges; track obstacle.id + '-' + edge.index) {
+        @for (edge of obstacle.edges; track edge.index) {
           <polyline
             class="obstacle-edge"
             [class.hover]="edge.hovered"
@@ -67,7 +67,7 @@
         />
       }
       @for (obstacle of drawn().obstacles; track obstacle.id) {
-        @for (vertex of obstacle.vertices; track obstacle.id + 'v' + vertex.index) {
+        @for (vertex of obstacle.vertices; track vertex.index) {
           <circle
             class="handle obstacle-handle"
             [class.hover]="vertex.hovered"
