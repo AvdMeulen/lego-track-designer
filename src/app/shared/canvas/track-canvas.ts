@@ -52,13 +52,10 @@ export class TrackCanvas {
       return allFootprints(spec).flatMap((polygon) => transformPolygon(polygon, part));
     });
     const plan = this.floorPlan();
-    const floorPoints = plan
-      ? [...plan.outer.points, ...plan.obstacles.flatMap((shape) => shape.points)]
-      : [];
     const bounds = points.length
-      ? boundsOf(points.concat(floorPoints))
-      : floorPoints.length
-        ? floorBounds(plan!)
+      ? boundsOf(points)
+      : plan
+        ? floorBounds(plan)
         : { minX: -40, minY: -40, maxX: 40, maxY: 40 };
     const pad = 24;
     return {

@@ -63,12 +63,10 @@ export class Room {
   readonly world = computed(() => {
     const plan = this.store.plan();
     const extra = this.drawing() ?? [];
-    const cursor = this.cursor();
     const points = [
       ...plan.outer.points,
       ...plan.obstacles.flatMap((shape) => shape.points),
       ...extra,
-      ...(cursor ? [cursor] : []),
     ];
     const bounds = points.length ? boundsOf(points) : floorBounds(plan);
     const pad = 36;
