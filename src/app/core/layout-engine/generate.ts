@@ -10,7 +10,7 @@ import { remainingInventory, unusedItems, openPorts } from './connections';
 import { closeWithFlex } from './flex-closer';
 import { applyCrossover, applyRouteFeatures, placeParking, placeRemainingSpecials } from './features';
 import { GenContext, inventoryMap, rng } from './place';
-import { scoreLayout, layoutIsValid } from './score';
+import { layoutIsValid, scoreLayout } from './score';
 import { planTopology } from './topology';
 import { growStockTree } from './tree';
 import { curveCircle, inflateLoop, loopCloses, organicRing, pointToPoint, wanderHomeLoop } from './wander';

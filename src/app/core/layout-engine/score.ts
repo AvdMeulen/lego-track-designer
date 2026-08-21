@@ -248,13 +248,17 @@ function simpleBubblePenalty(layout: TrackLayout): number {
   return penalty;
 }
 
-/** Two-curve bypasses between switch diverges are not a useful second route. */
+/** Local feature-circuit bypasses between switch diverges are not a useful second route. */
 export function shortSwitchBypassPenalty(layout: TrackLayout, maxHops = 4): number {
   const switches = layout.parts.filter((part) => CITY_TRACKS_BY_ID[part.partId]?.category === 'switch');
   if (switches.length < 2) {
     return 0;
   }
   const switchIds = new Set(switches.map((part) => part.instanceId));
+  const featurePiece = (instanceId: string): boolean =>
+    ['rte', 'par', 'xo', 'kel', 'det', 'inf', 'cr', 'br', 'sw'].some((prefix) =>
+      instanceId.startsWith(prefix),
+    );
   const adj = new Map<string, string[]>();
   const add = (from: string, to: string) => {
     const list = adj.get(from) ?? [];
@@ -282,6 +286,9 @@ export function shortSwitchBypassPenalty(layout: TrackLayout, maxHops = 4): numb
     if (start === goal) {
       return 0;
     }
+    if (!featurePiece(start) || !featurePiece(goal)) {
+      return null;
+    }
     const seen = new Set<string>([start, ...switchIds]);
     seen.delete(start);
     let frontier = [start];
@@ -293,7 +300,7 @@ export function shortSwitchBypassPenalty(layout: TrackLayout, maxHops = 4): numb
           return hops;
         }
         for (const neighbor of adj.get(node) ?? []) {
-          if (seen.has(neighbor) || switchIds.has(neighbor)) {
+          if (seen.has(neighbor) || switchIds.has(neighbor) || !featurePiece(neighbor)) {
             continue;
           }
           seen.add(neighbor);

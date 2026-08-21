@@ -11,12 +11,14 @@ import {
   WorldPort,
   worldPorts,
 } from './geometry';
-import { GenContext, nextId, ownerOf, placeOnHead, stockOf, tryAttach } from './place';
+import { GenContext, neighborsOf, nextId, ownerOf, placeOnHead, stockOf, tryAttach } from './place';
 import { TopologyPlan } from './topology';
 import { attachSequenceFrom, growDeadEnd, joinHeads, ovalJoin, targetClosed, wanderJoin } from './wander';
 
 /** Train-length siding. Leftovers belong on the loops, not a runway. */
 const PARK_SIDING = 6;
+/** Below this, a two-curve passing loop may be the only way to close a second route. */
+const LARGE_LAYOUT = 80;
 
 function switchQueue(inventory: Record<string, number>, parts: PlacedPart[]): string[] {
   const left = remainingInventory(inventory, parts);
@@ -410,14 +412,15 @@ function closePassingHeads(
   ctx: GenContext,
 ): PlacedPart[] | null {
   if (portsConnect(start, target)) {
-    return parts;
+    return parts.length >= LARGE_LAYOUT ? null : parts;
   }
   const left = stockOf(inventory, parts);
   const maxS = Math.min(8, left['straight-16'] ?? 0);
+  const longEnough = (built: PlacedPart[]) => parts.length < LARGE_LAYOUT || built.length >= parts.length + 6;
   for (let n = 0; n <= maxS; n += 1) {
     const sequence = Array.from({ length: n }, () => ({ partId: 'straight-16' }));
     const built = attachSequenceFrom(parts, start, sequence, target, ctx, 'rte');
-    if (built) {
+    if (built && longEnough(built)) {
       return built;
     }
   }
@@ -434,11 +437,32 @@ function closePassingHeads(
         }
         sequence.push({ partId: 'curve-22', portId: second });
         const built = attachSequenceFrom(parts, start, sequence, target, ctx, 'rte');
-        if (built) {
+        if (built && longEnough(built)) {
           return built;
         }
       }
     }
+  }
+  if (parts.length >= LARGE_LAYOUT) {
+    const bulge = uTurnJoin(parts, start, target, inventory, ctx);
+    if (bulge && longEnough(bulge)) {
+      return bulge;
+    }
+    const walked = wanderJoin(
+      parts,
+      start,
+      target,
+      inventory,
+      ctx,
+      'rte',
+      ctx.random() < 0.7 ? 'inward' : 'mixed',
+      6,
+    );
+    if (walked && longEnough(walked)) {
+      return walked;
+    }
+    const oval = ovalJoin(parts, start, target, inventory, ctx, 'rte', false);
+    return oval && longEnough(oval) ? oval : null;
   }
   return (
     wanderJoin(parts, start, target, inventory, ctx, 'rte', ctx.random() < 0.7 ? 'inward' : 'mixed') ??
@@ -477,6 +501,10 @@ function closeLongPassing(
   }
   const second = extendSwitchHead(first.parts, liveTarget, inventory, ctx, [...ignore, ...added], false);
   if (portsConnect(first.head, second.head)) {
+    const bulge = uTurnJoin(first.parts, first.head, liveTarget, inventory, ctx);
+    if (bulge && bulge.length >= parts.length + 6 && targetClosed(bulge, ctx.catalog, liveTarget)) {
+      return bulge;
+    }
     return null;
   }
   const maxS = Math.min(10, stockOf(inventory, second.parts)['straight-16'] ?? 0);
@@ -757,7 +785,8 @@ function joinOpenPairs(
       if (
         next &&
         targetClosed(next, ctx.catalog, targetExt.head) &&
-        targetClosed(next, ctx.catalog, startExt.head)
+        targetClosed(next, ctx.catalog, startExt.head) &&
+        (result.length < LARGE_LAYOUT || organicOnly || next.length >= result.length + 6)
       ) {
         result = next;
         remaining.splice(i, 1);
@@ -1219,6 +1248,391 @@ export function applyRouteFeatures(
   return result;
 }
 
+function lengthenShortBypasses(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] {
+  if (parts.length < 40) {
+    return parts;
+  }
+  let result = parts;
+  const switches = result.filter((part) => part.partId.startsWith('switch-'));
+  for (let i = 0; i < switches.length; i += 1) {
+    for (let j = i + 1; j < switches.length; j += 1) {
+      const path = shortDivergePath(result, switches[i].instanceId, switches[j].instanceId, ctx);
+      if (!path || path.length === 0 || path.length - 1 > 4) {
+        continue;
+      }
+      const remove = new Set(
+        path.filter((id) =>
+          ['rte', 'par', 'xo', 'kel', 'det', 'inf'].some((prefix) => id.startsWith(prefix)),
+        ),
+      );
+      if (remove.size === 0) {
+        continue;
+      }
+      const without = result.filter((part) => !remove.has(part.instanceId));
+      const opens = divergesOf(without, ctx.catalog).filter(
+        (port) => port.instanceId === switches[i].instanceId || port.instanceId === switches[j].instanceId,
+      );
+      if (opens.length >= 2) {
+        const joined = uTurnJoin(without, opens[0], opens[1], inventory, ctx);
+        if (
+          joined &&
+          joined.length >= without.length + 6 &&
+          targetClosed(joined, ctx.catalog, opens[0]) &&
+          targetClosed(joined, ctx.catalog, opens[1]) &&
+          compactPairCount(joined, ctx) < compactPairCount(result, ctx)
+        ) {
+          result = joined;
+          continue;
+        }
+      }
+      const relocated = relocateCompactPair(
+        result,
+        switches[i].instanceId,
+        switches[j].instanceId,
+        remove,
+        inventory,
+        ctx,
+      );
+      if (relocated) {
+        result = relocated;
+      }
+    }
+  }
+  return result;
+}
+
+function compactPairCount(parts: PlacedPart[], ctx: GenContext): number {
+  const switches = parts.filter((part) => part.partId.startsWith('switch-'));
+  let count = 0;
+  for (let i = 0; i < switches.length; i += 1) {
+    for (let j = i + 1; j < switches.length; j += 1) {
+      const path = shortDivergePath(parts, switches[i].instanceId, switches[j].instanceId, ctx);
+      if (path && path.length > 0 && path.length - 1 <= 4) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+function circuitClosed(parts: PlacedPart[], catalog: GenContext['catalog']): boolean {
+  return openPorts(parts, catalog).every((port) => port.instanceId.startsWith('sid'));
+}
+
+function uTurnJoin(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const left = stockOf(inventory, parts);
+  const curves = left['curve-22'] ?? 0;
+  const straights = left['straight-16'] ?? 0;
+  if (curves < 8) {
+    return null;
+  }
+  const ignore = [target.instanceId, start.instanceId];
+  const seeds: Array<{ partId: string; portId: string }> = [
+    ...(straights > 0 ? [{ partId: 'straight-16', portId: 'a' }] : []),
+    { partId: 'curve-22', portId: 'a' },
+    { partId: 'curve-22', portId: 'b' },
+  ];
+  for (const seed of seeds) {
+    const move = placeOnHead(seed.partId, seed.portId, start, parts, ctx, 'rte', ignore);
+    if (!move || portsConnect(move.head, target)) {
+      continue;
+    }
+    const grown = [...parts, move.part];
+    const restStraights = straights - (seed.partId === 'straight-16' ? 1 : 0);
+    const restCurves = curves - (seed.partId === 'curve-22' ? 1 : 0);
+    if (restCurves < 8) {
+      continue;
+    }
+    for (const turn of ['a', 'b'] as const) {
+      for (let end = 0; end <= Math.min(6, restStraights); end += 1) {
+        const sequence: Array<{ partId: string; portId?: string }> = [];
+        for (let i = 0; i < 4; i += 1) {
+          sequence.push({ partId: 'curve-22', portId: turn });
+        }
+        for (let i = 0; i < end; i += 1) {
+          sequence.push({ partId: 'straight-16' });
+        }
+        for (let i = 0; i < 4; i += 1) {
+          sequence.push({ partId: 'curve-22', portId: turn });
+        }
+        const built = attachSequenceFrom(grown, move.head, sequence, target, ctx, 'rte');
+        if (built && built.length >= parts.length + 6) {
+          return built;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function fillSwitchWithStraights(
+  remaining: PlacedPart[],
+  sw: PlacedPart,
+  original: PlacedPart[],
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  if ((stockOf(inventory, remaining)['straight-16'] ?? 0) < 2) {
+    return null;
+  }
+  const throughIds = new Set(['stem', 'through']);
+  const neighbors: WorldPort[] = [];
+  for (const connection of detectConnections(original, ctx.catalog)) {
+    const fromSwitch = connection.fromInstanceId === sw.instanceId && throughIds.has(connection.fromPortId);
+    const toSwitch = connection.toInstanceId === sw.instanceId && throughIds.has(connection.toPortId);
+    if (!fromSwitch && !toSwitch) {
+      continue;
+    }
+    const otherId = fromSwitch ? connection.toInstanceId : connection.fromInstanceId;
+    const otherPort = fromSwitch ? connection.toPortId : connection.fromPortId;
+    const other = remaining.find((part) => part.instanceId === otherId);
+    if (!other) {
+      continue;
+    }
+    const port = worldPorts(ctx.catalog[other.partId], other).find((item) => item.id === otherPort);
+    if (port) {
+      neighbors.push(port);
+    }
+  }
+  if (neighbors.length >= 2) {
+    const built = attachSequenceFrom(
+      remaining,
+      neighbors[0],
+      [{ partId: 'straight-16' }, { partId: 'straight-16' }],
+      neighbors[1],
+      ctx,
+      'p',
+    );
+    if (built) {
+      return built;
+    }
+  }
+  const offset = rotatePoint({ x: 16, y: 0 }, sw.rotation);
+  const first: PlacedPart = {
+    instanceId: nextId(ctx, 'p'),
+    partId: 'straight-16',
+    label: 1,
+    x: sw.x,
+    y: sw.y,
+    rotation: sw.rotation,
+  };
+  const second: PlacedPart = {
+    ...first,
+    instanceId: nextId(ctx, 'p'),
+    x: sw.x + offset.x,
+    y: sw.y + offset.y,
+  };
+  const ignore = neighborsOf(sw.instanceId, original, ctx.catalog);
+  if (
+    placementCollides(first, remaining, ctx.catalog, ignore) ||
+    placementCollides(second, [...remaining, first], ctx.catalog, ignore)
+  ) {
+    return null;
+  }
+  return [...remaining, first, second];
+}
+
+function throughOuterPorts(
+  original: PlacedPart[],
+  switchIds: Set<string>,
+  remaining: PlacedPart[],
+  ctx: GenContext,
+): WorldPort[] {
+  const throughIds = new Set(['stem', 'through']);
+  const remainingIds = new Set(remaining.map((part) => part.instanceId));
+  const ports: WorldPort[] = [];
+  for (const connection of detectConnections(original, ctx.catalog)) {
+    const fromSwitch = switchIds.has(connection.fromInstanceId) && throughIds.has(connection.fromPortId);
+    const toSwitch = switchIds.has(connection.toInstanceId) && throughIds.has(connection.toPortId);
+    if (!fromSwitch && !toSwitch) {
+      continue;
+    }
+    const otherId = fromSwitch ? connection.toInstanceId : connection.fromInstanceId;
+    if (switchIds.has(otherId) || !remainingIds.has(otherId)) {
+      continue;
+    }
+    const otherPort = fromSwitch ? connection.toPortId : connection.fromPortId;
+    const other = remaining.find((part) => part.instanceId === otherId);
+    const port = other
+      ? worldPorts(ctx.catalog[other.partId], other).find((item) => item.id === otherPort)
+      : null;
+    if (port && !ports.some((item) => item.instanceId === port.instanceId && item.id === port.id)) {
+      ports.push(port);
+    }
+  }
+  return ports;
+}
+
+function restoreSwitchRun(
+  remaining: PlacedPart[],
+  first: PlacedPart,
+  second: PlacedPart,
+  original: PlacedPart[],
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const switchIds = new Set([first.instanceId, second.instanceId]);
+  const outers = throughOuterPorts(original, switchIds, remaining, ctx);
+  if (outers.length >= 2) {
+    const maxS = Math.min(6, stockOf(inventory, remaining)['straight-16'] ?? 0);
+    for (let n = 2; n <= maxS; n += 1) {
+      const built = attachSequenceFrom(
+        remaining,
+        outers[0],
+        Array.from({ length: n }, () => ({ partId: 'straight-16' })),
+        outers[1],
+        ctx,
+        'p',
+      );
+      if (built && circuitClosed(built, ctx.catalog)) {
+        return built;
+      }
+    }
+  }
+  let filled = fillSwitchWithStraights(remaining, first, original, inventory, ctx);
+  if (!filled) {
+    return null;
+  }
+  filled = fillSwitchWithStraights(filled, second, original, inventory, ctx);
+  return filled && circuitClosed(filled, ctx.catalog) ? filled : null;
+}
+
+function relocateCompactPair(
+  parts: PlacedPart[],
+  firstId: string,
+  secondId: string,
+  remove: Set<string>,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const first = parts.find((part) => part.instanceId === firstId);
+  const second = parts.find((part) => part.instanceId === secondId);
+  if (!first || !second) {
+    return null;
+  }
+  const switchCount = parts.filter((part) => part.partId.startsWith('switch-')).length;
+  const without = parts.filter(
+    (part) => !remove.has(part.instanceId) && part.instanceId !== firstId && part.instanceId !== secondId,
+  );
+  const restored = restoreSwitchRun(without, first, second, parts, inventory, ctx);
+  if (!restored) {
+    return null;
+  }
+  const longPass = insertPassingLoops(restored, inventory, ctx, 1, 8);
+  if (
+    longPass.filter((part) => part.partId.startsWith('switch-')).length >= switchCount &&
+    circuitClosed(longPass, ctx.catalog) &&
+    compactPairCount(longPass, ctx) === 0
+  ) {
+    return longPass;
+  }
+  const spread = insertSwitches(restored, inventory, ctx, 2, 'rte', false);
+  const diverges = divergesOf(spread, ctx.catalog);
+  if (diverges.length < 2 || Date.now() > ctx.deadline - 400) {
+    return null;
+  }
+  const walked =
+    wanderJoin(spread, diverges[0], diverges[1], inventory, ctx, 'rte', 'outward', 8) ??
+    wanderJoin(spread, diverges[0], diverges[1], inventory, ctx, 'rte', 'mixed', 8);
+  if (
+    walked &&
+    walked.filter((part) => part.partId.startsWith('switch-')).length >= switchCount &&
+    circuitClosed(walked, ctx.catalog) &&
+    compactPairCount(walked, ctx) === 0
+  ) {
+    return walked;
+  }
+  return null;
+}
+
+function shortDivergePath(
+  parts: PlacedPart[],
+  firstId: string,
+  secondId: string,
+  ctx: GenContext,
+): string[] | null {
+  const connections = detectConnections(parts, ctx.catalog);
+  const adj = new Map<string, string[]>();
+  const add = (from: string, to: string) => {
+    const list = adj.get(from) ?? [];
+    if (!list.includes(to)) {
+      list.push(to);
+      adj.set(from, list);
+    }
+  };
+  for (const connection of connections) {
+    add(connection.fromInstanceId, connection.toInstanceId);
+    add(connection.toInstanceId, connection.fromInstanceId);
+  }
+  const switchIds = new Set(
+    parts.filter((part) => part.partId.startsWith('switch-')).map((part) => part.instanceId),
+  );
+  const neighbor = (instanceId: string): string | null => {
+    for (const connection of connections) {
+      if (connection.fromInstanceId === instanceId && connection.fromPortId === 'diverge') {
+        return connection.toInstanceId;
+      }
+      if (connection.toInstanceId === instanceId && connection.toPortId === 'diverge') {
+        return connection.fromInstanceId;
+      }
+    }
+    return null;
+  };
+  const start = neighbor(firstId);
+  const goal = neighbor(secondId);
+  if (!start || !goal) {
+    return null;
+  }
+  if (start === goal) {
+    return [start];
+  }
+  const seen = new Set<string>([start, ...switchIds]);
+  seen.delete(start);
+  const parent = new Map<string, string>();
+  let frontier = [start];
+  let hops = 0;
+  while (frontier.length && hops <= 4) {
+    const next: string[] = [];
+    for (const node of frontier) {
+      if (node === goal) {
+        const path = [goal];
+        let cursor = goal;
+        while (cursor !== start) {
+          const prev = parent.get(cursor);
+          if (!prev) {
+            return null;
+          }
+          path.push(prev);
+          cursor = prev;
+        }
+        path.reverse();
+        return path;
+      }
+      for (const other of adj.get(node) ?? []) {
+        if (seen.has(other) || switchIds.has(other)) {
+          continue;
+        }
+        seen.add(other);
+        parent.set(other, node);
+        next.push(other);
+      }
+    }
+    frontier = next;
+    hops += 1;
+  }
+  return null;
+}
+
 export function applyFeatures(
   parts: PlacedPart[],
   inventory: Record<string, number>,
@@ -1308,5 +1722,5 @@ export function placeRemainingSpecials(
       }
     }
   }
-  return result;
+  return lengthenShortBypasses(result, inventory, ctx);
 }

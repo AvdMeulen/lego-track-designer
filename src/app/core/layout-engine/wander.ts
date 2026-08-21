@@ -1076,13 +1076,17 @@ export function inflateLoop(
       }
       const leftovers = stockOf(inventory, without);
       const roomy = (leftovers['curve-22'] ?? 0) >= 20 && (leftovers['straight-16'] ?? 0) >= 8;
-      const joined = preferNested
-        ? tryOffsetDetour(without, heads[0], heads[1], inventory, ctx)
-        : (tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
-          (roomy || (leftovers['curve-22'] ?? 0) >= 16
-            ? ovalJoin(without, heads[0], heads[1], inventory, ctx, 'inf', roomy)
-            : null) ??
-          joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf'));
+      const nestedPick = ['rte', 'xo', 'par', 'cr', 'kel'].some((prefix) =>
+        pick.instanceId.startsWith(prefix),
+      );
+      const joined =
+        preferNested || nestedPick
+          ? tryOffsetDetour(without, heads[0], heads[1], inventory, ctx)
+          : (tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
+            (roomy || (leftovers['curve-22'] ?? 0) >= 16
+              ? ovalJoin(without, heads[0], heads[1], inventory, ctx, 'inf', roomy)
+              : null) ??
+            joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf'));
       if (!joined || joined.length <= result.length) {
         continue;
       }
