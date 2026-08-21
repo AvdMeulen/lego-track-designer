@@ -1,4 +1,6 @@
+import { FloorPlan } from '../../shared/models/floor-plan';
 import { PlacedPart, TrackPart } from '../../shared/models/track';
+import { placementHitsRoom } from '../floor-plan/space';
 import { placementCollides } from './collide';
 import { detectConnections, remainingInventory } from './connections';
 import { attachPart, WorldPort, worldPorts } from './geometry';
@@ -8,6 +10,12 @@ export interface GenContext {
   random: () => number;
   deadline: number;
   seq: number;
+  floorPlan?: FloorPlan | null;
+  origin?: { x: number; y: number };
+}
+
+export function seedOrigin(ctx: GenContext): { x: number; y: number } {
+  return ctx.origin ?? { x: 0, y: 0 };
 }
 
 export function rng(seed: number): () => number {
@@ -51,11 +59,15 @@ export function tryAttach(
   catalog: Record<string, TrackPart>,
   instanceId: string,
   extraIgnore: string[] = [],
+  floorPlan?: FloorPlan | null,
 ): PlacedPart | null {
   const pose = attachPart(part, localPortId, target);
   const candidate: PlacedPart = { instanceId, partId: part.id, label: 1, ...pose };
   const ignore = [target.instanceId, ...neighborsOf(target.instanceId, existing, catalog), ...extraIgnore];
   if (placementCollides(candidate, existing, catalog, ignore)) {
+    return null;
+  }
+  if (floorPlan && placementHitsRoom(candidate, catalog, floorPlan)) {
     return null;
   }
   return candidate;
@@ -82,6 +94,7 @@ export function placeOnHead(
     ctx.catalog,
     nextId(ctx, prefix),
     extraIgnore,
+    ctx.floorPlan,
   );
   if (!placed) {
     return null;

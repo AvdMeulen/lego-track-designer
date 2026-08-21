@@ -1,0 +1,101 @@
+<section class="workspace">
+  <div class="stage">
+    <svg
+      #board
+      class="canvas"
+      [class.add]="addMode()"
+      [attr.viewBox]="view().box"
+      role="img"
+      [attr.aria-label]="'room.aria' | t"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp()"
+      (pointercancel)="onPointerUp()"
+      (contextmenu)="onContextMenu($event)"
+      (wheel)="onWheel($event)"
+    >
+      <rect
+        class="backdrop"
+        [attr.x]="view().minX"
+        [attr.y]="view().minY"
+        [attr.width]="view().width"
+        [attr.height]="view().height"
+      />
+
+      <polygon class="floor" [attr.points]="drawn().outer.polygon" />
+
+      @for (obstacle of drawn().obstacles; track obstacle.id) {
+        <polygon class="obstacle" [attr.points]="obstacle.polygon" />
+      }
+
+      @for (edge of drawn().outer.edges; track 'o' + edge.index) {
+        <polyline
+          class="wall"
+          [class.hover]="edge.hovered"
+          [class.focus]="edge.focused"
+          [attr.points]="edge.points"
+        />
+        <text class="measure" [attr.x]="edge.label.x" [attr.y]="edge.label.y">{{ edge.length }}</text>
+      }
+
+      @for (obstacle of drawn().obstacles; track obstacle.id) {
+        @for (edge of obstacle.edges; track obstacle.id + '-' + edge.index) {
+          <polyline
+            class="obstacle-edge"
+            [class.hover]="edge.hovered"
+            [class.focus]="edge.focused"
+            [attr.points]="edge.points"
+          />
+          <text class="measure" [attr.x]="edge.label.x" [attr.y]="edge.label.y">{{ edge.length }}</text>
+        }
+      }
+
+      @if (rubber(); as rubber) {
+        <polyline class="draft" [attr.points]="rubber.path" />
+        <polyline class="draft live" [attr.points]="rubber.preview" />
+        <text class="measure" [attr.x]="rubber.label.x" [attr.y]="rubber.label.y">{{ rubber.length }}</text>
+      }
+
+      @for (vertex of drawn().outer.vertices; track 'ov' + vertex.index) {
+        <circle
+          class="handle"
+          [class.hover]="vertex.hovered"
+          [class.focus]="vertex.focused"
+          [attr.cx]="vertex.point.x"
+          [attr.cy]="vertex.point.y"
+          r="3.4"
+        />
+      }
+      @for (obstacle of drawn().obstacles; track obstacle.id) {
+        @for (vertex of obstacle.vertices; track obstacle.id + 'v' + vertex.index) {
+          <circle
+            class="handle obstacle-handle"
+            [class.hover]="vertex.hovered"
+            [class.focus]="vertex.focused"
+            [attr.cx]="vertex.point.x"
+            [attr.cy]="vertex.point.y"
+            r="3.4"
+          />
+        }
+      }
+
+      @if (deleteBadge(); as badge) {
+        <g class="delete" (pointerdown)="$event.stopPropagation(); deleteFocused()">
+          <circle [attr.cx]="badge.x" [attr.cy]="badge.y" r="5.2" />
+          <path [attr.d]="'M ' + (badge.x - 2.2) + ' ' + (badge.y - 2.2) + ' L ' + (badge.x + 2.2) + ' ' + (badge.y + 2.2) + ' M ' + (badge.x + 2.2) + ' ' + (badge.y - 2.2) + ' L ' + (badge.x - 2.2) + ' ' + (badge.y + 2.2)" />
+        </g>
+      }
+    </svg>
+  </div>
+
+  <aside class="panel float">
+    <h1>{{ 'room.title' | t }}</h1>
+    <p class="hint">{{ (addMode() ? 'room.addHint' : 'room.editHint') | t }}</p>
+    <div class="actions">
+      <button type="button" class="add" [class.active]="addMode()" (click)="toggleAdd()">
+        {{ 'room.add' | t }}
+      </button>
+      <a class="primary" routerLink="/inventory">{{ 'room.next' | t }}</a>
+    </div>
+  </aside>
+</section>

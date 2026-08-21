@@ -36,6 +36,10 @@ Path-first generator: wander in 22.5° steps, close every switch exit except req
 
 Switches and the crossover grow a wander branch (eight or more mixed pieces) instead of a stadium oval or a two-curve City passing bubble. Compact passing stays a last resort. The designer shows each generation phase on the canvas. Details: [GENERATOR.md](GENERATOR.md).
 
+## Slice I — Room-constrained organic (done)
+
+Draw a floor plan (outer wall + furniture polygons), persist it, and generate a circuit that stays on the playable floor. Heads grow equally after each switch and rejoin. Track may touch walls; extra clearance is the builder's job.
+
 ## Later
 
 Richer room-scale shapes, using the double crossover more often, 3D bricks, train animation, switch-lever states, PDF print, chaining several flex pieces, third-party crossovers.

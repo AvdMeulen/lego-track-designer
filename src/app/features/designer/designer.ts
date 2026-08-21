@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { exportSvgElementToPng } from '../../core/export/png-export';
 import { downloadJson, parseSnapshotText } from '../../core/export/snapshot';
 import { TPipe } from '../../core/i18n/t.pipe';
+import { FloorPlanStore } from '../../core/floor-plan/floor-plan.store';
 import { LayoutStore } from '../../core/layout-store/layout.store';
 import { TrackCanvas } from '../../shared/canvas/track-canvas';
 
@@ -15,6 +16,7 @@ import { TrackCanvas } from '../../shared/canvas/track-canvas';
 })
 export class Designer {
   protected readonly store = inject(LayoutStore);
+  protected readonly floorPlan = inject(FloorPlanStore);
   private readonly canvasHost = viewChild<ElementRef<HTMLElement>>('canvasHost');
   private readonly canvas = viewChild(TrackCanvas);
   private readonly snapshotFile = viewChild<ElementRef<HTMLInputElement>>('snapshotFile');

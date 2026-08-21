@@ -1,6 +1,6 @@
 # Domain model
 
-The planner works with **LEGO City plastic train tracks**. Units are **studs**.
+The planner works with **LEGO City plastic train tracks**. Units are **studs** internally. The room editor shows **centimetres** (`1 stud = 8 mm`).
 
 ## Catalog
 
@@ -32,11 +32,16 @@ Source notes live in `public/catalog/city-tracks.json` and `src/app/core/catalog
 - **Reverse options:** `dead-end`, `reversing-loop`, `wye`.
 - An open port is parking, a flex candidate, or an unfinished connector. Only unfinished connectors penalize the score.
 
+## Floor plan
+
+The room is one closed outer polygon (playable **inside**) and zero or more obstacle polygons (blocked **inside**). Coordinates are studs. The editor displays centimetres.
+
 ## Snapshots
 
-File format `lego-track-designer.snapshot` version 1. Fields: `seed`, `preferences`, `inventory`, `layout`, `summary`. See `src/app/core/export/snapshot.ts` and [GENERATOR.md](GENERATOR.md).
+File format `lego-track-designer.snapshot` version 1. Fields: `seed`, `preferences`, `inventory`, `layout`, optional `floorPlan`, `summary`. See `src/app/core/export/snapshot.ts` and [GENERATOR.md](GENERATOR.md).
 
 ## Persistence keys
 
 - `lego-track-designer.inventory.v1`
 - `lego-track-designer.layout.v1`
+- `lego-track-designer.floorplan.v1`

@@ -92,9 +92,19 @@ h1 {
 
 .cta {
   display: inline-block;
-  margin-top: 1.5rem;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
   background: var(--color-blue);
   color: white;
   text-decoration: none;
   font-weight: 700;
 }
+
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+

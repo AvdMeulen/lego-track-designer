@@ -1,3 +1,4 @@
+import { FloorPlan, cloneFloorPlan, parseFloorPlan } from '../../shared/models/floor-plan';
 import {
   GenerationPreferences,
   InventoryItem,
@@ -29,6 +30,7 @@ export interface DesignerSnapshot {
   preferences: GenerationPreferences;
   inventory: InventoryItem[];
   layout: TrackLayout;
+  floorPlan?: FloorPlan;
   summary: SnapshotSummary;
 }
 
@@ -37,6 +39,7 @@ export function buildSnapshot(input: {
   preferences: GenerationPreferences;
   inventory: InventoryItem[];
   layout: TrackLayout;
+  floorPlan?: FloorPlan | null;
 }): DesignerSnapshot {
   const inventory = normalizeInventory(input.inventory);
   const used: Record<string, number> = {};
@@ -56,6 +59,7 @@ export function buildSnapshot(input: {
     preferences: normalizePreferences(input.preferences, switchCountOf(input.inventory)),
     inventory,
     layout: input.layout,
+    ...(input.floorPlan ? { floorPlan: cloneFloorPlan(input.floorPlan) } : {}),
     summary: {
       seed: input.seed,
       parts: input.layout.parts.length,
@@ -84,11 +88,13 @@ export function parseSnapshot(raw: unknown): DesignerSnapshot | null {
   const inventory = normalizeInventory(value.inventory);
   const preferences = normalizePreferences(value.preferences, switchCountOf(inventory));
   const layout = isLayout(value.layout) ? value.layout : emptyImportedLayout();
+  const floorPlan = parseFloorPlan(value.floorPlan);
   return buildSnapshot({
     seed: Number.isFinite(value.seed) ? Number(value.seed) : 1,
     preferences,
     inventory,
     layout,
+    floorPlan,
   });
 }
 

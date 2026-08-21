@@ -17,11 +17,12 @@ Open [http://localhost:4200](http://localhost:4200).
 
 ## Pages
 
-- `/` home
-- `/inventory` collection and presets
+- `/` home — work order: room, collection, generator
+- `/room` floor plan editor
+- `/inventory` collection
 - `/designer` generate, inspect numbered parts, export PNG or JSON, import a snapshot
 
-Inventory and the last layout are stored in this browser. Export PNG for a printable plan. Export or copy JSON (`lego-track-designer.snapshot`) to share a seed, inventory, preferences, and the exact layout — useful when iterating on the generator. Import the same file (or paste) to restore it.
+Inventory, the last layout, and the floor plan are stored in this browser. Export PNG for a printable plan. Export or copy JSON (`lego-track-designer.snapshot`) to share a seed, inventory, preferences, optional floor plan, and the exact layout. Import the same file to restore it.
 
 ## GitHub
 

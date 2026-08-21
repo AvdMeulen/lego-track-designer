@@ -9,7 +9,7 @@ import {
   WorldPort,
   worldPorts,
 } from './geometry';
-import { GenContext, freePort, nextId, placeOnHead, stockOf, tryAttach } from './place';
+import { GenContext, freePort, nextId, placeOnHead, seedOrigin, stockOf, tryAttach } from './place';
 
 const MAX_CURVE_RUN = 8;
 
@@ -116,6 +116,7 @@ export function growToward(
           ctx.catalog,
           nextId(ctx, prefix),
           ignore,
+          ctx.floorPlan,
         );
         if (!candidate) {
           continue;
@@ -448,12 +449,13 @@ export function wanderHomeLoop(
     return null;
   }
   const startId = straights > 0 ? 'straight-16' : 'curve-22';
+  const origin = seedOrigin(ctx);
   const start: PlacedPart = {
     instanceId: nextId(ctx, prefix),
     partId: startId,
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   const goal = worldPorts(ctx.catalog[startId], start).find((port) => port.id === 'a');
@@ -703,12 +705,13 @@ export function attachSequence(
   }
   const first = ctx.catalog[sequence[0].partId];
   const startPort = sequence[0].portId ?? first.ports[0].id;
+  const origin = seedOrigin(ctx);
   const start: PlacedPart = {
     instanceId: nextId(ctx, prefix),
     partId: first.id,
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   const parts = [start];
@@ -941,12 +944,13 @@ function ringWithCorners(
 }
 
 export function curveCircle(ctx: GenContext, count = 16, prefix = 'c'): PlacedPart[] | null {
+  const origin = seedOrigin(ctx);
   const first: PlacedPart = {
     instanceId: nextId(ctx, prefix),
     partId: 'curve-22',
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   const parts = [first];
@@ -983,12 +987,13 @@ export function pointToPoint(
   if (!startId) {
     return [];
   }
+  const origin = seedOrigin(ctx);
   const start: PlacedPart = {
     instanceId: nextId(ctx, prefix),
     partId: startId,
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   const parts = [start];

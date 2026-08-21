@@ -2,6 +2,7 @@
   <div class="stage" #canvasHost>
     <app-track-canvas
       [layout]="store.layout()"
+      [floorPlan]="floorPlan.plan()"
       [selectedLabel]="store.selectedLabel()"
       (partSelect)="store.select($event)"
     />
@@ -70,6 +71,7 @@
       </select>
     </label>
 
+    <a routerLink="/room">{{ 'designer.editRoom' | t }}</a>
     <a routerLink="/inventory">{{ 'designer.editCollection' | t }}</a>
 
     @if (store.layout().notes.length && !store.generating()) {

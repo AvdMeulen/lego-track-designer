@@ -1,0 +1,189 @@
+:host {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.workspace {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #fffdf8;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.canvas.add {
+  cursor: crosshair;
+}
+
+.backdrop {
+  fill: #efe4d4;
+}
+
+.floor {
+  fill: #fffdf8;
+  stroke: none;
+}
+
+.obstacle {
+  fill: #c9b8a4;
+  fill-opacity: 0.55;
+  stroke: none;
+}
+
+.wall,
+.obstacle-edge,
+.draft {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
+}
+
+.wall {
+  stroke: #1f1a17;
+  stroke-width: 2.4;
+}
+
+.obstacle-edge {
+  stroke: #6b5344;
+  stroke-width: 1.6;
+}
+
+.wall.hover,
+.obstacle-edge.hover {
+  stroke: #0b5cab;
+  stroke-width: 3.4;
+}
+
+.wall.focus,
+.obstacle-edge.focus {
+  stroke: #c91a1a;
+  stroke-width: 3.2;
+}
+
+.draft {
+  stroke: #0b5cab;
+  stroke-width: 1.8;
+  stroke-dasharray: 4 3;
+}
+
+.draft.live {
+  stroke-dasharray: none;
+}
+
+.handle {
+  fill: #fffdf8;
+  stroke: #1f1a17;
+  stroke-width: 0.7;
+  cursor: grab;
+}
+
+.handle.hover,
+.handle.focus {
+  fill: #0b5cab;
+  stroke: #0b5cab;
+}
+
+.handle.focus {
+  fill: #c91a1a;
+  stroke: #c91a1a;
+}
+
+.measure {
+  font-size: 4.2px;
+  font-weight: 700;
+  fill: #5c534c;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.delete {
+  cursor: pointer;
+}
+
+.delete circle {
+  fill: #c91a1a;
+  stroke: #fffdf8;
+  stroke-width: 0.5;
+}
+
+.delete path {
+  fill: none;
+  stroke: #fffdf8;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+.panel {
+  position: absolute;
+  top: 5.4rem;
+  left: 1rem;
+  z-index: 3;
+  width: min(280px, calc(100vw - 2rem));
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+h1 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+}
+
+.hint {
+  margin: 0 0 0.65rem;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+button,
+.primary {
+  font: inherit;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 700;
+  color: inherit;
+}
+
+.add.active {
+  background: #0b5cab;
+  color: white;
+  border-color: #0b5cab;
+}
+
+.primary {
+  background: var(--color-blue);
+  color: white;
+  border-color: var(--color-blue);
+}

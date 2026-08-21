@@ -1,7 +1,7 @@
 import { PlacedPart } from '../../shared/models/track';
 import { openPorts } from './connections';
 import { distance, portsConnect, WorldPort, worldPorts } from './geometry';
-import { GenContext, freePort, nextId, ownerOf, placeOnHead, stockOf, tryAttach } from './place';
+import { GenContext, freePort, nextId, ownerOf, placeOnHead, seedOrigin, stockOf, tryAttach } from './place';
 import { TopologyPlan } from './topology';
 import { homeScore, joinHeads, ovalJoin, targetClosed, wanderJoin } from './wander';
 
@@ -67,6 +67,7 @@ function placeSwitchOnHead(
       ctx.catalog,
       nextId(ctx, prefix),
       extraIgnore,
+      ctx.floorPlan,
     );
     if (!placed) {
       continue;
@@ -109,12 +110,13 @@ export function growStockTree(
     return null;
   }
 
+  const origin = seedOrigin(ctx);
   const start: PlacedPart = {
     instanceId: nextId(ctx, 't'),
     partId: startId,
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   const goal = worldPorts(ctx.catalog[startId], start).find((port) => port.id === 'a');

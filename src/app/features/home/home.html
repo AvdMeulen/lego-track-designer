@@ -3,16 +3,16 @@
   <h1>{{ 'home.title' | t }}</h1>
   <p class="lede">{{ 'home.lede' | t }}</p>
   <div class="actions">
-    <a class="cta" routerLink="/inventory">{{ 'home.ctaInventory' | t }}</a>
-    <a class="ghost" routerLink="/designer">{{ 'home.ctaDesigner' | t }}</a>
+    <a class="cta" routerLink="/room">{{ 'home.ctaStart' | t }}</a>
   </div>
 </section>
 
 <section class="cards">
   @for (step of steps; track step) {
     <article class="card">
-      <h2>{{ 'home.step' + step + '.title' | t }}</h2>
-      <p>{{ 'home.step' + step + '.text' | t }}</p>
+      <p class="step">{{ step }}</p>
+      <h2>{{ ('home.step' + step + '.title') | t }}</h2>
+      <p>{{ ('home.step' + step + '.text') | t }}</p>
     </article>
   }
 </section>

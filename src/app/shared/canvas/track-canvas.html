@@ -17,7 +17,14 @@
     [attr.y]="view().minY"
     [attr.width]="view().width"
     [attr.height]="view().height"
-  />
+      />
+
+  @if (floorLayer(); as floor) {
+    <polygon class="floor" [attr.points]="floor.outer" />
+    @for (obstacle of floor.obstacles; track obstacle.id) {
+      <polygon class="obstacle" [attr.points]="obstacle.points" />
+    }
+  }
 
   <g class="grid">
     @for (x of grid().xs; track x) {
@@ -80,5 +87,9 @@
       [attr.x]="mark.x"
       [attr.y]="mark.y"
     >{{ mark.text | t }}</text>
+  }
+
+  @if (hoverMeasure(); as measure) {
+    <text class="measure" [attr.x]="measure.x" [attr.y]="measure.y">{{ measure.text }}</text>
   }
 </svg>

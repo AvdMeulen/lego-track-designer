@@ -13,7 +13,9 @@ import {
   switchArtwork,
   transformPolygon,
 } from '../../core/layout-engine/geometry';
+import { closestPointOnSegment, distanceToSegment, floorBounds, segmentLength } from '../../core/floor-plan/space';
 import { TPipe } from '../../core/i18n/t.pipe';
+import { FloorPlan, formatLengthCm } from '../models/floor-plan';
 import { TrackLayout } from '../models/track';
 
 @Component({
@@ -26,9 +28,11 @@ export class TrackCanvas {
   private readonly catalog = inject(CatalogService);
 
   readonly layout = input.required<TrackLayout>();
+  readonly floorPlan = input<FloorPlan | null>(null);
   readonly selectedLabel = input<number | null>(null);
   readonly partSelect = output<number | null>();
 
+  readonly hoverMeasure = signal<{ x: number; y: number; text: string } | null>(null);
   readonly panX = signal(0);
   readonly panY = signal(0);
   readonly zoom = signal(1);
@@ -47,9 +51,15 @@ export class TrackCanvas {
       const spec = this.catalog.byId(part.partId);
       return allFootprints(spec).flatMap((polygon) => transformPolygon(polygon, part));
     });
+    const plan = this.floorPlan();
+    const floorPoints = plan
+      ? [...plan.outer.points, ...plan.obstacles.flatMap((shape) => shape.points)]
+      : [];
     const bounds = points.length
-      ? boundsOf(points)
-      : { minX: -40, minY: -40, maxX: 40, maxY: 40 };
+      ? boundsOf(points.concat(floorPoints))
+      : floorPoints.length
+        ? floorBounds(plan!)
+        : { minX: -40, minY: -40, maxX: 40, maxY: 40 };
     const pad = 24;
     return {
       minX: bounds.minX - pad,
@@ -67,6 +77,20 @@ export class TrackCanvas {
     const minX = world.minX + this.panX();
     const minY = world.minY + this.panY();
     return { minX, minY, width, height, box: `${minX} ${minY} ${width} ${height}` };
+  });
+
+  readonly floorLayer = computed(() => {
+    const plan = this.floorPlan();
+    if (!plan) {
+      return null;
+    }
+    return {
+      outer: plan.outer.points.map((point) => `${point.x},${point.y}`).join(' '),
+      obstacles: plan.obstacles.map((shape) => ({
+        id: shape.id,
+        points: shape.points.map((point) => `${point.x},${point.y}`).join(' '),
+      })),
+    };
   });
 
   readonly grid = computed(() => {
@@ -168,6 +192,7 @@ export class TrackCanvas {
 
   onPointerMove(event: PointerEvent): void {
     if (!this.dragging()) {
+      this.updateHoverMeasure(event);
       return;
     }
     const target = event.currentTarget as SVGSVGElement;
@@ -189,6 +214,44 @@ export class TrackCanvas {
       this.partSelect.emit(this.pressLabel);
     }
     this.pressLabel = null;
+  }
+
+  private updateHoverMeasure(event: PointerEvent): void {
+    const plan = this.floorPlan();
+    const point = this.clientToWorld(event);
+    if (!plan || !point) {
+      this.hoverMeasure.set(null);
+      return;
+    }
+    let best: { x: number; y: number; text: string; dist: number } | null = null;
+    for (const shape of [plan.outer, ...plan.obstacles]) {
+      for (let index = 0; index < shape.points.length; index += 1) {
+        const a = shape.points[index];
+        const b = shape.points[(index + 1) % shape.points.length];
+        const dist = distanceToSegment(point, a, b);
+        if (dist > 8) {
+          continue;
+        }
+        if (!best || dist < best.dist) {
+          const at = closestPointOnSegment(point, a, b);
+          best = { x: at.x, y: at.y - 6, text: formatLengthCm(segmentLength(a, b)), dist };
+        }
+      }
+    }
+    this.hoverMeasure.set(best ? { x: best.x, y: best.y, text: best.text } : null);
+  }
+
+  private clientToWorld(event: PointerEvent): { x: number; y: number } | null {
+    const target = event.currentTarget as SVGSVGElement | null;
+    if (!target) {
+      return null;
+    }
+    const rect = target.getBoundingClientRect();
+    const view = this.view();
+    return {
+      x: view.minX + ((event.clientX - rect.left) / Math.max(rect.width, 1)) * view.width,
+      y: view.minY + ((event.clientY - rect.top) / Math.max(rect.height, 1)) * view.height,
+    };
   }
 
   onContextMenu(event: Event): void {

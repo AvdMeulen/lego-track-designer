@@ -64,5 +64,37 @@ describe('designer snapshot', () => {
       },
     });
     expect(parsed?.preferences).toEqual({ targetParkingSpots: 0 });
+    expect(parsed?.floorPlan).toBeUndefined();
+  });
+
+  it('round-trips an optional floor plan', () => {
+    const floorPlan = {
+      id: 'room-default',
+      name: 'Room',
+      outer: {
+        id: 'outer',
+        points: [
+          { x: 0, y: 0 },
+          { x: 40, y: 0 },
+          { x: 40, y: 40 },
+          { x: 0, y: 40 },
+        ],
+      },
+      obstacles: [],
+    };
+    const parsed = parseSnapshot(
+      JSON.parse(
+        JSON.stringify(
+          buildSnapshot({
+            seed: 1,
+            preferences: DEFAULT_PREFERENCES,
+            inventory: [{ partId: 'curve-22', quantity: 16 }],
+            layout: emptyLayout(),
+            floorPlan,
+          }),
+        ),
+      ),
+    );
+    expect(parsed?.floorPlan?.outer.points.length).toBe(4);
   });
 });

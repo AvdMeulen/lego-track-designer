@@ -11,7 +11,7 @@ import {
   WorldPort,
   worldPorts,
 } from './geometry';
-import { GenContext, neighborsOf, nextId, ownerOf, placeOnHead, stockOf, tryAttach } from './place';
+import { GenContext, neighborsOf, nextId, ownerOf, placeOnHead, seedOrigin, stockOf, tryAttach } from './place';
 import { TopologyPlan } from './topology';
 import { attachSequenceFrom, growDeadEnd, joinHeads, ovalJoin, targetClosed, wanderJoin } from './wander';
 
@@ -845,7 +845,7 @@ function insertCrossover(parts: PlacedPart[], inventory: Record<string, number>,
     let best: PlacedPart | null = null;
     let bestOut = preferInward ? Number.POSITIVE_INFINITY : -1;
     for (const xoPort of ['a', 'b', 'c', 'd']) {
-      const placed = tryAttach(part, xoPort, attachOn, without, ctx.catalog, nextId(ctx, 'xo'), ignore);
+      const placed = tryAttach(part, xoPort, attachOn, without, ctx.catalog, nextId(ctx, 'xo'), ignore, ctx.floorPlan);
       if (!placed) {
         continue;
       }
@@ -870,12 +870,13 @@ function seedCrossover(inventory: Record<string, number>, ctx: GenContext, roomy
   if ((inventory['double-crossover'] ?? 0) <= 0) {
     return null;
   }
+  const origin = seedOrigin(ctx);
   const seeded: PlacedPart = {
     instanceId: nextId(ctx, 'xo'),
     partId: 'double-crossover',
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   const ports = worldPorts(ctx.catalog['double-crossover'], seeded);
@@ -953,7 +954,7 @@ function insertCrossing(parts: PlacedPart[], inventory: Record<string, number>, 
       continue;
     }
     const without = parts.filter((item) => item.instanceId !== straight.instanceId);
-    const placed = tryAttach(part, 'west', attachOn, without, ctx.catalog, nextId(ctx, 'cr'));
+    const placed = tryAttach(part, 'west', attachOn, without, ctx.catalog, nextId(ctx, 'cr'), [], ctx.floorPlan);
     if (placed) {
       return [...without, placed];
     }
@@ -1033,12 +1034,13 @@ function seedFromSwitch(
   if (queue.length === 0) {
     return null;
   }
+  const origin = seedOrigin(ctx);
   const seeded: PlacedPart = {
     instanceId: nextId(ctx, 'sw'),
     partId: queue[0],
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   const through = worldPorts(ctx.catalog[seeded.partId], seeded).find((port) => port.id === 'through');
@@ -1069,12 +1071,13 @@ function seedDualRoute(
   if (queue.length < 2) {
     return null;
   }
+  const origin = seedOrigin(ctx);
   const seeded: PlacedPart = {
     instanceId: nextId(ctx, 'rte'),
     partId: queue[0],
     label: 1,
-    x: 0,
-    y: 0,
+    x: origin.x,
+    y: origin.y,
     rotation: 0,
   };
   void roomyCore;

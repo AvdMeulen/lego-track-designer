@@ -19,8 +19,8 @@ export class App {
   protected readonly immersive = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-      map(() => this.router.url.startsWith('/designer')),
-      startWith(this.router.url.startsWith('/designer')),
+      map(() => this.router.url.startsWith('/designer') || this.router.url.startsWith('/room')),
+      startWith(this.router.url.startsWith('/designer') || this.router.url.startsWith('/room')),
     ),
     { initialValue: false },
   );

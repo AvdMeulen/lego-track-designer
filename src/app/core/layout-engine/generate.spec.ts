@@ -1,5 +1,7 @@
 import { generateLayout, generateLayoutAsync } from './generate';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
+import { placementHitsRoom } from '../floor-plan/space';
+import { cmToStuds, defaultFloorPlan } from '../../shared/models/floor-plan';
 import { openPorts } from './connections';
 import { headingDelta } from './geometry';
 import { rectangleEnvelopePenalty, shortSwitchBypassPenalty } from './score';
@@ -372,5 +374,82 @@ describe('generateLayout', () => {
     expect(phases).toContain('candidate');
     expect(phases[phases.length - 1]).toBe('done');
     expect(layout.parts.filter((part) => part.partId === 'curve-22').length).toBe(16);
+  });
+
+  it('keeps generated track inside a rectangular room', () => {
+    const room = defaultFloorPlan();
+    const layout = generateLayout(
+      [
+        { partId: 'curve-22', quantity: 16 },
+        { partId: 'straight-16', quantity: 8 },
+      ],
+      { targetParkingSpots: 0 },
+      { seed: 1, timeoutMs: 2000, floorPlan: room },
+    );
+    expect(layout.parts.length).toBeGreaterThan(0);
+    for (const part of layout.parts) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, room)).toBeFalse();
+    }
+  });
+
+  it('does not run track through a furniture obstacle', () => {
+    const room = defaultFloorPlan();
+    const plan = {
+      ...room,
+      obstacles: [
+        {
+          id: 'obs-1',
+          points: [
+            { x: cmToStuds(140), y: cmToStuds(90) },
+            { x: cmToStuds(260), y: cmToStuds(90) },
+            { x: cmToStuds(260), y: cmToStuds(210) },
+            { x: cmToStuds(140), y: cmToStuds(210) },
+          ],
+        },
+      ],
+    };
+    const layout = generateLayout(
+      [
+        { partId: 'curve-22', quantity: 24 },
+        { partId: 'straight-16', quantity: 16 },
+      ],
+      { targetParkingSpots: 0 },
+      { seed: 3, timeoutMs: 2500, floorPlan: plan },
+    );
+    expect(layout.parts.length).toBeGreaterThan(0);
+    for (const part of layout.parts) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
+    }
+  });
+
+  it('stays inside an L-shaped outer wall', () => {
+    const width = cmToStuds(400);
+    const height = cmToStuds(300);
+    const plan = {
+      ...defaultFloorPlan(),
+      outer: {
+        id: 'outer',
+        points: [
+          { x: 0, y: 0 },
+          { x: width, y: 0 },
+          { x: width, y: height / 2 },
+          { x: width / 2, y: height / 2 },
+          { x: width / 2, y: height },
+          { x: 0, y: height },
+        ],
+      },
+    };
+    const layout = generateLayout(
+      [
+        { partId: 'curve-22', quantity: 20 },
+        { partId: 'straight-16', quantity: 12 },
+      ],
+      { targetParkingSpots: 0 },
+      { seed: 2, timeoutMs: 2500, floorPlan: plan },
+    );
+    expect(layout.parts.length).toBeGreaterThan(0);
+    for (const part of layout.parts) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
+    }
   });
 });

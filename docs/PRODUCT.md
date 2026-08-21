@@ -6,7 +6,7 @@ LEGO City train sets come with a limited mix of straights, curves, switches, and
 
 ## Goal
 
-Visualization first. A builder records owned City tracks, generates a network layout, and sees **which physical part is used where**, well enough to recreate it on the floor.
+Visualization first. A builder draws the room, records owned City tracks, generates a network that fits that floor, and sees **which physical part is used where**, well enough to recreate it on the floor.
 
 The last design survives a browser refresh. It can be exported as a labeled PNG, or as a JSON snapshot that another session can import.
 
@@ -16,12 +16,12 @@ A single builder at home. No accounts. Inventory, preferences, and the current l
 
 ## Primary flow
 
-1. Open the app and set inventory quantities (or a set preset).
-2. Choose preferences: parking count, reversing route, use more pieces, flex gap-closes, compact vs whole room.
-3. Generate a layout (or rebuild the same seed).
+1. Open the app and draw the available floor (walls and furniture).
+2. Set inventory quantities (or keep the last collection).
+3. Choose parking count, then generate a layout (or rebuild the same seed).
 4. Inspect numbered parts on the canvas and in the piece list.
 5. Export PNG, export/copy JSON, or refresh — the design is still there.
-6. Generate another, import a snapshot, or adjust inventory.
+6. Generate another, import a snapshot, or adjust the room.
 
 ## First catalog
 

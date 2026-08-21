@@ -9,6 +9,7 @@ import {
   clampParkingSpots,
   switchCountOf,
 } from '../../shared/models/track';
+import { FloorPlanStore } from '../floor-plan/floor-plan.store';
 import { buildSnapshot, DesignerSnapshot } from '../export/snapshot';
 import { emptyLayout, generateLayoutAsync, GeneratePhaseSnapshot } from '../layout-engine/generate';
 import { InventoryStore } from '../inventory/inventory.store';
@@ -42,6 +43,7 @@ function paintAndDwell(ms: number): Promise<void> {
 @Injectable({ providedIn: 'root' })
 export class LayoutStore {
   private readonly inventory = inject(InventoryStore);
+  private readonly floorPlans = inject(FloorPlanStore);
   private readonly storage = inject(BrowserStorage);
 
   readonly preferences = signal<GenerationPreferences>(DEFAULT_PREFERENCES);
@@ -129,6 +131,7 @@ export class LayoutStore {
       preferences: this.preferences(),
       inventory: this.usedInventory() ?? this.inventory.snapshot(),
       layout: this.layout(),
+      floorPlan: this.floorPlans.plan(),
     });
   }
 
@@ -139,6 +142,9 @@ export class LayoutStore {
     this.seed = snapshot.seed;
     this.usedInventory.set(snapshot.inventory);
     this.selectedLabel.set(null);
+    if (snapshot.floorPlan) {
+      this.floorPlans.replaceActive(snapshot.floorPlan);
+    }
     this.persist();
   }
 
@@ -160,6 +166,7 @@ export class LayoutStore {
         seed: this.seed,
         timeoutMs: 4000,
         previous,
+        floorPlan: this.floorPlans.plan(),
         onPhase: async (snapshot) => {
           this.generatePhase.set(snapshot);
           this.layout.set(snapshot.layout);

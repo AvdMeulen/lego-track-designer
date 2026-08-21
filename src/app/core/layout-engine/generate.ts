@@ -1,4 +1,6 @@
+import { FloorPlan } from '../../shared/models/floor-plan';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
+import { floorBounds, placementHitsRoom } from '../floor-plan/space';
 import { analyzeLayout, preferenceNotes } from '../layout-analysis/analyze';
 import {
   DEFAULT_PREFERENCES,
@@ -7,6 +9,7 @@ import {
   TrackLayout,
 } from '../../shared/models/track';
 import { remainingInventory, unusedItems, openPorts } from './connections';
+import { exploreSpace } from './explore';
 import { closeWithFlex } from './flex-closer';
 import { applyCrossover, applyRouteFeatures, placeParking, placeRemainingSpecials } from './features';
 import { GenContext, inventoryMap, rng } from './place';
@@ -15,7 +18,19 @@ import { planTopology } from './topology';
 import { growStockTree } from './tree';
 import { curveCircle, inflateLoop, loopCloses, organicRing, pointToPoint, wanderHomeLoop } from './wander';
 
-export type GeneratePhase = 'core' | 'crossover' | 'routes' | 'inflate' | 'parking' | 'candidate' | 'done';
+export type GeneratePhase =
+  | 'core'
+  | 'guides'
+  | 'paths'
+  | 'switches'
+  | 'join'
+  | 'crossover'
+  | 'routes'
+  | 'inflate'
+  | 'parking'
+  | 'keerlus'
+  | 'candidate'
+  | 'done';
 
 export interface GeneratePhaseSnapshot {
   phase: GeneratePhase;
@@ -27,6 +42,7 @@ export interface GenerateOptions {
   seed?: number;
   timeoutMs?: number;
   previous?: PlacedPart[];
+  floorPlan?: FloorPlan | null;
   onPhase?: (snapshot: GeneratePhaseSnapshot) => void | Promise<void>;
 }
 
@@ -81,6 +97,18 @@ function reserveForFeatures(
   };
 }
 
+function leftoverRigidCount(inventory: Record<string, number>, parts: PlacedPart[]): number {
+  const left = remainingInventory(inventory, parts);
+  return (left['straight-16'] ?? 0) + (left['curve-22'] ?? 0);
+}
+
+function fitsRoom(parts: PlacedPart[], ctx: GenContext): boolean {
+  if (!ctx.floorPlan) {
+    return true;
+  }
+  return parts.every((part) => !placementHitsRoom(part, ctx.catalog, ctx.floorPlan!));
+}
+
 function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWander: boolean): PlacedPart[] {
   const curves = inventory['curve-22'] ?? 0;
   const straights = inventory['straight-16'] ?? 0;
@@ -93,26 +121,27 @@ function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWan
     };
     if (preferWander || total > 40) {
       const wandered = wanderHomeLoop(inventory, wanderCtx);
-      if (wandered && loopCloses(wandered, ctx.catalog)) {
+      if (wandered && loopCloses(wandered, ctx.catalog) && fitsRoom(wandered, ctx)) {
         return wandered;
       }
     }
     const ring = organicRing(inventory, ctx);
-    if (ring && loopCloses(ring, ctx.catalog)) {
+    if (ring && loopCloses(ring, ctx.catalog) && fitsRoom(ring, ctx)) {
       return ring;
     }
     if (Date.now() < wanderCtx.deadline) {
       const wandered = wanderHomeLoop(inventory, wanderCtx);
-      if (wandered && loopCloses(wandered, ctx.catalog)) {
+      if (wandered && loopCloses(wandered, ctx.catalog) && fitsRoom(wandered, ctx)) {
         return wandered;
       }
     }
     const circle = curveCircle(ctx, 16);
-    if (circle) {
+    if (circle && fitsRoom(circle, ctx)) {
       return inflateLoop(circle, inventory, ctx);
     }
   }
-  return pointToPoint(inventory, ctx);
+  const line = pointToPoint(inventory, ctx);
+  return fitsRoom(line, ctx) ? line : [];
 }
 
 function previewLayout(
@@ -168,6 +197,33 @@ function* buildCandidateSteps(
   clock: { deadline: number },
 ): Generator<GenerateStep, PlacedPart[], number | void> {
   const plan = planTopology(inventory, prefs);
+  if (ctx.floorPlan) {
+    const exploreCtx: GenContext = {
+      ...ctx,
+      random: rng((seed + attempt * 9973) >>> 0),
+      deadline: Math.min(ctx.deadline - 2200, Date.now() + 450),
+    };
+    const explored = exploreSpace(inventory, exploreCtx, prefs);
+    applyPause(clock, ctx, exploreCtx, yield { phase: 'paths', attempt, parts: explored });
+    if (loopCloses(explored, ctx.catalog) && leftoverRigidCount(inventory, explored) < 24) {
+      let parts = explored;
+      applyPause(clock, ctx, ctx, yield { phase: 'core', attempt, parts });
+      const afterCrossover = applyCrossover(parts, inventory, plan, ctx);
+      if (afterCrossover !== parts) {
+        parts = afterCrossover;
+        applyPause(clock, ctx, ctx, yield { phase: 'crossover', attempt, parts });
+      }
+      parts = applyRouteFeatures(parts, inventory, plan, ctx);
+      applyPause(clock, ctx, ctx, yield { phase: 'switches', attempt, parts });
+      const keepPark = plan.parking * 6;
+      parts = inflateLoop(parts, inventory, ctx, 16, keepPark);
+      parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
+      parts = placeParking(parts, inventory, ctx, plan.parking);
+      applyPause(clock, ctx, ctx, yield { phase: 'parking', attempt, parts });
+      return parts;
+    }
+  }
+
   const rigid = (inventory['straight-16'] ?? 0) + (inventory['curve-22'] ?? 0);
   const treeMs = rigid > 80 ? 1500 : 1100;
   const treeCtx: GenContext = {
@@ -178,7 +234,7 @@ function* buildCandidateSteps(
   const tryTree =
     Date.now() < ctx.deadline - 900 && (rigid > 80 ? attempt === 1 : attempt === 2);
   const grown = tryTree ? growStockTree(inventory, plan, treeCtx) : null;
-  const treeOk = grown && treeClosedEnough(grown, plan, ctx.catalog);
+  const treeOk = grown && treeClosedEnough(grown, plan, ctx.catalog) && fitsRoom(grown, ctx);
   const active = treeOk ? { ...treeCtx, deadline: ctx.deadline } : ctx;
   let parts = treeOk
     ? grown
@@ -256,7 +312,19 @@ function* generateLayoutSteps(
   let attempts = 0;
   while (Date.now() < clock.deadline && attempts < 10) {
     attempts += 1;
-    const ctx: GenContext = { catalog, random, deadline: clock.deadline, seq: attempts * 100 };
+    const ctx: GenContext = {
+      catalog,
+      random,
+      deadline: clock.deadline,
+      seq: attempts * 100,
+      floorPlan: options.floorPlan,
+      origin: options.floorPlan
+        ? {
+            x: floorBounds(options.floorPlan).minX + 80,
+            y: floorBounds(options.floorPlan).minY + 80,
+          }
+        : undefined,
+    };
     const parts = yield* buildCandidateSteps(
       inventory,
       prefs,
