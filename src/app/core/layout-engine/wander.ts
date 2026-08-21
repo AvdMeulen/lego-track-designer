@@ -1040,6 +1040,7 @@ export function inflateLoop(
   maxSteps = 20,
   keepStraights = 0,
   preferNested = false,
+  preferNear: { x: number; y: number } | null = null,
 ): PlacedPart[] {
   let result = parts;
   const coreClosed = () =>
@@ -1067,8 +1068,15 @@ export function inflateLoop(
     const pool = nested.length > 0 && (preferNested || ctx.random() < 0.6) ? nested : candidates;
     let inflated = false;
     const tries = Math.min(4, pool.length);
+    const ranked = preferNear
+      ? [...pool].sort(
+          (a, b) =>
+            Math.hypot(a.x - preferNear.x, a.y - preferNear.y) -
+            Math.hypot(b.x - preferNear.x, b.y - preferNear.y),
+        )
+      : pool;
     for (let attempt = 0; attempt < tries && !inflated; attempt += 1) {
-      const pick = pool[Math.floor(ctx.random() * pool.length)];
+      const pick = preferNear ? ranked[Math.min(attempt, ranked.length - 1)] : pool[Math.floor(ctx.random() * pool.length)];
       const removedPorts = worldPorts(ctx.catalog[pick.partId], pick);
       const without = result.filter((part) => part.instanceId !== pick.instanceId);
       const heads = openPorts(without, ctx.catalog).filter(

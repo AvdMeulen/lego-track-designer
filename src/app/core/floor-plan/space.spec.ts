@@ -6,7 +6,7 @@ import {
   parsePersistedFloorPlans,
   studsToCm,
 } from '../../shared/models/floor-plan';
-import { hitTestFloor, insertVertex, placementHitsRoom, pointInPolygon, removeVertex } from './space';
+import { hitTestFloor, insertVertex, placementHitsRoom, pointInPolygon, removeVertex, seedInsideFloor } from './space';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 
 describe('floor plan units', () => {
@@ -91,5 +91,26 @@ describe('floor space', () => {
   it('hits a vertex before an edge', () => {
     const hit = hitTestFloor(room, { x: 0, y: 0 });
     expect(hit?.kind).toBe('vertex');
+  });
+
+  it('seeds inside an L along a wall, not in the bounding-box corner', () => {
+    const plan = {
+      ...defaultFloorPlan(),
+      outer: {
+        id: 'outer',
+        points: [
+          { x: 0, y: 0 },
+          { x: 200, y: 0 },
+          { x: 200, y: 80 },
+          { x: 320, y: 80 },
+          { x: 320, y: 200 },
+          { x: 0, y: 200 },
+        ],
+      },
+    };
+    const seed = seedInsideFloor(plan);
+    expect(pointInPolygon(seed, plan.outer.points, false)).toBeTrue();
+    expect(seed.x).toBeGreaterThan(10);
+    expect(seed.y).toBeGreaterThan(10);
   });
 });

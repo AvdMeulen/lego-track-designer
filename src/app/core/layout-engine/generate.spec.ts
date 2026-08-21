@@ -452,4 +452,35 @@ describe('generateLayout', () => {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }
   });
+
+  it('fills both arms of an L-shaped room instead of a tiny oval', () => {
+    const plan = {
+      ...defaultFloorPlan(),
+      outer: {
+        id: 'outer',
+        points: [
+          { x: -28.6, y: 218.7 },
+          { x: 227.2, y: 218.7 },
+          { x: 227.2, y: 304 },
+          { x: 329.8, y: 304 },
+          { x: 329.8, y: 419.9 },
+          { x: -28.6, y: 419.9 },
+        ],
+      },
+    };
+    const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, {
+      seed: 61,
+      timeoutMs: 4000,
+      floorPlan: plan,
+    });
+    const xs = layout.parts.map((part) => part.x);
+    const ys = layout.parts.map((part) => part.y);
+    expect(layout.parts.length).toBeGreaterThan(28);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(150);
+    expect(layout.parts.some((part) => part.x > 220) || layout.parts.some((part) => part.y < 300)).toBeTrue();
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(130);
+    for (const part of layout.parts) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
+    }
+  });
 });

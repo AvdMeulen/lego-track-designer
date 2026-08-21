@@ -228,6 +228,37 @@ export function floorBounds(plan: FloorPlan): { minX: number; minY: number; maxX
   return boundsOf(plan.outer.points.flatMap((point) => [point]).concat(plan.obstacles.flatMap((shape) => shape.points)));
 }
 
+/** A start pose inside the floor, inset from the longest outer wall — not the bounding-box corner. */
+export function seedInsideFloor(plan: FloorPlan, inset = 18): Point {
+  const outer = plan.outer.points;
+  let best: { length: number; point: Point } | null = null;
+  for (let index = 0; index < outer.length; index += 1) {
+    const a = outer[index];
+    const b = outer[(index + 1) % outer.length];
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    const nx = (a.y - b.y) / (length || 1);
+    const ny = (b.x - a.x) / (length || 1);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    for (const sign of [1, -1]) {
+      const point = { x: mid.x + nx * inset * sign, y: mid.y + ny * inset * sign };
+      if (!pointInPolygon(point, outer, false)) {
+        continue;
+      }
+      if (plan.obstacles.some((shape) => pointInPolygon(point, shape.points, true))) {
+        continue;
+      }
+      if (!best || length > best.length) {
+        best = { length, point };
+      }
+    }
+  }
+  if (best) {
+    return best.point;
+  }
+  const bounds = floorBounds(plan);
+  return { x: bounds.minX + 80, y: bounds.minY + 80 };
+}
+
 export function nextObstacleId(plan: FloorPlan): string {
   let index = plan.obstacles.length + 1;
   const used = new Set(plan.obstacles.map((shape) => shape.id));

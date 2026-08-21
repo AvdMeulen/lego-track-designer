@@ -1,6 +1,6 @@
 import { FloorPlan } from '../../shared/models/floor-plan';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
-import { floorBounds, placementHitsRoom } from '../floor-plan/space';
+import { placementHitsRoom, seedInsideFloor } from '../floor-plan/space';
 import { analyzeLayout, preferenceNotes } from '../layout-analysis/analyze';
 import {
   DEFAULT_PREFERENCES,
@@ -97,11 +97,6 @@ function reserveForFeatures(
   };
 }
 
-function leftoverRigidCount(inventory: Record<string, number>, parts: PlacedPart[]): number {
-  const left = remainingInventory(inventory, parts);
-  return (left['straight-16'] ?? 0) + (left['curve-22'] ?? 0);
-}
-
 function fitsRoom(parts: PlacedPart[], ctx: GenContext): boolean {
   if (!ctx.floorPlan) {
     return true;
@@ -113,6 +108,19 @@ function buildCore(inventory: Record<string, number>, ctx: GenContext, preferWan
   const curves = inventory['curve-22'] ?? 0;
   const straights = inventory['straight-16'] ?? 0;
   const total = straights + curves;
+  if (ctx.floorPlan) {
+    const wanderMs = total > 80 ? 850 : 650;
+    const wanderCtx: GenContext = {
+      ...ctx,
+      deadline: Math.min(ctx.deadline - 1000, Date.now() + wanderMs),
+    };
+    const wandered = wanderHomeLoop(inventory, wanderCtx);
+    if (wandered && loopCloses(wandered, ctx.catalog) && fitsRoom(wandered, ctx)) {
+      return wandered;
+    }
+    const line = pointToPoint(inventory, ctx);
+    return fitsRoom(line, ctx) ? line : [];
+  }
   if (curves >= 16) {
     const wanderMs = total > 80 ? 850 : 650;
     const wanderCtx: GenContext = {
@@ -201,11 +209,11 @@ function* buildCandidateSteps(
     const exploreCtx: GenContext = {
       ...ctx,
       random: rng((seed + attempt * 9973) >>> 0),
-      deadline: Math.min(ctx.deadline - 2200, Date.now() + 450),
+      deadline: Math.min(ctx.deadline - 600, Date.now() + 2500),
     };
     const explored = exploreSpace(inventory, exploreCtx, prefs);
     applyPause(clock, ctx, exploreCtx, yield { phase: 'paths', attempt, parts: explored });
-    if (loopCloses(explored, ctx.catalog) && leftoverRigidCount(inventory, explored) < 24) {
+    if (explored.length >= 8) {
       let parts = explored;
       applyPause(clock, ctx, ctx, yield { phase: 'core', attempt, parts });
       const afterCrossover = applyCrossover(parts, inventory, plan, ctx);
@@ -318,12 +326,7 @@ function* generateLayoutSteps(
       deadline: clock.deadline,
       seq: attempts * 100,
       floorPlan: options.floorPlan,
-      origin: options.floorPlan
-        ? {
-            x: floorBounds(options.floorPlan).minX + 80,
-            y: floorBounds(options.floorPlan).minY + 80,
-          }
-        : undefined,
+      origin: options.floorPlan ? seedInsideFloor(options.floorPlan) : undefined,
     };
     const parts = yield* buildCandidateSteps(
       inventory,
