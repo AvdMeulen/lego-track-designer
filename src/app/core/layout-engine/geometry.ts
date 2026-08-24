@@ -53,11 +53,47 @@ export interface WorldPort extends Port {
   instanceId: string;
 }
 
-export function worldPort(
-  part: TrackPart,
-  placement: { x: number; y: number; rotation: number; instanceId: string },
-  portId: string,
-): WorldPort {
+type PortPlacement = {
+  x: number;
+  y: number;
+  rotation: number;
+  instanceId: string;
+  flexPath?: Point[];
+};
+
+function flexWorldPorts(part: TrackPart, placement: PortPlacement): WorldPort[] | null {
+  const path = placement.flexPath;
+  if (!part.flex || !path || path.length < 2) {
+    return null;
+  }
+  const start = path[0];
+  const next = path[1];
+  const end = path[path.length - 1];
+  const prev = path[path.length - 2];
+  return [
+    {
+      id: part.ports[0]?.id ?? 'a',
+      instanceId: placement.instanceId,
+      x: start.x,
+      y: start.y,
+      heading: normalizeHeading((Math.atan2(start.y - next.y, start.x - next.x) * 180) / Math.PI),
+    },
+    {
+      id: part.ports[1]?.id ?? 'b',
+      instanceId: placement.instanceId,
+      x: end.x,
+      y: end.y,
+      heading: normalizeHeading((Math.atan2(end.y - prev.y, end.x - prev.x) * 180) / Math.PI),
+    },
+  ];
+}
+
+export function worldPort(part: TrackPart, placement: PortPlacement, portId: string): WorldPort {
+  const flexed = flexWorldPorts(part, placement);
+  const match = flexed?.find((port) => port.id === portId);
+  if (match) {
+    return match;
+  }
   const local = part.ports.find((port) => port.id === portId);
   if (!local) {
     throw new Error(`Unknown port ${portId} on ${part.id}`);
@@ -72,11 +108,8 @@ export function worldPort(
   };
 }
 
-export function worldPorts(
-  part: TrackPart,
-  placement: { x: number; y: number; rotation: number; instanceId: string },
-): WorldPort[] {
-  return part.ports.map((port) => worldPort(part, placement, port.id));
+export function worldPorts(part: TrackPart, placement: PortPlacement): WorldPort[] {
+  return flexWorldPorts(part, placement) ?? part.ports.map((port) => worldPort(part, placement, port.id));
 }
 
 export function portsConnect(a: Pick<Port, 'x' | 'y' | 'heading'>, b: Pick<Port, 'x' | 'y' | 'heading'>): boolean {

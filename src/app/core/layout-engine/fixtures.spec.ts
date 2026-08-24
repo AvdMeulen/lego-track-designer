@@ -58,6 +58,9 @@ describe('fixtures', () => {
   it('closes a near-miss gap with one flex piece', () => {
     const layout = flexGapFixture();
     expect(layout.parts.some((part) => part.partId === 'flex-track')).toBeTrue();
+    const opens = openPorts(layout.parts, CITY_TRACKS_BY_ID);
+    expect(opens.some((port) => port.instanceId === 'st1' && port.id === 'b')).toBeFalse();
+    expect(opens.some((port) => port.instanceId === 'st2' && port.id === 'a')).toBeFalse();
   });
 
   it('refuses flex when the gap is larger than one piece', () => {

@@ -1,5 +1,5 @@
 import { Connection, PlacedPart, TrackPart } from '../../shared/models/track';
-import { portsConnect, WorldPort, worldPorts } from './geometry';
+import { CONNECT_TOLERANCE, distance, portsConnect, WorldPort, worldPorts } from './geometry';
 
 export function catalogMap(parts: readonly TrackPart[]): Record<string, TrackPart> {
   return Object.fromEntries(parts.map((part) => [part.id, part]));
@@ -26,7 +26,7 @@ export function detectConnections(placed: PlacedPart[], catalog: Record<string, 
       if (used.has(keyA) || used.has(keyB)) {
         continue;
       }
-      if (portsConnect(a, b)) {
+      if (portsConnect(a, b) || flexJoins(a, b, placed, catalog)) {
         used.add(keyA);
         used.add(keyB);
         connections.push({
@@ -39,6 +39,23 @@ export function detectConnections(placed: PlacedPart[], catalog: Record<string, 
     }
   }
   return connections;
+}
+
+function flexJoins(
+  a: WorldPort,
+  b: WorldPort,
+  placed: PlacedPart[],
+  catalog: Record<string, TrackPart>,
+): boolean {
+  if (distance(a, b) > CONNECT_TOLERANCE) {
+    return false;
+  }
+  return isFlexPort(a, placed, catalog) || isFlexPort(b, placed, catalog);
+}
+
+function isFlexPort(port: WorldPort, placed: PlacedPart[], catalog: Record<string, TrackPart>): boolean {
+  const owner = placed.find((part) => part.instanceId === port.instanceId);
+  return !!owner?.flexPath && owner.flexPath.length >= 2 && !!catalog[owner.partId]?.flex;
 }
 
 export function openPorts(placed: PlacedPart[], catalog: Record<string, TrackPart>): WorldPort[] {

@@ -1217,7 +1217,11 @@ export function applyRouteFeatures(
     result = placeDualRoutes(result, inventory, ctx, plan.dualRoutes, plan.parking === 0, plan.parking);
   }
 
-  if (plan.crossovers > 0 && !result.some((part) => part.partId === 'double-crossover')) {
+  if (
+    plan.crossovers > 0 &&
+    !result.some((part) => part.partId === 'double-crossover') &&
+    openPorts(result, ctx.catalog).length <= plan.parking
+  ) {
     result = tryPlaceCrossover(result, inventory, ctx);
     if (!result.some((part) => part.partId === 'double-crossover') && result.length < 16) {
       const roomy = (inventory['curve-22'] ?? 0) >= 40 && (inventory['straight-16'] ?? 0) >= 20;

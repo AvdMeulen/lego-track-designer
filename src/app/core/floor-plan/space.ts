@@ -84,6 +84,14 @@ export function placementHitsRoom(
   if (!spec) {
     return true;
   }
+  if (candidate.flexPath && candidate.flexPath.length >= 2) {
+    if (candidate.flexPath.some((point) => !pointInPolygon(point, plan.outer.points, true))) {
+      return true;
+    }
+    return plan.obstacles.some((obstacle) =>
+      candidate.flexPath!.some((point) => pointInPolygon(point, obstacle.points, false)),
+    );
+  }
   const polygons = allFootprints(spec).map((polygon) => transformPolygon(polygon, candidate));
   for (const polygon of polygons) {
     if (!polygonInside(polygon, plan.outer.points)) {
@@ -224,8 +232,52 @@ export function replaceShape(plan: FloorPlan, shape: FloorShape): FloorPlan {
   };
 }
 
+export function distanceToFloorEdge(point: Point, plan: FloorPlan): number {
+  let nearest = 1e9;
+  for (const shape of [plan.outer, ...plan.obstacles]) {
+    for (let index = 0; index < shape.points.length; index += 1) {
+      nearest = Math.min(
+        nearest,
+        distanceToSegment(point, shape.points[index], shape.points[(index + 1) % shape.points.length]),
+      );
+    }
+  }
+  return nearest;
+}
+
 export function floorBounds(plan: FloorPlan): { minX: number; minY: number; maxX: number; maxY: number } {
   return boundsOf(plan.outer.points.flatMap((point) => [point]).concat(plan.obstacles.flatMap((shape) => shape.points)));
+}
+
+/** Points inset from each outer wall, used to walk the room perimeter. */
+export function wallWaypoints(plan: FloorPlan, inset = 14, spacing = 28): Point[] {
+  const outer = plan.outer.points;
+  const points: Point[] = [];
+  for (let index = 0; index < outer.length; index += 1) {
+    const a = outer[index];
+    const b = outer[(index + 1) % outer.length];
+    const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const steps = Math.max(1, Math.round(length / spacing));
+    const nx = (a.y - b.y) / length;
+    const ny = (b.x - a.x) / length;
+    for (let step = 0; step <= steps; step += 1) {
+      const t = step / steps;
+      const px = a.x + (b.x - a.x) * t;
+      const py = a.y + (b.y - a.y) * t;
+      for (const sign of [1, -1]) {
+        const point = { x: px + nx * inset * sign, y: py + ny * inset * sign };
+        if (!pointInPolygon(point, outer, false)) {
+          continue;
+        }
+        if (plan.obstacles.some((shape) => pointInPolygon(point, shape.points, true))) {
+          continue;
+        }
+        points.push(point);
+        break;
+      }
+    }
+  }
+  return points;
 }
 
 /** A start pose inside the floor, inset from the longest outer wall — not the bounding-box corner. */

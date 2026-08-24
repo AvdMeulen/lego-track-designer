@@ -1,10 +1,10 @@
 import { FloorPlan } from '../../shared/models/floor-plan';
 import { GenerationPreferences, PlacedPart } from '../../shared/models/track';
-import { floorBounds, pointInPolygon, placementHitsRoom } from '../floor-plan/space';
+import { floorBounds, pointInPolygon, placementHitsRoom, wallWaypoints } from '../floor-plan/space';
 import { openPorts, remainingInventory } from './connections';
-import { distance, WorldPort, worldPorts } from './geometry';
-import { GenContext, nextId, placeOnHead, tryAttach } from './place';
-import { growToward, inflateLoop, loopCloses } from './wander';
+import { distance, headingDelta, portsConnect, WorldPort, worldPorts } from './geometry';
+import { GenContext, neighborsOf, nextId, placeOnHead, tryAttach } from './place';
+import { homeScore, inflateLoop, joinHeads, loopCloses, ovalJoin, wanderJoin } from './wander';
 
 const MIN_SPECIAL_GAP = 72;
 
@@ -22,12 +22,21 @@ export function exploreSpace(
   let lastSpecialAt = { x: start.x, y: start.y };
   let idle = 0;
 
-  for (let step = 0; step < maxSteps && Date.now() < ctx.deadline; step += 1) {
+  for (let step = 0; step < maxSteps && Date.now() < ctx.deadline - 450; step += 1) {
     const stock = remainingInventory(inventory, parts);
     const leftover = (stock['straight-16'] ?? 0) + (stock['curve-22'] ?? 0);
     const heads = openPorts(parts, ctx.catalog);
     const gap = uncoveredSpot(parts, ctx.floorPlan);
     const filling = leftover > 20 && (gap?.clearance ?? 0) > 40;
+    if (heads.length === 2 && leftover >= 4 && !filling) {
+      const closed =
+        joinHeads(parts, heads[0], heads[1], inventory, ctx, 'jn') ??
+        joinHeads(parts, heads[1], heads[0], inventory, ctx, 'jn');
+      if (closed && loopCloses(closed, ctx.catalog)) {
+        parts = closed;
+        break;
+      }
+    }
     if (!heads.length) {
       if (leftover < 2) {
         break;
@@ -41,7 +50,7 @@ export function exploreSpace(
       continue;
     }
 
-    if (parts.length >= (filling ? 28 : 8)) {
+    if (prefs.targetParkingSpots > 0 && parts.length >= (filling ? 28 : 8)) {
       const placedSwitch = maybePlaceSwitch(parts, inventory, ctx, heads, lastSpecialAt, prefs);
       if (placedSwitch) {
         parts = placedSwitch.parts;
@@ -51,7 +60,7 @@ export function exploreSpace(
       }
     }
 
-    const grown = growBestHead(parts, inventory, ctx, heads);
+    const grown = growBestHead(parts, inventory, ctx, heads, filling);
     if (grown) {
       parts = grown;
       idle = 0;
@@ -137,6 +146,7 @@ function growBestHead(
   inventory: Record<string, number>,
   ctx: GenContext,
   heads: WorldPort[],
+  filling = false,
 ): PlacedPart[] | null {
   const stock = remainingInventory(inventory, parts);
   const types = ['straight-16', 'curve-22'].filter((id) => (stock[id] ?? 0) > 0);
@@ -145,13 +155,19 @@ function growBestHead(
   }
   const others = heads;
   let best: { parts: PlacedPart[]; score: number } | null = null;
-  const sample =
-    ctx.floorPlan || heads.length <= 6
+  const far =
+    uncoveredWallSpot(parts, ctx.floorPlan)?.point ??
+    uncoveredSpot(parts, ctx.floorPlan)?.point ??
+    farFloorPoint(parts, ctx.floorPlan);
+  const sample = filling && far && heads.length > 2
+    ? [...heads]
+        .sort((a, b) => Math.hypot(a.x - far.x, a.y - far.y) - Math.hypot(b.x - far.x, b.y - far.y))
+        .slice(0, 2)
+    : ctx.floorPlan || heads.length <= 6
       ? heads
       : heads.filter((_, index) => index % Math.ceil(heads.length / 4) === 0);
   const cx = parts.reduce((sum, part) => sum + part.x, 0) / parts.length;
   const cy = parts.reduce((sum, part) => sum + part.y, 0) / parts.length;
-  const far = uncoveredSpot(parts, ctx.floorPlan)?.point ?? farFloorPoint(parts, ctx.floorPlan);
   for (const head of sample) {
     for (const type of types) {
       const part = ctx.catalog[type];
@@ -173,6 +189,8 @@ function growBestHead(
         if (!free) {
           continue;
         }
+        const mate = others.find((port) => port.instanceId !== head.instanceId);
+        const goal = !filling && mate ? mate : far;
         const toward = others
           .filter((port) => port.instanceId !== head.instanceId)
           .reduce((min, port) => Math.min(min, distance(free, port)), 240);
@@ -180,9 +198,9 @@ function growBestHead(
         const remaining = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
         const wall = wallScore(free, ctx.floorPlan);
         const mix = type === 'curve-22' && ctx.random() < 0.55 ? 6 : 0;
-        const headBias = far ? Math.hypot(head.x - far.x, head.y - far.y) * 0.2 : 0;
+        const headBias = goal ? Math.hypot(head.x - goal.x, head.y - goal.y) * 0.2 : 0;
         const score = ctx.floorPlan
-          ? roomGrowScore(free, remaining, toward, wall, mix, cx, cy, far, ctx.random(), head) + headBias
+          ? roomGrowScore(free, remaining, toward, wall, mix, cx, cy, goal, ctx.random(), head) + headBias
           : toward * 0.35 + wall + mix + (remaining > 18 ? Math.max(0, 90 - toward) : 0) + ctx.random() * 4;
         if (!best || score < best.score) {
           best = { parts: [...parts, candidate], score };
@@ -213,7 +231,7 @@ function roomGrowScore(
   return wall * 0.9 + progress * 2.6 + expand + close + mix * 0.4 + noise * 2;
 }
 
-function uncoveredSpot(
+export function uncoveredSpot(
   parts: PlacedPart[],
   plan?: FloorPlan | null,
 ): { point: { x: number; y: number }; clearance: number } | null {
@@ -235,6 +253,26 @@ function uncoveredSpot(
       if (!best || clearance > best.clearance) {
         best = { point, clearance };
       }
+    }
+  }
+  return best;
+}
+
+function uncoveredWallSpot(
+  parts: PlacedPart[],
+  plan?: FloorPlan | null,
+): { point: { x: number; y: number }; clearance: number } | null {
+  if (!plan) {
+    return null;
+  }
+  let best: { point: { x: number; y: number }; clearance: number } | null = null;
+  for (const point of wallWaypoints(plan)) {
+    const clearance = parts.reduce(
+      (min, part) => Math.min(min, Math.hypot(part.x - point.x, part.y - point.y)),
+      1e9,
+    );
+    if (!best || clearance > best.clearance) {
+      best = { point, clearance };
     }
   }
   return best;
@@ -350,11 +388,7 @@ function joinNearestHeads(
   if (!pair) {
     return null;
   }
-  const joined = growToward(parts, pair[0], pair[1], inventory, ctx, 'jn');
-  if (joined.length <= parts.length) {
-    return null;
-  }
-  return joined;
+  return tryJoinHeads(parts, pair[0], pair[1], inventory, ctx);
 }
 
 export function closeOpenHeads(
@@ -364,7 +398,7 @@ export function closeOpenHeads(
   keepOpen = 0,
 ): PlacedPart[] {
   let result = parts;
-  for (let attempt = 0; attempt < 16 && Date.now() < ctx.deadline; attempt += 1) {
+  for (let attempt = 0; attempt < 24 && Date.now() < ctx.deadline; attempt += 1) {
     const heads = openPorts(result, ctx.catalog);
     if (heads.length < 2 || heads.length - 2 < keepOpen) {
       break;
@@ -372,14 +406,14 @@ export function closeOpenHeads(
     const pairs: Array<[WorldPort, WorldPort, number]> = [];
     for (let i = 0; i < heads.length; i += 1) {
       for (let j = i + 1; j < heads.length; j += 1) {
-        pairs.push([heads[i], heads[j], distance(heads[i], heads[j])]);
+        pairs.push([heads[i], heads[j], pairCloseScore(heads[i], heads[j])]);
       }
     }
     pairs.sort((a, b) => a[2] - b[2]);
     let progressed = false;
     for (const [from, to] of pairs) {
-      const joined = growToward(result, from, to, inventory, ctx, 'jn');
-      if (joined.length > result.length) {
+      const joined = tryJoinHeads(result, from, to, inventory, ctx);
+      if (joined) {
         result = joined;
         progressed = true;
         break;
@@ -390,4 +424,308 @@ export function closeOpenHeads(
     }
   }
   return result;
+}
+
+function pairCloseScore(a: WorldPort, b: WorldPort): number {
+  const dist = distance(a, b);
+  const bear = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  return dist + headingDelta(a.heading, bear) + headingDelta(b.heading, bear + 180);
+}
+
+function tryJoinHeads(
+  parts: PlacedPart[],
+  from: WorldPort,
+  to: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const leftover = remainingInventory(inventory, parts);
+  const stock = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
+  const joined =
+    joinHeads(parts, from, to, inventory, ctx, 'jn') ??
+    joinHeads(parts, to, from, inventory, ctx, 'jn');
+  if (joined && joined.length >= parts.length) {
+    return joined;
+  }
+  const turned = turnThenJoin(parts, from, to, inventory, ctx) ?? turnThenJoin(parts, to, from, inventory, ctx);
+  if (turned) {
+    return turned;
+  }
+  const roomy = stock > 24;
+  const oval =
+    ovalJoin(parts, from, to, inventory, ctx, 'jn', roomy) ??
+    ovalJoin(parts, to, from, inventory, ctx, 'jn', roomy);
+  if (oval) {
+    return oval;
+  }
+  const hugged = hugWallJoin(parts, from, to, inventory, ctx);
+  if (hugged) {
+    return hugged;
+  }
+  const met = meetInMiddle(parts, from, to, inventory, ctx);
+  if (met) {
+    return met;
+  }
+  if (stock >= 8 && ctx.deadline - Date.now() > 250) {
+    return (
+      wanderJoin(parts, from, to, inventory, ctx, 'jn', 'mixed') ??
+      wanderJoin(parts, to, from, inventory, ctx, 'jn', 'mixed')
+    );
+  }
+  return null;
+}
+
+function turnThenJoin(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const left = remainingInventory(inventory, parts);
+  if ((left['curve-22'] ?? 0) < 8) {
+    return null;
+  }
+  for (const portId of ['a', 'b'] as const) {
+    let trail = parts;
+    let tip = start;
+    let placed = 0;
+    for (let step = 0; step < 8; step += 1) {
+      const move = placeOnHead('curve-22', portId, tip, trail, ctx, 'jn', [target.instanceId]);
+      if (!move) {
+        break;
+      }
+      trail = [...trail, move.part];
+      tip = move.head;
+      placed += 1;
+      if (portsConnect(tip, target)) {
+        return trail;
+      }
+    }
+    if (placed < 4) {
+      continue;
+    }
+    const closed = joinHeads(trail, tip, target, inventory, ctx, 'jn');
+    if (closed) {
+      return closed;
+    }
+  }
+  return null;
+}
+
+function hugWallJoin(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  if (!ctx.floorPlan) {
+    return null;
+  }
+  for (const side of [1, -1] as const) {
+    const walked = hugWallWalk(parts, start, target, inventory, ctx, side);
+    if (walked) {
+      return walked;
+    }
+    const reverse = hugWallWalk(parts, target, start, inventory, ctx, side);
+    if (reverse) {
+      return reverse;
+    }
+  }
+  return null;
+}
+
+function hugWallWalk(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  side: 1 | -1,
+): PlacedPart[] | null {
+  let result = parts;
+  let current = start;
+  let stuck = 0;
+  for (let step = 0; step < 72 && Date.now() < ctx.deadline; step += 1) {
+    if (portsConnect(current, target)) {
+      return result;
+    }
+    if (distance(current, target) < 40) {
+      const snapped = joinHeads(result, current, target, inventory, ctx, 'jn');
+      if (snapped) {
+        return snapped;
+      }
+    }
+    const inch = hugStep(result, current, target, inventory, ctx, side);
+    if (!inch) {
+      stuck += 1;
+      if (stuck > 2) {
+        break;
+      }
+      const trimmed = trimHead(result, current, ctx);
+      if (!trimmed) {
+        break;
+      }
+      result = trimmed.parts;
+      current = trimmed.head;
+      continue;
+    }
+    stuck = 0;
+    result = inch.parts;
+    current = inch.head;
+  }
+  return portsConnect(current, target) ? result : null;
+}
+
+function hugStep(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  side: 1 | -1,
+): { parts: PlacedPart[]; head: WorldPort } | null {
+  const left = remainingInventory(inventory, parts);
+  const types = ['straight-16', 'curve-22'].filter((id) => (left[id] ?? 0) > 0);
+  let best: { part: PlacedPart; free: WorldPort; score: number } | null = null;
+  const ignore = [target.instanceId, start.instanceId];
+  const prevDist = distance(start, target);
+  for (const type of types) {
+    const part = ctx.catalog[type];
+    for (const local of part.ports) {
+      const candidate = tryAttach(
+        part,
+        local.id,
+        start,
+        parts,
+        ctx.catalog,
+        nextId(ctx, 'jn'),
+        ignore,
+        ctx.floorPlan,
+      );
+      if (!candidate) {
+        continue;
+      }
+      const free = worldPorts(part, candidate).find((port) => port.id !== local.id);
+      if (!free) {
+        continue;
+      }
+      if (portsConnect(free, target)) {
+        return { parts: [...parts, candidate], head: free };
+      }
+      const turn = local.id === 'a' ? 1 : local.id === 'b' ? -1 : 0;
+      const score =
+        wallScore(free, ctx.floorPlan) * 1.6 +
+        (distance(free, target) - prevDist) * 1.2 +
+        distance(free, target) * 0.18 +
+        (type === 'curve-22' && turn === side ? -5 : 0);
+      if (!best || score < best.score) {
+        best = { part: candidate, free, score };
+      }
+    }
+  }
+  return best ? { parts: [...parts, best.part], head: best.free } : null;
+}
+
+function meetInMiddle(
+  parts: PlacedPart[],
+  from: WorldPort,
+  to: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  let result = parts;
+  let left = from;
+  let right = to;
+  for (let step = 0; step < 48 && Date.now() < ctx.deadline; step += 1) {
+    if (portsConnect(left, right)) {
+      return result;
+    }
+    if (
+      !openPorts(result, ctx.catalog).some((port) => port.instanceId === right.instanceId && port.id === right.id)
+    ) {
+      return result;
+    }
+    const inch = stepToward(result, left, right, inventory, ctx);
+    if (!inch) {
+      const trimmed = trimHead(result, left, ctx);
+      if (!trimmed) {
+        break;
+      }
+      result = trimmed.parts;
+      left = trimmed.head;
+      continue;
+    }
+    result = inch.parts;
+    left = inch.head;
+    const swap = left;
+    left = right;
+    right = swap;
+  }
+  return null;
+}
+
+function stepToward(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): { parts: PlacedPart[]; head: WorldPort } | null {
+  const left = remainingInventory(inventory, parts);
+  const types = ['straight-16', 'curve-22'].filter((id) => (left[id] ?? 0) > 0);
+  let best: { part: PlacedPart; free: WorldPort; score: number } | null = null;
+  const ignore = [target.instanceId, start.instanceId];
+  for (const type of types) {
+    const part = ctx.catalog[type];
+    for (const local of part.ports) {
+      const candidate = tryAttach(
+        part,
+        local.id,
+        start,
+        parts,
+        ctx.catalog,
+        nextId(ctx, 'jn'),
+        ignore,
+        ctx.floorPlan,
+      );
+      if (!candidate) {
+        continue;
+      }
+      const free = worldPorts(part, candidate).find((port) => port.id !== local.id);
+      if (!free) {
+        continue;
+      }
+      if (portsConnect(free, target)) {
+        return { parts: [...parts, candidate], head: free };
+      }
+      const score = homeScore(free, target) + wallScore(free, ctx.floorPlan) * 0.5;
+      if (!best || score < best.score) {
+        best = { part: candidate, free, score };
+      }
+    }
+  }
+  return best ? { parts: [...parts, best.part], head: best.free } : null;
+}
+
+function trimHead(
+  parts: PlacedPart[],
+  head: WorldPort,
+  ctx: GenContext,
+): { parts: PlacedPart[]; head: WorldPort } | null {
+  const owner = parts.find((part) => part.instanceId === head.instanceId);
+  if (!owner || (owner.partId !== 'straight-16' && owner.partId !== 'curve-22')) {
+    return null;
+  }
+  const neighbors = neighborsOf(head.instanceId, parts, ctx.catalog);
+  if (neighbors.length !== 1) {
+    return null;
+  }
+  const without = parts.filter((part) => part.instanceId !== head.instanceId);
+  const next = openPorts(without, ctx.catalog).filter((port) => port.instanceId === neighbors[0]);
+  if (next.length !== 1) {
+    return null;
+  }
+  return { parts: without, head: next[0] };
 }

@@ -1,4 +1,5 @@
 import { PlacedPart, TrackPart } from '../../shared/models/track';
+import { distanceToFloorEdge } from '../floor-plan/space';
 import { openPorts, remainingInventory } from './connections';
 import {
   CURVE_ANGLE,
@@ -127,7 +128,8 @@ export function growToward(
             result.push(candidate);
             return result;
           }
-          const score = homeScore(free, target);
+          const wall = ctx.floorPlan ? Math.abs(distanceToFloorEdge(free, ctx.floorPlan) - 8) * 0.45 : 0;
+          const score = homeScore(free, target) + wall;
           if (!best || score < best.score) {
             best = { part: candidate, free, score, curve: type === 'curve-22' };
           }

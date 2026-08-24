@@ -9,8 +9,9 @@ import {
   TrackLayout,
 } from '../../shared/models/track';
 import { remainingInventory, unusedItems, openPorts } from './connections';
-import { closeOpenHeads, exploreSpace } from './explore';
-import { closeWithFlex } from './flex-closer';
+import { closeOpenHeads, exploreSpace, uncoveredSpot } from './explore';
+import { tracePerimeter } from './perimeter';
+import { approachThenFlex, closeWithFlex } from './flex-closer';
 import { applyCrossover, applyRouteFeatures, placeParking, placeRemainingSpecials } from './features';
 import { GenContext, inventoryMap, rng } from './place';
 import { layoutIsValid, scoreLayout } from './score';
@@ -58,10 +59,26 @@ function finalize(
   inventory: Record<string, number>,
   prefs: GenerationPreferences,
   message?: string,
+  floorPlan?: FloorPlan | null,
 ): TrackLayout {
   const catalog = CITY_TRACKS_BY_ID;
   const allowFlex = (inventory['curve-22'] ?? 0) !== 15;
-  const withFlex = closeWithFlex(parts, catalog, remainingInventory(inventory, parts), allowFlex);
+  let ready = parts;
+  const leftover = remainingInventory(inventory, parts);
+  if (allowFlex && (leftover['flex-track'] ?? 0) > 0) {
+    const opens = openPorts(parts, catalog);
+    if (opens.length === 2) {
+      ready =
+        approachThenFlex(parts, opens[0], opens[1], inventory, {
+          catalog,
+          random: () => 0.5,
+          deadline: Date.now() + 800,
+          seq: 9000,
+          floorPlan,
+        }) ?? parts;
+    }
+  }
+  const withFlex = closeWithFlex(ready, catalog, remainingInventory(inventory, ready), allowFlex, floorPlan);
   const labeled = withFlex.map((part, index) => ({ ...part, label: index + 1 }));
   const layout = analyzeLayout(labeled, catalog, unusedItems(inventory, labeled), message, prefs);
   layout.notes = preferenceNotes(layout, prefs, inventory);
@@ -206,28 +223,70 @@ function* buildCandidateSteps(
 ): Generator<GenerateStep, PlacedPart[], number | void> {
   const plan = planTopology(inventory, prefs);
   if (ctx.floorPlan) {
-    const exploreCtx: GenContext = {
+    const periCtx: GenContext = {
       ...ctx,
-      random: rng((seed + attempt * 9973) >>> 0),
-      deadline: Math.min(ctx.deadline - 600, Date.now() + 2500),
+      random: rng((seed + attempt * 9973 + 17) >>> 0),
+      deadline: Math.min(ctx.deadline - 900, Date.now() + 1600),
     };
-    const explored = exploreSpace(inventory, exploreCtx, prefs);
-    applyPause(clock, ctx, exploreCtx, yield { phase: 'paths', attempt, parts: explored });
+    let explored = tracePerimeter(inventory, periCtx);
+    applyPause(clock, ctx, periCtx, yield { phase: 'paths', attempt, parts: explored });
+    if (explored.length < 8) {
+      const exploreCtx: GenContext = {
+        ...ctx,
+        random: rng((seed + attempt * 9973) >>> 0),
+        deadline: Math.min(ctx.deadline - 800, Date.now() + 1800),
+      };
+      explored = exploreSpace(inventory, exploreCtx, prefs);
+      applyPause(clock, ctx, exploreCtx, yield { phase: 'paths', attempt, parts: explored });
+    }
     if (explored.length >= 8) {
-      let parts = explored;
-      applyPause(clock, ctx, ctx, yield { phase: 'core', attempt, parts });
-      const afterCrossover = applyCrossover(parts, inventory, plan, ctx);
-      if (afterCrossover !== parts) {
-        parts = afterCrossover;
-        applyPause(clock, ctx, ctx, yield { phase: 'crossover', attempt, parts });
+      let parts = closeOpenHeads(explored, inventory, ctx, plan.parking);
+      if (openPorts(parts, ctx.catalog).length > plan.parking && Date.now() < ctx.deadline - 400) {
+        const wandered = wanderHomeLoop(inventory, { ...ctx, deadline: Math.min(ctx.deadline - 200, Date.now() + 700) });
+        if (wandered && loopCloses(wandered, ctx.catalog) && fitsRoom(wandered, ctx)) {
+          parts = wandered;
+        }
       }
-      parts = applyRouteFeatures(parts, inventory, plan, ctx);
-      applyPause(clock, ctx, ctx, yield { phase: 'switches', attempt, parts });
+      applyPause(clock, ctx, ctx, yield { phase: 'core', attempt, parts });
       const keepPark = plan.parking * 6;
-      parts = inflateLoop(parts, inventory, ctx, 16, keepPark);
+      const empty = uncoveredSpot(parts, ctx.floorPlan);
+      const leftover = remainingInventory(inventory, parts);
+      const rigidLeft = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
+      const keepFeatures = plan.crossovers + plan.dualRoutes > 0 ? Math.min(24, Math.floor(rigidLeft * 0.25)) : 0;
+      parts = inflateLoop(parts, inventory, ctx, 28, keepPark + keepFeatures, false, empty?.point ?? null);
+      parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
+      const closedCore = parts;
+      const mainClosed = openPorts(parts, ctx.catalog).length <= plan.parking;
+      if (mainClosed) {
+        const afterCrossover = applyCrossover(parts, inventory, plan, ctx);
+        if (afterCrossover !== parts) {
+          parts = afterCrossover;
+          applyPause(clock, ctx, ctx, yield { phase: 'crossover', attempt, parts });
+        }
+        parts = applyRouteFeatures(parts, inventory, plan, ctx);
+        applyPause(clock, ctx, ctx, yield { phase: 'switches', attempt, parts });
+        if (!parts.some((part) => part.partId === 'double-crossover')) {
+          const afterCrossover = applyCrossover(parts, inventory, plan, ctx);
+          if (afterCrossover !== parts) {
+            parts = afterCrossover;
+          }
+        }
+        parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
+        if (openPorts(parts, ctx.catalog).length > plan.parking) {
+          parts = closedCore;
+        }
+      }
+      parts = inflateLoop(parts, inventory, ctx, 20, keepPark, false, uncoveredSpot(parts, ctx.floorPlan)?.point ?? null);
+      const beforeSpecials = parts;
       parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
       parts = placeParking(parts, inventory, ctx, plan.parking);
       parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
+      if (
+        openPorts(beforeSpecials, ctx.catalog).length <= plan.parking &&
+        openPorts(parts, ctx.catalog).length > plan.parking
+      ) {
+        parts = beforeSpecials;
+      }
       applyPause(clock, ctx, ctx, yield { phase: 'parking', attempt, parts });
       return parts;
     }
@@ -339,7 +398,7 @@ function* generateLayoutSteps(
       attempts,
       clock,
     );
-    const layout = finalize(parts, inventory, prefs, 'layout.organicLoop');
+    const layout = finalize(parts, inventory, prefs, 'layout.organicLoop', options.floorPlan);
     candidates.push(layout);
     applyPause(
       clock,

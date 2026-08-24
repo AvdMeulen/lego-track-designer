@@ -474,13 +474,47 @@ describe('generateLayout', () => {
       floorPlan: plan,
     });
     const xs = layout.parts.map((part) => part.x);
-    const ys = layout.parts.map((part) => part.y);
     expect(layout.parts.length).toBeGreaterThan(28);
     expect(layout.parkingSpots.length).toBe(0);
+    expect(layout.unfinishedPorts).toBeLessThanOrEqual(2);
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(150);
     expect(layout.parts.some((part) => part.x > 220) || layout.parts.some((part) => part.y < 300)).toBeTrue();
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(130);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(125);
+    for (const part of layout.parts) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
+    }
+  });
+
+  it('closes an L-room circuit instead of leaving switch stubs open', () => {
+    const plan = {
+      ...defaultFloorPlan(),
+      outer: {
+        id: 'outer',
+        points: [
+          { x: -76.15, y: 128.99 },
+          { x: 227.21, y: 128.99 },
+          { x: 227.21, y: 264.52 },
+          { x: 329.79, y: 264.52 },
+          { x: 329.79, y: 419.94 },
+          { x: -76.15, y: 419.94 },
+        ],
+      },
+    };
+    const layout = generateLayout([...LARGE, { partId: 'flex-track', quantity: 4 }], { targetParkingSpots: 0 }, {
+      seed: 66,
+      timeoutMs: 4000,
+      floorPlan: plan,
+    });
+    const xs = layout.parts.map((part) => part.x);
+    expect(layout.parkingSpots.length).toBe(0);
+    expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.parts.some((part) => part.partId === 'flex-track')).toBeTrue();
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.parts.length).toBeGreaterThan(40);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(90);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(180);
+    expect(layout.parts.some((part) => part.x > 220)).toBeTrue();
     for (const part of layout.parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }

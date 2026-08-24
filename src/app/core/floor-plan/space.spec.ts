@@ -6,7 +6,15 @@ import {
   parsePersistedFloorPlans,
   studsToCm,
 } from '../../shared/models/floor-plan';
-import { hitTestFloor, insertVertex, placementHitsRoom, pointInPolygon, removeVertex, seedInsideFloor } from './space';
+import {
+  hitTestFloor,
+  insertVertex,
+  placementHitsRoom,
+  pointInPolygon,
+  removeVertex,
+  seedInsideFloor,
+  wallWaypoints,
+} from './space';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 
 describe('floor plan units', () => {
@@ -112,5 +120,8 @@ describe('floor space', () => {
     expect(pointInPolygon(seed, plan.outer.points, false)).toBeTrue();
     expect(seed.x).toBeGreaterThan(10);
     expect(seed.y).toBeGreaterThan(10);
+    const waypoints = wallWaypoints(plan);
+    expect(waypoints.some((point) => point.x > 220)).toBeTrue();
+    expect(waypoints.some((point) => point.y < 40)).toBeTrue();
   });
 });
