@@ -378,14 +378,24 @@ export function flexCenterline(
   );
 }
 
-/** Short square stubs so a flex bed meets a rigid end face flush. */
-function padFlexEnds(path: Point[], startTravelDeg?: number, endTravelDeg?: number, stub = 1.1): Point[] {
+/** Align the first/last studs to the neighbor heading and tuck the fill under the rigid end face. */
+function padFlexEnds(
+  path: Point[],
+  startTravelDeg?: number,
+  endTravelDeg?: number,
+  stub = 1.1,
+  overlap = 0.45,
+): Point[] {
   if (path.length < 2) {
     return path;
   }
   const padded = [...path];
   if (startTravelDeg != null) {
     const travel = travelVector(startTravelDeg);
+    padded[0] = {
+      x: path[0].x - travel.x * overlap,
+      y: path[0].y - travel.y * overlap,
+    };
     padded.splice(1, 0, {
       x: path[0].x + travel.x * stub,
       y: path[0].y + travel.y * stub,
@@ -394,6 +404,10 @@ function padFlexEnds(path: Point[], startTravelDeg?: number, endTravelDeg?: numb
   if (endTravelDeg != null) {
     const travel = travelVector(endTravelDeg);
     const end = path[path.length - 1];
+    padded[padded.length - 1] = {
+      x: end.x + travel.x * overlap,
+      y: end.y + travel.y * overlap,
+    };
     padded.splice(padded.length - 1, 0, {
       x: end.x - travel.x * stub,
       y: end.y - travel.y * stub,
@@ -414,44 +428,15 @@ function polylinePath(points: Point[]): string {
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 }
 
-function flexSleepers(
+function flexSideOutline(
   center: Point[],
   startTravelDeg?: number,
   endTravelDeg?: number,
-  half = 3.35,
-  spacing = 1.85,
-): string[] {
-  const total = center.reduce(
-    (sum, point, index) => (index === 0 ? 0 : sum + distance(center[index - 1], point)),
-    0,
-  );
-  const paths: string[] = [];
-  let traveled = 0;
-  let nextAt = spacing;
-  for (let i = 0; i < center.length - 1; i += 1) {
-    const a = center[i];
-    const b = center[i + 1];
-    const seg = distance(a, b);
-    while (nextAt <= traveled + seg && nextAt < total - spacing * 0.55) {
-      const t = seg === 0 ? 0 : (nextAt - traveled) / seg;
-      const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-      const travel =
-        i === 0 && startTravelDeg != null
-          ? travelVector(startTravelDeg)
-          : i === center.length - 2 && endTravelDeg != null
-            ? travelVector(endTravelDeg)
-            : { x: (b.x - a.x) / (seg || 1), y: (b.y - a.y) / (seg || 1) };
-      paths.push(
-        polylinePath([
-          { x: point.x + -travel.y * half, y: point.y + travel.x * half },
-          { x: point.x - -travel.y * half, y: point.y - travel.x * half },
-        ]),
-      );
-      nextAt += spacing;
-    }
-    traveled += seg;
-  }
-  return paths;
+): string {
+  return [
+    polylinePath(offsetSide(center, 4, startTravelDeg, endTravelDeg)),
+    polylinePath(offsetSide(center, -4, startTravelDeg, endTravelDeg)),
+  ].join(' ');
 }
 
 function polylineLength(points: Point[]): number {
@@ -521,11 +506,8 @@ export function flexSliceModel(
     polygon: bed,
     artwork: {
       beds: [pointsToPath(bed)],
-      rails: [
-        polylinePath(offsetSide(center, 2.15, startTravelDeg, endTravelDeg)),
-        polylinePath(offsetSide(center, -2.15, startTravelDeg, endTravelDeg)),
-        ...flexSleepers(center, startTravelDeg, endTravelDeg),
-      ],
+      rails: [],
+      outline: flexSideOutline(center, startTravelDeg, endTravelDeg),
     },
   };
 }

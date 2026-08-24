@@ -240,7 +240,9 @@ describe('geometry', () => {
     expect(end).toBeCloseTo(337.5, 5);
     const art = flexArtwork(parts[1].flexPath!, start, end);
     expect(art.beds.length).toBe(1);
-    expect(art.rails.length).toBeGreaterThan(2);
+    expect(art.rails.length).toBe(0);
+    expect(art.outline).toContain('M');
+    expect(art.outline).not.toContain('Z');
     const slices = flexRunSlices(
       [parts[1].flexPath!, parts[2].flexPath!],
       start,

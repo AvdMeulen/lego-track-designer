@@ -74,9 +74,12 @@
   stroke: none;
 }
 
-.part.flex-part path.rail {
-  stroke-width: 0.85;
-  opacity: 0.72;
+.part.flex-part path.body:not(.outline) {
+  stroke: none;
+}
+
+.part.selected.flex-part path.body:not(.outline) {
+  stroke: none;
 }
 
 .part path.rail {
