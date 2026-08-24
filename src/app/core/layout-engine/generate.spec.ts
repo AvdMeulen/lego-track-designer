@@ -476,6 +476,8 @@ describe('generateLayout', () => {
     const xs = layout.parts.map((part) => part.x);
     const ys = layout.parts.map((part) => part.y);
     expect(layout.parts.length).toBeGreaterThan(28);
+    expect(layout.parkingSpots.length).toBe(0);
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(150);
     expect(layout.parts.some((part) => part.x > 220) || layout.parts.some((part) => part.y < 300)).toBeTrue();
     expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(130);

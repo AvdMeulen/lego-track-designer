@@ -976,10 +976,11 @@ function addParking(
       break;
     }
     const left = stockOf(inventory, result);
-    const length = Math.min(PARK_SIDING, Math.max(2, left['straight-16'] ?? 0));
-    if (length <= 0) {
+    const available = left['straight-16'] ?? 0;
+    if (available < 3) {
       break;
     }
+    const length = Math.min(PARK_SIDING, available);
     const parkStock = { ...inventory, 'curve-22': 0 };
     result = growDeadEnd(result, opens[0], parkStock, ctx, length, 'sid');
   }
@@ -1664,7 +1665,7 @@ export function placeParking(
     result = insertSwitches(result, inventory, ctx, count, 'sid');
     result = addParking(result, inventory, ctx, count);
   }
-  if (!hasParkingSiding(result, ctx) && result.length < 16) {
+  if (!hasParkingSiding(result, ctx) && result.length <= 28) {
     const seeded = seedFromSwitch(inventory, ctx, PARK_SIDING);
     if (seeded) {
       return seeded;

@@ -71,15 +71,13 @@ export function exploreSpace(
     }
   }
 
-  const gap = uncoveredSpot(parts, ctx.floorPlan);
-  if (!gap || gap.clearance < 40) {
-    parts = closeRemaining(parts, inventory, ctx);
-  }
+  parts = closeOpenHeads(parts, inventory, ctx, prefs.targetParkingSpots);
   const leftover = remainingInventory(inventory, parts);
   if ((leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0) > 0) {
     const empty = uncoveredSpot(parts, ctx.floorPlan);
     const steps = (empty?.clearance ?? 0) > 36 ? 28 : 16;
     parts = inflateLoop(parts, inventory, ctx, steps, prefs.targetParkingSpots * 6, false, empty?.point ?? null);
+    parts = closeOpenHeads(parts, inventory, ctx, prefs.targetParkingSpots);
   }
   return parts;
 }
@@ -306,8 +304,12 @@ function maybePlaceSwitch(
     return null;
   }
   const kind = left && right ? (ctx.random() < 0.5 ? 'switch-left' : 'switch-right') : left ? 'switch-left' : 'switch-right';
+  const placedSwitches = parts.filter((part) => part.partId.startsWith('switch-'));
   for (const head of heads) {
     if (distance(head, lastSpecial) < MIN_SPECIAL_GAP) {
+      continue;
+    }
+    if (placedSwitches.some((part) => distance(head, part) < MIN_SPECIAL_GAP)) {
       continue;
     }
     const move = placeOnHead(kind, 'stem', head, parts, ctx, 'sw');
@@ -355,18 +357,37 @@ function joinNearestHeads(
   return joined;
 }
 
-function closeRemaining(parts: PlacedPart[], inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
+export function closeOpenHeads(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  keepOpen = 0,
+): PlacedPart[] {
   let result = parts;
-  for (let attempt = 0; attempt < 8 && !loopCloses(result, ctx.catalog); attempt += 1) {
+  for (let attempt = 0; attempt < 16 && Date.now() < ctx.deadline; attempt += 1) {
     const heads = openPorts(result, ctx.catalog);
-    if (heads.length < 2) {
+    if (heads.length < 2 || heads.length - 2 < keepOpen) {
       break;
     }
-    const joined = joinNearestHeads(result, inventory, ctx, heads);
-    if (!joined) {
+    const pairs: Array<[WorldPort, WorldPort, number]> = [];
+    for (let i = 0; i < heads.length; i += 1) {
+      for (let j = i + 1; j < heads.length; j += 1) {
+        pairs.push([heads[i], heads[j], distance(heads[i], heads[j])]);
+      }
+    }
+    pairs.sort((a, b) => a[2] - b[2]);
+    let progressed = false;
+    for (const [from, to] of pairs) {
+      const joined = growToward(result, from, to, inventory, ctx, 'jn');
+      if (joined.length > result.length) {
+        result = joined;
+        progressed = true;
+        break;
+      }
+    }
+    if (!progressed || (keepOpen <= 0 && loopCloses(result, ctx.catalog))) {
       break;
     }
-    result = joined;
   }
   return result;
 }

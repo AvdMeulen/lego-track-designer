@@ -1,10 +1,11 @@
+import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import {
   parkingSidingFixture,
   pointToPointFixture,
   reversingLoopFixture,
   wyeFixture,
 } from '../layout-engine/fixtures';
-import { preferenceNotes } from './analyze';
+import { analyzeLayout, preferenceNotes } from './analyze';
 
 describe('layout analysis', () => {
   it('marks an open siding as parking and dead-end reverse', () => {
@@ -12,6 +13,15 @@ describe('layout analysis', () => {
     expect(layout.parkingSpots.some((spot) => spot.clearLengthStuds >= 16)).toBeTrue();
     expect(layout.reverseOptions.some((option) => option.kind === 'dead-end')).toBeTrue();
     expect(layout.marks.some((mark) => mark.kind === 'parking')).toBeTrue();
+  });
+
+  it('hides parking when the builder asked for none', () => {
+    const fixture = parkingSidingFixture();
+    const layout = analyzeLayout(fixture.parts, CITY_TRACKS_BY_ID, [], fixture.message, {
+      targetParkingSpots: 0,
+    });
+    expect(layout.parkingSpots.length).toBe(0);
+    expect(layout.marks.some((mark) => mark.kind === 'parking')).toBeFalse();
   });
 
   it('does not treat a point-to-point run as parking', () => {

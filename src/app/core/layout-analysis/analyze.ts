@@ -20,10 +20,11 @@ export function analyzeLayout(
   catalog: Record<string, TrackPart>,
   unusedInventory: { partId: string; quantity: number }[],
   message?: string,
+  prefs?: GenerationPreferences,
 ): TrackLayout {
   const connections = detectConnections(parts, catalog);
   const graph = buildGraph(parts, connections);
-  const parkingSpots = findParkingSpots(parts, catalog, graph);
+  const parkingSpots = publishedParking(findParkingSpots(parts, catalog, graph), prefs);
   const reverseOptions = findReverseOptions(parts, catalog, graph, parkingSpots);
   const opens = openPorts(parts, catalog);
   const parkingEnds = new Set(parkingSpots.map((spot) => spot.endInstanceId));
@@ -141,6 +142,18 @@ function buildGraph(parts: PlacedPart[], connections: TrackLayout['connections']
     graph.get(connection.toInstanceId)?.push({ to: connection.fromInstanceId, via: connection.toPortId });
   }
   return graph;
+}
+
+function publishedParking(spots: ParkingSpot[], prefs?: GenerationPreferences): ParkingSpot[] {
+  if (!prefs) {
+    return spots;
+  }
+  if (prefs.targetParkingSpots <= 0) {
+    return [];
+  }
+  return [...spots]
+    .sort((a, b) => b.clearLengthStuds - a.clearLengthStuds)
+    .slice(0, prefs.targetParkingSpots);
 }
 
 function findParkingSpots(

@@ -9,7 +9,7 @@ import {
   TrackLayout,
 } from '../../shared/models/track';
 import { remainingInventory, unusedItems, openPorts } from './connections';
-import { exploreSpace } from './explore';
+import { closeOpenHeads, exploreSpace } from './explore';
 import { closeWithFlex } from './flex-closer';
 import { applyCrossover, applyRouteFeatures, placeParking, placeRemainingSpecials } from './features';
 import { GenContext, inventoryMap, rng } from './place';
@@ -63,7 +63,7 @@ function finalize(
   const allowFlex = (inventory['curve-22'] ?? 0) !== 15;
   const withFlex = closeWithFlex(parts, catalog, remainingInventory(inventory, parts), allowFlex);
   const labeled = withFlex.map((part, index) => ({ ...part, label: index + 1 }));
-  const layout = analyzeLayout(labeled, catalog, unusedItems(inventory, labeled), message);
+  const layout = analyzeLayout(labeled, catalog, unusedItems(inventory, labeled), message, prefs);
   layout.notes = preferenceNotes(layout, prefs, inventory);
   if (layout.notes.length) {
     layout.message = layout.notes.join(' ');
@@ -159,7 +159,7 @@ function previewLayout(
   message: string,
 ): TrackLayout {
   const labeled = parts.map((part, index) => ({ ...part, label: index + 1 }));
-  const layout = analyzeLayout(labeled, CITY_TRACKS_BY_ID, unusedItems(inventory, labeled), message);
+  const layout = analyzeLayout(labeled, CITY_TRACKS_BY_ID, unusedItems(inventory, labeled), message, prefs);
   layout.score.total = scoreLayout(layout, prefs);
   return layout;
 }
@@ -227,6 +227,7 @@ function* buildCandidateSteps(
       parts = inflateLoop(parts, inventory, ctx, 16, keepPark);
       parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
       parts = placeParking(parts, inventory, ctx, plan.parking);
+      parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
       applyPause(clock, ctx, ctx, yield { phase: 'parking', attempt, parts });
       return parts;
     }
@@ -278,6 +279,7 @@ function* buildCandidateSteps(
 
   const beforePark = parts;
   parts = placeParking(parts, inventory, active, plan.parking);
+  parts = closeOpenHeads(parts, inventory, active, plan.parking);
   parts = inflateLoop(parts, inventory, active, 12, 0);
   if (parts !== beforePark) {
     applyPause(clock, ctx, active, yield { phase: 'parking', attempt, parts });
