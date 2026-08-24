@@ -241,8 +241,7 @@ describe('geometry', () => {
     const art = flexArtwork(parts[1].flexPath!, start, end);
     expect(art.beds.length).toBe(1);
     expect(art.rails.length).toBe(0);
-    expect(art.outline).toContain('M');
-    expect(art.outline).not.toContain('Z');
+    expect(art.outline).toBeUndefined();
     const slices = flexRunSlices(
       [parts[1].flexPath!, parts[2].flexPath!],
       start,

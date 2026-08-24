@@ -378,24 +378,14 @@ export function flexCenterline(
   );
 }
 
-/** Align the first/last studs to the neighbor heading and tuck the fill under the rigid end face. */
-function padFlexEnds(
-  path: Point[],
-  startTravelDeg?: number,
-  endTravelDeg?: number,
-  stub = 1.1,
-  overlap = 0.45,
-): Point[] {
+/** Short aligned stubs so the end caps sit flush on the neighbor faces. */
+function padFlexEnds(path: Point[], startTravelDeg?: number, endTravelDeg?: number, stub = 1.1): Point[] {
   if (path.length < 2) {
     return path;
   }
   const padded = [...path];
   if (startTravelDeg != null) {
     const travel = travelVector(startTravelDeg);
-    padded[0] = {
-      x: path[0].x - travel.x * overlap,
-      y: path[0].y - travel.y * overlap,
-    };
     padded.splice(1, 0, {
       x: path[0].x + travel.x * stub,
       y: path[0].y + travel.y * stub,
@@ -404,10 +394,6 @@ function padFlexEnds(
   if (endTravelDeg != null) {
     const travel = travelVector(endTravelDeg);
     const end = path[path.length - 1];
-    padded[padded.length - 1] = {
-      x: end.x + travel.x * overlap,
-      y: end.y + travel.y * overlap,
-    };
     padded.splice(padded.length - 1, 0, {
       x: end.x - travel.x * stub,
       y: end.y - travel.y * stub,
@@ -422,21 +408,6 @@ function flexPreparedPath(
   endTravelDeg?: number,
 ): Point[] {
   return padFlexEnds(flexCenterline(path, startTravelDeg, endTravelDeg), startTravelDeg, endTravelDeg);
-}
-
-function polylinePath(points: Point[]): string {
-  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
-}
-
-function flexSideOutline(
-  center: Point[],
-  startTravelDeg?: number,
-  endTravelDeg?: number,
-): string {
-  return [
-    polylinePath(offsetSide(center, 4, startTravelDeg, endTravelDeg)),
-    polylinePath(offsetSide(center, -4, startTravelDeg, endTravelDeg)),
-  ].join(' ');
 }
 
 function polylineLength(points: Point[]): number {
@@ -507,7 +478,6 @@ export function flexSliceModel(
     artwork: {
       beds: [pointsToPath(bed)],
       rails: [],
-      outline: flexSideOutline(center, startTravelDeg, endTravelDeg),
     },
   };
 }
