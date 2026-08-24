@@ -15,6 +15,8 @@ import {
   flexBedPolygon,
   flexCenterline,
   flexChainTravels,
+  flexRun,
+  flexRunArtwork,
   flexRunSlices,
   headingDelta,
   polygonCenter,
@@ -238,15 +240,18 @@ describe('geometry', () => {
     const [start, end] = flexChainTravels(parts[1], connections, parts, byId);
     expect(start).toBeCloseTo(337.5, 5);
     expect(end).toBeCloseTo(337.5, 5);
+    const run = flexRun(parts[1], connections, parts, byId);
+    const port = worldPort(straight, parts[0], 'b');
+    expect(run.startPoint?.x).toBeCloseTo(port.x, 5);
+    expect(run.startPoint?.y).toBeCloseTo(port.y, 5);
     const art = flexArtwork(parts[1].flexPath!, start, end);
     expect(art.beds.length).toBe(1);
     expect(art.rails.length).toBe(0);
     expect(art.outline).toBeUndefined();
-    const slices = flexRunSlices(
-      [parts[1].flexPath!, parts[2].flexPath!],
-      start,
-      end,
-    );
+    const runArt = flexRunArtwork(run.paths, run.startTravel, run.endTravel, run.startPoint, run.endPoint);
+    expect(runArt.fills.length).toBe(2);
+    expect(runArt.outline).toContain('Z');
+    const slices = flexRunSlices(run.paths, start, end, run.startPoint, run.endPoint);
     expect(slices.length).toBe(2);
     const joint = slices[0][slices[0].length - 1];
     expect(distance(joint, slices[1][0])).toBeLessThan(0.05);

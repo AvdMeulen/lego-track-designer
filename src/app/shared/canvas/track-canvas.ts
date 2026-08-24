@@ -11,8 +11,7 @@ import {
   crossingArtwork,
   flexBedPolygon,
   flexRun,
-  flexRunSlices,
-  flexSliceModel,
+  flexRunArtwork,
   polygonCenter,
   switchArtwork,
   transformPolygon,
@@ -117,17 +116,11 @@ export class TrackCanvas {
       const flex = part.flexPath?.length
         ? flexRun(part, layout.connections, layout.parts, (id) => this.catalog.byId(id))
         : undefined;
-      const flexSlice = flex
-        ? flexRunSlices(flex.paths, flex.startTravel, flex.endTravel)[flex.index]
+      const flexArt = flex
+        ? flexRunArtwork(flex.paths, flex.startTravel, flex.endTravel, flex.startPoint, flex.endPoint)
         : undefined;
-      const flexDraw = flexSlice
-        ? flexSliceModel(
-            flexSlice,
-            flex?.index === 0 ? flex.startTravel : undefined,
-            flex && flex.index === flex.paths.length - 1 ? flex.endTravel : undefined,
-          )
-        : undefined;
-      const polygon = flexDraw?.polygon ?? transformPolygon(spec.footprint, part);
+      const flexSlice = flexArt?.slices[flex?.index ?? 0];
+      const polygon = flexArt?.polygons[flex?.index ?? 0] ?? transformPolygon(spec.footprint, part);
       const points = polygon.map((point) => `${point.x},${point.y}`).join(' ');
       const special =
         spec.category === 'switch'
@@ -136,7 +129,13 @@ export class TrackCanvas {
             ? crossoverArtwork()
             : spec.category === 'crossing'
               ? crossingArtwork()
-              : (flexDraw?.artwork ?? { beds: [] as string[], rails: [] as string[] });
+              : flex && flexArt
+                ? {
+                    beds: [flexArt.fills[flex.index]],
+                    rails: [] as string[],
+                    outline: flex.index === flex.paths.length - 1 ? flexArt.outline : '',
+                  }
+                : { beds: [] as string[], rails: [] as string[] };
       const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
       const showPolygon = spec.category !== 'curve' && special.beds.length === 0;
       const transform = part.flexPath?.length ? '' : `translate(${part.x} ${part.y}) rotate(${part.rotation})`;

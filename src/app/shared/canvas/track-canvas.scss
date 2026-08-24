@@ -74,6 +74,15 @@
   stroke: none;
 }
 
+.part.flex-part path.body:not(.outline) {
+  stroke: none;
+  fill-opacity: 1;
+}
+
+.part.selected.flex-part path.body:not(.outline) {
+  stroke: none;
+}
+
 .part path.rail {
   fill: none;
   stroke: #1f1a17;

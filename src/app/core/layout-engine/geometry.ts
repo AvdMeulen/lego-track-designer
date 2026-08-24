@@ -440,21 +440,33 @@ function slicePolyline(points: Point[], from: number, to: number): Point[] {
   return [start.point, ...middle, end.point];
 }
 
+function flexRunEnds(
+  paths: Point[][],
+  startPoint?: Point,
+  endPoint?: Point,
+): { start: Point; end: Point } {
+  const last = paths[paths.length - 1] ?? [];
+  return {
+    start: startPoint ?? paths[0]?.[0] ?? { x: 0, y: 0 },
+    end: endPoint ?? last[last.length - 1] ?? { x: 0, y: 0 },
+  };
+}
+
 /** One smooth centerline for a flex run, split so pieces meet with the same tangent. */
 export function flexRunSlices(
   paths: Point[][],
   startTravelDeg?: number,
   endTravelDeg?: number,
+  startPoint?: Point,
+  endPoint?: Point,
 ): Point[][] {
   if (paths.length === 0) {
     return [];
   }
+  const { start, end } = flexRunEnds(paths, startPoint, endPoint);
   if (paths.length === 1) {
-    return [flexPreparedPath(paths[0], startTravelDeg, endTravelDeg)];
+    return [flexPreparedPath([start, ...(paths[0].slice(1, -1)), end], startTravelDeg, endTravelDeg)];
   }
-  const start = paths[0][0];
-  const last = paths[paths.length - 1];
-  const end = last[last.length - 1];
   const full = flexCenterline([start, end], startTravelDeg, endTravelDeg, 24 * paths.length);
   const total = polylineLength(full);
   return paths.map((_, index) => {
@@ -479,6 +491,38 @@ export function flexSliceModel(
       beds: [pointsToPath(bed)],
       rails: [],
     },
+  };
+}
+
+/** Fills per flex piece plus one closed outline around the whole run. */
+export function flexRunArtwork(
+  paths: Point[][],
+  startTravelDeg?: number,
+  endTravelDeg?: number,
+  startPoint?: Point,
+  endPoint?: Point,
+): { slices: Point[][]; polygons: Point[][]; fills: string[]; outline: string } {
+  const slices = flexRunSlices(paths, startTravelDeg, endTravelDeg, startPoint, endPoint);
+  const { start, end } = flexRunEnds(paths, startPoint, endPoint);
+  const outlineBed = offsetPolyline(
+    flexPreparedPath([start, end], startTravelDeg, endTravelDeg),
+    4,
+    startTravelDeg,
+    endTravelDeg,
+  );
+  const polygons = slices.map((slice, index) =>
+    offsetPolyline(
+      slice,
+      4,
+      index === 0 ? startTravelDeg : undefined,
+      index === slices.length - 1 ? endTravelDeg : undefined,
+    ),
+  );
+  return {
+    slices,
+    polygons,
+    fills: polygons.map((polygon) => pointsToPath(polygon)),
+    outline: pointsToPath(outlineBed),
   };
 }
 
@@ -556,16 +600,22 @@ export function flexRun(
   index: number;
   startTravel?: number;
   endTravel?: number;
+  startPoint?: Point;
+  endPoint?: Point;
 } {
   const before = collectFlexNeighbors(part, 'a', connections, parts, byId);
   const after = collectFlexNeighbors(part, 'b', connections, parts, byId);
   const run = [...before.reverse(), part, ...after];
   const paths = run.map((item) => item.flexPath ?? []);
+  const start = walkRigidNeighbor(run[0], 'a', connections, parts, byId);
+  const end = walkRigidNeighbor(run[run.length - 1], 'b', connections, parts, byId);
   return {
     paths,
     index: before.length,
-    startTravel: walkRigidTravel(run[0], 'a', connections, parts, byId, false),
-    endTravel: walkRigidTravel(run[run.length - 1], 'b', connections, parts, byId, true),
+    startTravel: start?.heading,
+    endTravel: end ? normalizeHeading(end.heading + 180) : undefined,
+    startPoint: start ? { x: start.x, y: start.y } : undefined,
+    endPoint: end ? { x: end.x, y: end.y } : undefined,
   };
 }
 
@@ -580,14 +630,13 @@ export function flexChainTravels(
   return [run.startTravel, run.endTravel];
 }
 
-function walkRigidTravel(
+function walkRigidNeighbor(
   part: PlacedPart,
   portId: string,
   connections: Connection[],
   parts: PlacedPart[],
   byId: (id: string) => TrackPart,
-  towardEnd: boolean,
-): number | undefined {
+): WorldPort | undefined {
   let instanceId = part.instanceId;
   let currentPort = portId;
   const seen = new Set<string>();
@@ -613,10 +662,24 @@ function walkRigidTravel(
       currentPort = otherPortId === 'a' ? 'b' : 'a';
       continue;
     }
-    const heading = worldPort(spec, other, otherPortId).heading;
-    return towardEnd ? normalizeHeading(heading + 180) : heading;
+    return worldPort(spec, other, otherPortId);
   }
   return undefined;
+}
+
+function walkRigidTravel(
+  part: PlacedPart,
+  portId: string,
+  connections: Connection[],
+  parts: PlacedPart[],
+  byId: (id: string) => TrackPart,
+  towardEnd: boolean,
+): number | undefined {
+  const neighbor = walkRigidNeighbor(part, portId, connections, parts, byId);
+  if (!neighbor) {
+    return undefined;
+  }
+  return towardEnd ? normalizeHeading(neighbor.heading + 180) : neighbor.heading;
 }
 
 function arcCenterline(angle: number, sign: number, steps: number): Point[] {
