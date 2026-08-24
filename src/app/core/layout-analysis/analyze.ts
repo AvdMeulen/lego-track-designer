@@ -58,6 +58,27 @@ export function analyzeLayout(
   };
 }
 
+/** Recompute keerlus/wye marks on a stored layout without changing the track. */
+export function refreshReverseAnalysis(
+  layout: TrackLayout,
+  catalog: Record<string, TrackPart>,
+  prefs?: GenerationPreferences,
+): TrackLayout {
+  if (layout.parts.length === 0) {
+    return layout;
+  }
+  const next = analyzeLayout(layout.parts, catalog, layout.unusedInventory, layout.message, prefs);
+  return {
+    ...layout,
+    reverseOptions: next.reverseOptions,
+    marks: [
+      ...layout.marks.filter((mark) => mark.kind !== 'reverse'),
+      ...next.marks.filter((mark) => mark.kind === 'reverse'),
+    ],
+    score: { ...layout.score, reverseBonus: next.score.reverseBonus },
+  };
+}
+
 export function preferenceNotes(
   layout: TrackLayout,
   prefs: GenerationPreferences,
@@ -259,11 +280,10 @@ function findReverseOptions(
     partIds: [spot.endInstanceId],
   }));
 
-  const cyclic = nodesOnCycles(graph);
   const switchIds = parts
     .filter((part) => catalog[part.partId]?.category === 'switch')
     .map((part) => part.instanceId);
-  const balloon = switchIds.filter((id) => cyclic.has(id) && (graph.get(id)?.length ?? 0) >= 2);
+  const balloon = switchIds.filter((id) => hasLocalBalloon(id, graph, switchIds));
   if (balloon.length) {
     options.push({ kind: 'reversing-loop', partIds: balloon });
   }
@@ -274,6 +294,53 @@ function findReverseOptions(
   }
 
   return options;
+}
+
+function hasLocalBalloon(
+  switchId: string,
+  graph: Map<string, NodeEdge[]>,
+  switchIds: string[],
+): boolean {
+  const blocked = new Set(switchIds);
+  const neighbors = (graph.get(switchId) ?? []).map((edge) => edge.to);
+  for (let i = 0; i < neighbors.length; i += 1) {
+    for (let j = i + 1; j < neighbors.length; j += 1) {
+      const a = neighbors[i];
+      const b = neighbors[j];
+      if (a === b || blocked.has(a) || blocked.has(b)) {
+        continue;
+      }
+      if (reachesAvoiding(a, b, graph, blocked)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function reachesAvoiding(
+  start: string,
+  goal: string,
+  graph: Map<string, NodeEdge[]>,
+  blocked: Set<string>,
+): boolean {
+  const seen = new Set<string>(blocked);
+  const queue = [start];
+  seen.add(start);
+  while (queue.length) {
+    const id = queue.pop()!;
+    if (id === goal) {
+      return true;
+    }
+    for (const edge of graph.get(id) ?? []) {
+      if (seen.has(edge.to)) {
+        continue;
+      }
+      seen.add(edge.to);
+      queue.push(edge.to);
+    }
+  }
+  return false;
 }
 
 function switchesConnected(switches: PlacedPart[], graph: Map<string, NodeEdge[]>): boolean {

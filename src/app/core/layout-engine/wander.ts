@@ -1067,18 +1067,38 @@ export function inflateLoop(
     const nested = candidates.filter((part) =>
       ['rte', 'xo', 'par', 'cr', 'kel'].some((prefix) => part.instanceId.startsWith(prefix)),
     );
-    const pool = nested.length > 0 && (preferNested || ctx.random() < 0.6) ? nested : candidates;
+    const leftoverRigid = (left['straight-16'] ?? 0) + (left['curve-22'] ?? 0);
+    const fillRoom = leftoverRigid >= 20 || !!preferNear;
+    const main = candidates.filter((part) => !nested.includes(part));
+    const pool =
+      preferNested && !fillRoom && nested.length > 0
+        ? nested
+        : nested.length > 0 && !fillRoom && ctx.random() < 0.6
+          ? nested
+          : candidates;
     let inflated = false;
-    const tries = Math.min(4, pool.length);
-    const ranked = preferNear
-      ? [...pool].sort(
-          (a, b) =>
-            Math.hypot(a.x - preferNear.x, a.y - preferNear.y) -
-            Math.hypot(b.x - preferNear.x, b.y - preferNear.y),
-        )
-      : pool;
+    const tries = Math.min(fillRoom ? 8 : 4, pool.length);
+    const ranked = [...pool].sort((a, b) => {
+      if (fillRoom && main.length >= 4) {
+        const aMain = main.includes(a) ? 0 : 1;
+        const bMain = main.includes(b) ? 0 : 1;
+        if (aMain !== bMain) {
+          return aMain - bMain;
+        }
+      }
+      if (!preferNear) {
+        return 0;
+      }
+      return (
+        Math.hypot(a.x - preferNear.x, a.y - preferNear.y) -
+        Math.hypot(b.x - preferNear.x, b.y - preferNear.y)
+      );
+    });
     for (let attempt = 0; attempt < tries && !inflated; attempt += 1) {
-      const pick = preferNear ? ranked[Math.min(attempt, ranked.length - 1)] : pool[Math.floor(ctx.random() * pool.length)];
+      const pick =
+        fillRoom || preferNear
+          ? ranked[Math.min(attempt, ranked.length - 1)]
+          : pool[Math.floor(ctx.random() * pool.length)];
       const removedPorts = worldPorts(ctx.catalog[pick.partId], pick);
       const without = result.filter((part) => part.instanceId !== pick.instanceId);
       const heads = openPorts(without, ctx.catalog).filter(
@@ -1091,14 +1111,16 @@ export function inflateLoop(
       }
       const leftovers = stockOf(inventory, without);
       const roomy = (leftovers['curve-22'] ?? 0) >= 20 && (leftovers['straight-16'] ?? 0) >= 8;
+      const lotsLeft = (leftovers['curve-22'] ?? 0) >= 12;
       const nestedPick = ['rte', 'xo', 'par', 'cr', 'kel'].some((prefix) =>
         pick.instanceId.startsWith(prefix),
       );
       const joined =
-        preferNested || nestedPick
+        preferNested && nestedPick && !fillRoom
           ? tryOffsetDetour(without, heads[0], heads[1], inventory, ctx)
-          : (tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
-            (roomy || (leftovers['curve-22'] ?? 0) >= 16
+          : (tryWideDetour(without, heads[0], heads[1], inventory, ctx) ??
+            tryOffsetDetour(without, heads[0], heads[1], inventory, ctx) ??
+            (lotsLeft || roomy
               ? ovalJoin(without, heads[0], heads[1], inventory, ctx, 'inf', roomy)
               : null) ??
             joinHeads(without, heads[0], heads[1], inventory, ctx, 'inf'));
@@ -1129,24 +1151,59 @@ function tryOffsetDetour(
   inventory: Record<string, number>,
   ctx: GenContext,
 ): PlacedPart[] | null {
+  return tryBumpDetour(parts, start, target, inventory, ctx, [1, 2, 0], 2);
+}
+
+function tryWideDetour(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const left = stockOf(inventory, parts);
+  if ((left['curve-22'] ?? 0) < 4 && (left['straight-16'] ?? 0) < 3) {
+    return null;
+  }
+  return (
+    tryBumpDetour(parts, start, target, inventory, ctx, [4, 3, 2, 6, 5], 2) ??
+    tryBumpDetour(parts, start, target, inventory, ctx, [3, 2, 4, 1, 0], 4)
+  );
+}
+
+function tryBumpDetour(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  extras: number[],
+  corners: 2 | 4,
+): PlacedPart[] | null {
   const left = stockOf(inventory, parts);
   const curves = left['curve-22'] ?? 0;
   const straights = left['straight-16'] ?? 0;
-  if (curves < 2) {
+  if (curves < corners) {
     return null;
   }
-  const extras = [1, 2, 0].filter((count) => count <= straights);
+  const usable = extras.filter((count) => count <= straights);
   const turns: Array<['a' | 'b', 'a' | 'b']> = [
     ['a', 'b'],
     ['b', 'a'],
   ];
   for (const [first, second] of turns) {
-    for (const extra of extras) {
-      const sequence: Array<{ partId: string; portId?: string }> = [{ partId: 'curve-22', portId: first }];
+    for (const extra of usable) {
+      const sequence: Array<{ partId: string; portId?: string }> = [];
+      const half = corners / 2;
+      for (let i = 0; i < half; i += 1) {
+        sequence.push({ partId: 'curve-22', portId: first });
+      }
       for (let i = 0; i < extra; i += 1) {
         sequence.push({ partId: 'straight-16' });
       }
-      sequence.push({ partId: 'curve-22', portId: second });
+      for (let i = 0; i < half; i += 1) {
+        sequence.push({ partId: 'curve-22', portId: second });
+      }
       const built = attachSequenceFrom(parts, start, sequence, target, ctx, 'det');
       if (built && built.length > parts.length + 1) {
         return built;

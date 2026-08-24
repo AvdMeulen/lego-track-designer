@@ -519,4 +519,44 @@ describe('generateLayout', () => {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }
   });
+
+  it('does not label a passing pair in an L-room as a keerlus', () => {
+    const plan = {
+      ...defaultFloorPlan(),
+      outer: {
+        id: 'outer',
+        points: [
+          { x: -163.6, y: 93.8 },
+          { x: 227.2, y: 93.8 },
+          { x: 227.2, y: 264.5 },
+          { x: 329.8, y: 264.5 },
+          { x: 329.8, y: 419.9 },
+          { x: -163.6, y: 419.9 },
+        ],
+      },
+      obstacles: [
+        {
+          id: 'obs-1',
+          points: [
+            { x: -4.8, y: 197.7 },
+            { x: 120.2, y: 197.7 },
+            { x: 120.2, y: 298.0 },
+            { x: -4.8, y: 298.0 },
+          ],
+        },
+      ],
+    };
+    const layout = generateLayout([...LARGE, { partId: 'flex-track', quantity: 12 }], { targetParkingSpots: 0 }, {
+      seed: 68,
+      timeoutMs: 5000,
+      floorPlan: plan,
+    });
+    expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.parkingSpots.length).toBe(0);
+    expect(layout.reverseOptions.some((option) => option.kind === 'reversing-loop')).toBeFalse();
+    expect(layout.marks.some((mark) => mark.kind === 'reverse')).toBeFalse();
+    for (const part of layout.parts) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
+    }
+  });
 });

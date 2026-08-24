@@ -1,9 +1,12 @@
 import { analyzeLayout } from '../layout-analysis/analyze';
 import { CITY_TRACKS, CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { PlacedPart, TrackLayout } from '../../shared/models/track';
+import { applyFeatures } from './features';
 import { attachPart, worldPorts } from './geometry';
 import { closeWithFlex, flexPathBetween } from './flex-closer';
 import { detectConnections, openPorts } from './connections';
+import { rng } from './place';
+import { ovalJoin, organicRing } from './wander';
 
 const catalog = CITY_TRACKS_BY_ID;
 
@@ -104,38 +107,50 @@ export function reversingLoopFixture(): TrackLayout {
     { instanceId: 's1', partId: 'switch-left', label: 1, x: 0, y: 0, rotation: 0 },
   ];
   const through = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'through')!;
-  const diverge = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'diverge')!;
-  const loop = [
-    'curve-22',
-    'curve-22',
-    'curve-22',
-    'curve-22',
-    'straight-16',
-    'curve-22',
-    'curve-22',
-    'curve-22',
-    'curve-22',
-    'straight-16',
-    'straight-16',
-    'curve-22',
-    'curve-22',
-    'curve-22',
-    'curve-22',
-    'straight-16',
-    'curve-22',
-    'curve-22',
-    'curve-22',
-    'curve-22',
-  ];
-  let head = through;
-  loop.forEach((partId, index) => {
-    const next = attachTo(partId, `loop${index + 1}`, index + 2, head, 'a');
-    parts.push(next);
-    const ports = worldPorts(catalog[partId], next);
-    head = ports.find((port) => port.id !== 'a') ?? ports[ports.length - 1];
-  });
-  parts.push(attachTo('straight-16', 'sid1', parts.length + 1, diverge, 'a'));
-  return analyzeLayout(parts, catalog, [], 'fixture.reverse-loop');
+  const stem = worldPorts(catalog['switch-left'], parts[0]).find((port) => port.id === 'stem')!;
+  const balloon = ovalJoin(
+    parts,
+    through,
+    stem,
+    { 'curve-22': 16, 'straight-16': 8 },
+    {
+      catalog,
+      random: rng(1),
+      deadline: Date.now() + 2000,
+      seq: 1,
+    },
+    'loop',
+  );
+  return analyzeLayout(balloon ?? parts, catalog, [], 'fixture.reverse-loop');
+}
+
+export function passingSidingFixture(): TrackLayout {
+  const ctx = {
+    catalog,
+    random: rng(1),
+    deadline: Date.now() + 3000,
+    seq: 1,
+  };
+  const ring = organicRing({ 'straight-16': 16, 'curve-22': 16 }, ctx);
+  const featured = applyFeatures(
+    ring ?? grow(Array.from({ length: 16 }, () => 'curve-22')),
+    {
+      'straight-16': 16,
+      'curve-22': 32,
+      'switch-left': 1,
+      'switch-right': 1,
+    },
+    {
+      parking: 0,
+      dualRoutes: 1,
+      keerlussen: 0,
+      crossovers: 0,
+      crossings: 0,
+      switchCount: 2,
+    },
+    ctx,
+  );
+  return analyzeLayout(featured, catalog, [], 'fixture.passing-siding');
 }
 
 export function wyeFixture(): TrackLayout {
@@ -176,6 +191,7 @@ export function allFixtures(): { id: string; layout: TrackLayout }[] {
     { id: 'parking', layout: parkingSidingFixture() },
     { id: 'point-to-point', layout: pointToPointFixture() },
     { id: 'reverse-loop', layout: reversingLoopFixture() },
+    { id: 'passing-siding', layout: passingSidingFixture() },
     { id: 'wye', layout: wyeFixture() },
   ];
 }

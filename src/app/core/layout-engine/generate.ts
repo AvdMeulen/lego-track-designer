@@ -252,8 +252,8 @@ function* buildCandidateSteps(
       const empty = uncoveredSpot(parts, ctx.floorPlan);
       const leftover = remainingInventory(inventory, parts);
       const rigidLeft = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
-      const keepFeatures = plan.crossovers + plan.dualRoutes > 0 ? Math.min(24, Math.floor(rigidLeft * 0.25)) : 0;
-      parts = inflateLoop(parts, inventory, ctx, 28, keepPark + keepFeatures, false, empty?.point ?? null);
+      const keepFeatures = plan.crossovers + plan.dualRoutes > 0 ? Math.min(12, Math.floor(rigidLeft * 0.15)) : 0;
+      parts = inflateLoop(parts, inventory, ctx, 36, keepPark + keepFeatures, false, empty?.point ?? null);
       parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
       const closedCore = parts;
       const mainClosed = openPorts(parts, ctx.catalog).length <= plan.parking;
@@ -276,7 +276,19 @@ function* buildCandidateSteps(
           parts = closedCore;
         }
       }
-      parts = inflateLoop(parts, inventory, ctx, 20, keepPark, false, uncoveredSpot(parts, ctx.floorPlan)?.point ?? null);
+      parts = inflateLoop(parts, inventory, ctx, 36, keepPark, false, uncoveredSpot(parts, ctx.floorPlan)?.point ?? null);
+      const stillLeft = remainingInventory(inventory, parts);
+      if ((stillLeft['straight-16'] ?? 0) + (stillLeft['curve-22'] ?? 0) > 24) {
+        parts = inflateLoop(
+          parts,
+          inventory,
+          ctx,
+          24,
+          keepPark,
+          false,
+          uncoveredSpot(parts, ctx.floorPlan)?.point ?? null,
+        );
+      }
       const beforeSpecials = parts;
       parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
       parts = placeParking(parts, inventory, ctx, plan.parking);

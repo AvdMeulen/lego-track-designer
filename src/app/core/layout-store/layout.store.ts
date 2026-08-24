@@ -9,8 +9,10 @@ import {
   clampParkingSpots,
   switchCountOf,
 } from '../../shared/models/track';
+import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { FloorPlanStore } from '../floor-plan/floor-plan.store';
 import { buildSnapshot, DesignerSnapshot } from '../export/snapshot';
+import { refreshReverseAnalysis } from '../layout-analysis/analyze';
 import { emptyLayout, generateLayoutAsync, GeneratePhaseSnapshot } from '../layout-engine/generate';
 import { InventoryStore } from '../inventory/inventory.store';
 import { BrowserStorage } from '../storage/browser-storage';
@@ -80,8 +82,9 @@ export class LayoutStore {
   constructor() {
     const saved = this.storage.read<PersistedLayout>(LAYOUT_STORAGE_KEY);
     if (saved?.layout) {
-      this.layout.set(saved.layout);
-      this.preferences.set(normalizePreferences(saved.preferences, switchCountOf(this.inventory.snapshot())));
+      const prefs = normalizePreferences(saved.preferences, switchCountOf(this.inventory.snapshot()));
+      this.layout.set(refreshReverseAnalysis(saved.layout, CITY_TRACKS_BY_ID, prefs));
+      this.preferences.set(prefs);
       this.seed = saved.seed ?? 1;
       this.usedInventory.set(saved.usedInventory ?? this.inventory.snapshot());
     }
@@ -137,8 +140,9 @@ export class LayoutStore {
 
   importSnapshot(snapshot: DesignerSnapshot): void {
     this.inventory.replaceAll(snapshot.inventory);
-    this.preferences.set(normalizePreferences(snapshot.preferences, switchCountOf(snapshot.inventory)));
-    this.layout.set(snapshot.layout);
+    const prefs = normalizePreferences(snapshot.preferences, switchCountOf(snapshot.inventory));
+    this.preferences.set(prefs);
+    this.layout.set(refreshReverseAnalysis(snapshot.layout, CITY_TRACKS_BY_ID, prefs));
     this.seed = snapshot.seed;
     this.usedInventory.set(snapshot.inventory);
     this.selectedLabel.set(null);
