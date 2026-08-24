@@ -40,12 +40,9 @@
       class="part"
       [attr.data-label]="item.part.label"
       [class.selected]="selectedLabel() === item.part.label"
+      [class.flex-part]="!!item.part.flexPath?.length"
     >
-      @if (item.path) {
-        <path class="flex-outline" [attr.d]="item.path" />
-        <path class="flex-body" [attr.d]="item.path" [attr.stroke]="item.spec.color" />
-      } @else {
-        @if (item.showPolygon) {
+      @if (item.showPolygon) {
           <polygon [attr.points]="item.points" [attr.fill]="item.spec.color" />
         }
         @if (item.curvePath) {
@@ -71,7 +68,6 @@
         @for (d of item.rails; track $index) {
           <path class="rail" [attr.transform]="item.transform" [attr.d]="d" />
         }
-      }
       <circle [attr.cx]="item.center.x" [attr.cy]="item.center.y" r="3.2" class="badge" />
       <text [attr.x]="item.center.x" [attr.y]="item.center.y" class="label">{{ item.part.label }}</text>
     </g>

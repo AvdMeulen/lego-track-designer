@@ -74,25 +74,9 @@
   stroke: none;
 }
 
-.part path.flex-outline,
-.part path.flex-body {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.part path.flex-outline {
-  stroke: #1f1a17;
-  stroke-width: 6.7;
-}
-
-.part path.flex-body {
-  stroke-width: 6;
-}
-
-.part.selected path.flex-outline {
-  stroke: #c91a1a;
-  stroke-width: 8.2;
+.part.flex-part path.rail {
+  stroke-width: 0.85;
+  opacity: 0.72;
 }
 
 .part path.rail {

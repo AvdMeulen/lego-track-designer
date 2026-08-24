@@ -10,6 +10,12 @@ import {
   crossingArtwork,
   crossoverBranchOutline,
   curveSector,
+  distance,
+  flexArtwork,
+  flexBedPolygon,
+  flexCenterline,
+  flexChainTravels,
+  flexRunSlices,
   headingDelta,
   polygonCenter,
   portsConnect,
@@ -153,5 +159,95 @@ describe('geometry', () => {
     const center = polygonCenter(CITY_TRACKS_BY_ID['straight-16'].footprint);
     expect(center.x).toBeCloseTo(8, 5);
     expect(center.y).toBeCloseTo(0, 5);
+  });
+
+  it('draws an 8-stud-wide flex bed whose caps face the neighbor headings', () => {
+    const path = [
+      { x: 0, y: 0 },
+      { x: 8, y: 3 },
+      { x: 16, y: 0 },
+    ];
+    const polygon = flexBedPolygon(path, 4, 0, 0);
+    const startCap = [...polygon].sort((a, b) => distance(a, path[0]) - distance(b, path[0])).slice(0, 2);
+    const endCap = [...polygon].sort((a, b) => distance(a, path[2]) - distance(b, path[2])).slice(0, 2);
+    expect(distance(startCap[0], startCap[1])).toBeCloseTo(8, 5);
+    expect(distance(endCap[0], endCap[1])).toBeCloseTo(8, 5);
+    expect((startCap[0].y + startCap[1].y) / 2).toBeCloseTo(0, 5);
+    expect((endCap[0].y + endCap[1].y) / 2).toBeCloseTo(0, 5);
+  });
+
+  it('leaves a flex centerline along the rigid neighbor heading', () => {
+    const start = { x: 187.09575401358748, y: 364.1593137367624 };
+    const end = { x: 199.44219915844212, y: 361.57293718983516 };
+    const center = flexCenterline([start, end], 337.5, 337.5);
+    const first = headingDelta(
+      337.5,
+      (Math.atan2(center[1].y - center[0].y, center[1].x - center[0].x) * 180) / Math.PI,
+    );
+    const last = headingDelta(
+      337.5,
+      (Math.atan2(center[center.length - 1].y - center[center.length - 2].y, center[center.length - 1].x - center[center.length - 2].x) *
+        180) /
+        Math.PI,
+    );
+    expect(first).toBeLessThan(2);
+    expect(last).toBeLessThan(2);
+  });
+
+  it('walks through a flex chain to the rigid neighbor headings', () => {
+    const straight = CITY_TRACKS_BY_ID['straight-16'];
+    const curve = CITY_TRACKS_BY_ID['curve-22'];
+    const flex = CITY_TRACKS_BY_ID['flex-track'];
+    const byId = (id: string) =>
+      id === 'straight-16' ? straight : id === 'curve-22' ? curve : flex;
+    const parts = [
+      { instanceId: 's', partId: 'straight-16', label: 1, x: 0, y: 0, rotation: 337.5 },
+      {
+        instanceId: 'flex-a',
+        partId: 'flex-track',
+        label: 2,
+        x: 16,
+        y: 0,
+        rotation: 0,
+        flexPath: [
+          { x: 16, y: 0 },
+          { x: 24, y: 1 },
+          { x: 32, y: 0 },
+        ],
+      },
+      {
+        instanceId: 'flex-b',
+        partId: 'flex-track',
+        label: 3,
+        x: 32,
+        y: 0,
+        rotation: 0,
+        flexPath: [
+          { x: 32, y: 0 },
+          { x: 40, y: 1 },
+          { x: 48, y: 0 },
+        ],
+      },
+      { instanceId: 'c', partId: 'curve-22', label: 4, x: 48, y: 0, rotation: 337.5 },
+    ];
+    const connections = [
+      { fromInstanceId: 's', fromPortId: 'b', toInstanceId: 'flex-a', toPortId: 'a' },
+      { fromInstanceId: 'flex-a', fromPortId: 'b', toInstanceId: 'flex-b', toPortId: 'a' },
+      { fromInstanceId: 'flex-b', fromPortId: 'b', toInstanceId: 'c', toPortId: 'a' },
+    ];
+    const [start, end] = flexChainTravels(parts[1], connections, parts, byId);
+    expect(start).toBeCloseTo(337.5, 5);
+    expect(end).toBeCloseTo(337.5, 5);
+    const art = flexArtwork(parts[1].flexPath!, start, end);
+    expect(art.beds.length).toBe(1);
+    expect(art.rails.length).toBeGreaterThan(2);
+    const slices = flexRunSlices(
+      [parts[1].flexPath!, parts[2].flexPath!],
+      start,
+      end,
+    );
+    expect(slices.length).toBe(2);
+    const joint = slices[0][slices[0].length - 1];
+    expect(distance(joint, slices[1][0])).toBeLessThan(0.05);
   });
 });

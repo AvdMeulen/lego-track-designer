@@ -9,6 +9,10 @@ import {
   curveArtworkPath,
   curveEnd,
   crossingArtwork,
+  flexBedPolygon,
+  flexRun,
+  flexRunSlices,
+  flexSliceModel,
   polygonCenter,
   switchArtwork,
   transformPolygon,
@@ -46,7 +50,7 @@ export class TrackCanvas {
     const parts = this.layout().parts;
     const points = parts.flatMap((part) => {
       if (part.flexPath?.length) {
-        return part.flexPath;
+        return flexBedPolygon(part.flexPath);
       }
       const spec = this.catalog.byId(part.partId);
       return allFootprints(spec).flatMap((polygon) => transformPolygon(polygon, part));
@@ -109,11 +113,22 @@ export class TrackCanvas {
   readonly drawnParts = computed(() =>
     this.layout().parts.map((part) => {
       const spec = this.catalog.byId(part.partId);
-      const polygon = part.flexPath?.length
-        ? part.flexPath
-        : transformPolygon(spec.footprint, part);
+      const layout = this.layout();
+      const flex = part.flexPath?.length
+        ? flexRun(part, layout.connections, layout.parts, (id) => this.catalog.byId(id))
+        : undefined;
+      const flexSlice = flex
+        ? flexRunSlices(flex.paths, flex.startTravel, flex.endTravel)[flex.index]
+        : undefined;
+      const flexDraw = flexSlice
+        ? flexSliceModel(
+            flexSlice,
+            flex?.index === 0 ? flex.startTravel : undefined,
+            flex && flex.index === flex.paths.length - 1 ? flex.endTravel : undefined,
+          )
+        : undefined;
+      const polygon = flexDraw?.polygon ?? transformPolygon(spec.footprint, part);
       const points = polygon.map((point) => `${point.x},${point.y}`).join(' ');
-      const path = part.flexPath?.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`).join(' ');
       const special =
         spec.category === 'switch'
           ? switchArtwork(spec.id === 'switch-right' ? -1 : 1)
@@ -121,10 +136,10 @@ export class TrackCanvas {
             ? crossoverArtwork()
             : spec.category === 'crossing'
               ? crossingArtwork()
-              : { beds: [] as string[], rails: [] as string[] };
+              : (flexDraw?.artwork ?? { beds: [] as string[], rails: [] as string[] });
       const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
       const showPolygon = spec.category !== 'curve' && special.beds.length === 0;
-      const transform = `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
+      const transform = part.flexPath?.length ? '' : `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
       const outline = special.outline ?? '';
       const centerLocal =
         spec.category === 'curve'
@@ -132,14 +147,13 @@ export class TrackCanvas {
           : spec.category === 'double-crossover'
             ? { x: 0, y: 8 }
             : polygonCenter(spec.footprint);
-      const center = part.flexPath?.length
-        ? part.flexPath[Math.floor(part.flexPath.length / 2)]
+      const center = flexSlice
+        ? flexSlice[Math.floor(flexSlice.length / 2)]
         : transformPolygon([centerLocal], part)[0];
       return {
         part,
         spec,
         points,
-        path,
         curvePath,
         beds: special.beds,
         rails: special.rails,
