@@ -92,6 +92,17 @@
   opacity: 0.85;
 }
 
+.seam {
+  fill: none;
+  stroke: #1f1a17;
+  stroke-width: 0.35;
+  pointer-events: none;
+}
+
+.part-badge {
+  cursor: pointer;
+}
+
 .badge {
   fill: #fffdf8;
   stroke: #1f1a17;

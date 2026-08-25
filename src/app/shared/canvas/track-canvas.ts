@@ -131,7 +131,7 @@ export class TrackCanvas {
               ? crossingArtwork()
               : flex && flexArt
                 ? {
-                    beds: flex.index === flex.paths.length - 1 ? [flexArt.fill] : [],
+                    beds: flex.index === 0 ? [flexArt.fill] : [],
                     rails: [] as string[],
                   }
                 : { beds: [] as string[], rails: [] as string[] };
@@ -159,6 +159,7 @@ export class TrackCanvas {
         showPolygon,
         transform,
         center,
+        seams: flex && flex.index === 0 ? (flexArt?.seams ?? []) : [],
       };
     }),
   );

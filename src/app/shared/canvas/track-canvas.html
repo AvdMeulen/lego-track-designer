@@ -68,6 +68,21 @@
         @for (d of item.rails; track $index) {
           <path class="rail" [attr.transform]="item.transform" [attr.d]="d" />
         }
+    </g>
+  }
+
+  @for (item of drawnParts(); track 'seam-' + item.part.instanceId) {
+    @for (d of item.seams; track $index) {
+      <path class="seam" [attr.d]="d" />
+    }
+  }
+
+  @for (item of drawnParts(); track 'badge-' + item.part.instanceId) {
+    <g
+      class="part-badge"
+      [attr.data-label]="item.part.label"
+      [class.selected]="selectedLabel() === item.part.label"
+    >
       <circle [attr.cx]="item.center.x" [attr.cy]="item.center.y" r="3.2" class="badge" />
       <text [attr.x]="item.center.x" [attr.y]="item.center.y" class="label">{{ item.part.label }}</text>
     </g>

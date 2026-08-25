@@ -496,15 +496,35 @@ export function flexRunArtwork(
   endTravelDeg?: number,
   startPoint?: Point,
   endPoint?: Point,
-): { slices: Point[][]; bed: Point[]; fill: string } {
+): { slices: Point[][]; bed: Point[]; fill: string; seams: string[] } {
   const { start, end } = flexRunEnds(paths, startPoint, endPoint);
   const center = flexCenterline([start, end], startTravelDeg, endTravelDeg, 32);
   const bed = offsetPolyline(center, 4, startTravelDeg, endTravelDeg);
+  const slices = flexRunSlices(paths, startTravelDeg, endTravelDeg, startPoint, endPoint);
   return {
-    slices: flexRunSlices(paths, startTravelDeg, endTravelDeg, startPoint, endPoint),
+    slices,
     bed,
     fill: pointsToPath(bed),
+    seams: flexSeams(slices),
   };
+}
+
+function flexSeams(slices: Point[][], half = 4): string[] {
+  const seams: string[] = [];
+  for (let i = 0; i < slices.length - 1; i += 1) {
+    const slice = slices[i];
+    const next = slices[i + 1];
+    const joint = slice[slice.length - 1];
+    const prev = slice[slice.length - 2] ?? joint;
+    const ahead = next[1] ?? next[0] ?? joint;
+    const dx = ahead.x - prev.x;
+    const dy = ahead.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const left = { x: joint.x + (-dy / len) * half, y: joint.y + (dx / len) * half };
+    const right = { x: joint.x - (-dy / len) * half, y: joint.y - (dx / len) * half };
+    seams.push(`M ${left.x} ${left.y} L ${right.x} ${right.y}`);
+  }
+  return seams;
 }
 
 /** 8-stud-wide bed along a flex centerline, end caps aligned to travel headings. */
