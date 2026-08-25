@@ -249,8 +249,8 @@ describe('geometry', () => {
     expect(art.rails.length).toBe(0);
     expect(art.outline).toBeUndefined();
     const runArt = flexRunArtwork(run.paths, run.startTravel, run.endTravel, run.startPoint, run.endPoint);
-    expect(runArt.fills.length).toBe(2);
-    expect(runArt.outline).toContain('Z');
+    expect(runArt.fill).toContain('Z');
+    expect(runArt.bed.length).toBeGreaterThan(8);
     const slices = flexRunSlices(run.paths, start, end, run.startPoint, run.endPoint);
     expect(slices.length).toBe(2);
     const joint = slices[0][slices[0].length - 1];

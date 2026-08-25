@@ -120,7 +120,7 @@ export class TrackCanvas {
         ? flexRunArtwork(flex.paths, flex.startTravel, flex.endTravel, flex.startPoint, flex.endPoint)
         : undefined;
       const flexSlice = flexArt?.slices[flex?.index ?? 0];
-      const polygon = flexArt?.polygons[flex?.index ?? 0] ?? transformPolygon(spec.footprint, part);
+      const polygon = flexArt?.bed ?? transformPolygon(spec.footprint, part);
       const points = polygon.map((point) => `${point.x},${point.y}`).join(' ');
       const special =
         spec.category === 'switch'
@@ -131,13 +131,12 @@ export class TrackCanvas {
               ? crossingArtwork()
               : flex && flexArt
                 ? {
-                    beds: [flexArt.fills[flex.index]],
+                    beds: flex.index === flex.paths.length - 1 ? [flexArt.fill] : [],
                     rails: [] as string[],
-                    outline: flex.index === flex.paths.length - 1 ? flexArt.outline : '',
                   }
                 : { beds: [] as string[], rails: [] as string[] };
       const curvePath = spec.category === 'curve' ? curveArtworkPath() : '';
-      const showPolygon = spec.category !== 'curve' && special.beds.length === 0;
+      const showPolygon = spec.category !== 'curve' && special.beds.length === 0 && !part.flexPath?.length;
       const transform = part.flexPath?.length ? '' : `translate(${part.x} ${part.y}) rotate(${part.rotation})`;
       const outline = special.outline ?? '';
       const centerLocal =

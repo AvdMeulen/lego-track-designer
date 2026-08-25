@@ -469,14 +469,9 @@ export function flexRunSlices(
   }
   const full = flexCenterline([start, end], startTravelDeg, endTravelDeg, 24 * paths.length);
   const total = polylineLength(full);
-  return paths.map((_, index) => {
-    const slice = slicePolyline(full, (total * index) / paths.length, (total * (index + 1)) / paths.length);
-    return padFlexEnds(
-      slice,
-      index === 0 ? startTravelDeg : undefined,
-      index === paths.length - 1 ? endTravelDeg : undefined,
-    );
-  });
+  return paths.map((_, index) =>
+    slicePolyline(full, (total * index) / paths.length, (total * (index + 1)) / paths.length),
+  );
 }
 
 export function flexSliceModel(
@@ -494,35 +489,21 @@ export function flexSliceModel(
   };
 }
 
-/** Fills per flex piece plus one closed outline around the whole run. */
+/** One bed for the whole flex run so slice fills cannot fight the outline. */
 export function flexRunArtwork(
   paths: Point[][],
   startTravelDeg?: number,
   endTravelDeg?: number,
   startPoint?: Point,
   endPoint?: Point,
-): { slices: Point[][]; polygons: Point[][]; fills: string[]; outline: string } {
-  const slices = flexRunSlices(paths, startTravelDeg, endTravelDeg, startPoint, endPoint);
+): { slices: Point[][]; bed: Point[]; fill: string } {
   const { start, end } = flexRunEnds(paths, startPoint, endPoint);
-  const outlineBed = offsetPolyline(
-    flexPreparedPath([start, end], startTravelDeg, endTravelDeg),
-    4,
-    startTravelDeg,
-    endTravelDeg,
-  );
-  const polygons = slices.map((slice, index) =>
-    offsetPolyline(
-      slice,
-      4,
-      index === 0 ? startTravelDeg : undefined,
-      index === slices.length - 1 ? endTravelDeg : undefined,
-    ),
-  );
+  const center = flexCenterline([start, end], startTravelDeg, endTravelDeg, 32);
+  const bed = offsetPolyline(center, 4, startTravelDeg, endTravelDeg);
   return {
-    slices,
-    polygons,
-    fills: polygons.map((polygon) => pointsToPath(polygon)),
-    outline: pointsToPath(outlineBed),
+    slices: flexRunSlices(paths, startTravelDeg, endTravelDeg, startPoint, endPoint),
+    bed,
+    fill: pointsToPath(bed),
   };
 }
 
