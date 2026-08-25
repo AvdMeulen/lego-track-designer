@@ -1,9 +1,8 @@
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
-import { placementHitsRoom } from '../floor-plan/space';
-import { openPorts } from './connections';
+import { connectedGroupCount, openPorts } from './connections';
 import { worldPorts } from './geometry';
 import { GenContext, nextId, rng } from './place';
-import { ovalJoin, organicRing, wanderJoin, fillEmptySpace, plantInnerRing } from './wander';
+import { ovalJoin, organicRing, wanderJoin, fillEmptySpace, spliceParallelRun } from './wander';
 
 describe('ovalJoin', () => {
   it('closes a switch through-route with the reversing-loop balloon', () => {
@@ -124,46 +123,25 @@ describe('fillEmptySpace', () => {
   });
 });
 
-describe('plantInnerRing', () => {
-  it('sits leftover track in empty floor around furniture', () => {
-    const plan = {
-      id: 'room-default',
-      name: 'Room',
-      outer: {
-        id: 'outer',
-        points: [
-          { x: -163.6, y: 93.8 },
-          { x: 227.2, y: 93.8 },
-          { x: 227.2, y: 264.5 },
-          { x: 329.8, y: 264.5 },
-          { x: 329.8, y: 419.9 },
-          { x: -163.6, y: 419.9 },
-        ],
-      },
-      obstacles: [
-        {
-          id: 'obs-1',
-          points: [
-            { x: -4.8, y: 197.7 },
-            { x: 120.2, y: 197.7 },
-            { x: 120.2, y: 298.0 },
-            { x: -4.8, y: 298.0 },
-          ],
-        },
-      ],
-    };
+describe('spliceParallelRun', () => {
+  it('keeps leftover fill on the same circuit', () => {
     const ctx: GenContext = {
       catalog: CITY_TRACKS_BY_ID,
-      random: rng(8),
-      deadline: Date.now() + 2500,
+      random: rng(4),
+      deadline: Date.now() + 4000,
       seq: 1,
-      floorPlan: plan,
     };
-    const planted = plantInnerRing([], { 'straight-16': 12, 'curve-22': 32 }, ctx);
-    expect(planted.length).toBeGreaterThan(12);
-    expect(openPorts(planted, CITY_TRACKS_BY_ID).length).toBe(0);
-    for (const part of planted) {
-      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
-    }
+    const ring = organicRing({ 'straight-16': 24, 'curve-22': 16 }, ctx);
+    expect(ring).toBeTruthy();
+    const filled = spliceParallelRun(
+      ring!,
+      { 'straight-16': 50, 'curve-22': 80 },
+      { ...ctx, deadline: Date.now() + 2500 },
+      0,
+    );
+    expect(openPorts(filled, CITY_TRACKS_BY_ID).length).toBe(0);
+    expect(connectedGroupCount(filled, CITY_TRACKS_BY_ID)).toBe(1);
+    expect(filled.length).toBeGreaterThanOrEqual(ring!.length);
+    expect(filled.every((part) => !part.instanceId.startsWith('in'))).toBeTrue();
   });
 });

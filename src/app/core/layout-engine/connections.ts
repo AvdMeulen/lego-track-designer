@@ -84,3 +84,31 @@ export function unusedItems(inventory: Record<string, number>, placed: PlacedPar
     .filter(([, quantity]) => quantity > 0)
     .map(([partId, quantity]) => ({ partId, quantity }));
 }
+
+/** Number of disjoint track pieces (parking sidings count as connected through their switch). */
+export function connectedGroupCount(placed: PlacedPart[], catalog: Record<string, TrackPart>): number {
+  if (placed.length === 0) {
+    return 0;
+  }
+  const parent = new Map(placed.map((part) => [part.instanceId, part.instanceId]));
+  const find = (id: string): string => {
+    let root = parent.get(id) ?? id;
+    while (parent.get(root) !== root) {
+      const next = parent.get(root) ?? root;
+      parent.set(root, parent.get(next) ?? next);
+      root = next;
+    }
+    return root;
+  };
+  const union = (a: string, b: string) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) {
+      parent.set(ra, rb);
+    }
+  };
+  for (const connection of detectConnections(placed, catalog)) {
+    union(connection.fromInstanceId, connection.toInstanceId);
+  }
+  return new Set(placed.map((part) => find(part.instanceId))).size;
+}

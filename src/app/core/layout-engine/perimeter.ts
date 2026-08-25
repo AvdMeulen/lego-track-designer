@@ -5,7 +5,7 @@ import { openPorts, remainingInventory } from './connections';
 import { closeOpenHeads } from './explore';
 import { CURVE_ANGLE, distance, headingDelta, normalizeHeading, WorldPort, worldPorts } from './geometry';
 import { GenContext, nextId, placeOnHead, tryAttach } from './place';
-import { headingSteps, joinHeads, ovalJoin, plantInnerRing } from './wander';
+import { fillEmptySpace, headingSteps, joinHeads, ovalJoin, spliceParallelRun } from './wander';
 
 const WALL_INSET = 16;
 const CORNER_LEAD = 56;
@@ -25,26 +25,64 @@ export function tracePerimeter(inventory: Record<string, number>, ctx: GenContex
   return walkGreedy(inventory, ctx);
 }
 
-/** Fill empty floor inside the main ring with leftover track. */
+/** Spend leftover pieces as connected inward / parallel runs on the main circuit. */
 export function addInnerLoops(
   parts: PlacedPart[],
   inventory: Record<string, number>,
   ctx: GenContext,
-  _keepStraights = 0,
+  keepStraights = 0,
 ): PlacedPart[] {
-  if (!ctx.floorPlan?.obstacles.length) {
+  if (!ctx.floorPlan) {
     return parts;
   }
-  return plantInnerRing(parts, inventory, ctx);
+  const opened = openPorts(parts, ctx.catalog).length;
+  let result = fillEmptySpace(parts, inventory, ctx, 6, keepStraights, null);
+  result = spliceParallelRun(result, inventory, ctx, keepStraights);
+  if (openPorts(result, ctx.catalog).length > opened) {
+    return parts;
+  }
+  return result;
 }
 
 function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
-  const ring = ctx.floorPlan!.outer.points;
-  const inset = rotateToLongestEdge(insetVertices(ring, WALL_INSET));
+  const outer = ctx.floorPlan!.outer.points;
+  const varied = walkOrthoRing(
+    outer,
+    WALL_INSET,
+    inventory,
+    { ...ctx, deadline: Math.min(ctx.deadline, Date.now() + 700) },
+    true,
+  );
+  if (varied.length >= 8 && openPorts(varied, ctx.catalog).length === 0) {
+    return varied;
+  }
+  const classic = walkOrthoRing(outer, WALL_INSET, inventory, ctx, false);
+  if (classic.length >= 8 && openPorts(classic, ctx.catalog).length === 0) {
+    return classic;
+  }
+  return classic.length >= varied.length ? classic : varied;
+}
+
+function walkOrthoRing(
+  ring: Point[],
+  insetDist: number,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  varyStart: boolean,
+): PlacedPart[] {
+  let inset = insetVertices(ring, insetDist);
   if (inset.length < 4) {
     return [];
   }
-  const start = seedAlongWall(midEdgePoints(inset), inventory, ctx);
+  if (varyStart) {
+    inset = rotateToEdge(inset, pickStartEdge(inset, ctx.random));
+    if (ctx.random() < 0.5) {
+      inset = reverseWalk(inset);
+    }
+  } else {
+    inset = rotateToLongestEdge(inset);
+  }
+  const start = seedAlongWall(midEdgeFallback(inset), inventory, ctx);
   if (!start) {
     return [];
   }
@@ -56,6 +94,10 @@ function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPa
     { left: 'a', right: 'b' },
     { left: 'b', right: 'a' },
   ];
+  if (ctx.random() < 0.5) {
+    mappings.reverse();
+  }
+  const closed: PlacedPart[][] = [];
   let best: { parts: PlacedPart[]; head: WorldPort } | null = null;
   for (const ports of mappings) {
     if (Date.now() >= ctx.deadline - 200) {
@@ -66,19 +108,24 @@ function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPa
     if (!walked) {
       continue;
     }
-    if (!best || walked.parts.length > best.parts.length) {
-      best = walked;
+    const liveTail = openPorts(walked.parts, ctx.catalog).find(
+      (port) => port.instanceId === start.part.instanceId && port.id === tail.id,
+    );
+    const sealed = liveTail ? closeGap(walked.parts, walked.head, liveTail, inventory, ctx) : null;
+    if (sealed && openPorts(sealed, ctx.catalog).length === 0) {
+      closed.push(sealed);
+      continue;
     }
+    const candidate = sealed ?? walked.parts;
+    if (!best || candidate.length > best.parts.length) {
+      best = { parts: candidate, head: walked.head };
+    }
+  }
+  if (closed.length > 0) {
+    return closed[Math.floor(ctx.random() * closed.length)] ?? closed[0];
   }
   if (!best) {
     return [start.part];
-  }
-  const liveTail = openPorts(best.parts, ctx.catalog).find(
-    (port) => port.instanceId === start.part.instanceId && port.id === tail.id,
-  );
-  const closed = liveTail ? closeGap(best.parts, best.head, liveTail, inventory, ctx) : null;
-  if (closed) {
-    return closed;
   }
   return best.parts.length >= 8 ? closeOpenHeads(best.parts, inventory, ctx, 0) : best.parts;
 }
@@ -205,6 +252,24 @@ function walkWaypoints(
   return parts.length >= 16 ? closeOpenHeads(parts, inventory, ctx, 0) : parts;
 }
 
+function pickStartEdge(points: Point[], random: () => number): number {
+  const edges = points.map((point, index) => ({
+    index,
+    length: distance(point, points[(index + 1) % points.length]),
+  }));
+  const long = edges.filter((edge) => edge.length >= 48);
+  const pool = long.length ? long : edges;
+  return pool[Math.floor(random() * pool.length)]?.index ?? 0;
+}
+
+function rotateToEdge(points: Point[], start: number): Point[] {
+  if (points.length < 2) {
+    return points;
+  }
+  const index = ((start % points.length) + points.length) % points.length;
+  return [...points.slice(index), ...points.slice(0, index)];
+}
+
 function rotateToLongestEdge(points: Point[]): Point[] {
   if (points.length < 2) {
     return points;
@@ -218,10 +283,17 @@ function rotateToLongestEdge(points: Point[]): Point[] {
       best = index;
     }
   }
-  return [...points.slice(best), ...points.slice(0, best)];
+  return rotateToEdge(points, best);
 }
 
-function midEdgePoints(points: Point[]): Point[] {
+function reverseWalk(points: Point[]): Point[] {
+  if (points.length < 2) {
+    return points;
+  }
+  return [points[1], points[0], ...points.slice(2).reverse()];
+}
+
+function midEdgeFallback(points: Point[]): Point[] {
   const a = points[0];
   const b = points[1] ?? points[0];
   const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -332,8 +404,9 @@ function orderedWaypoints(plan: FloorPlan, random: () => number): Array<{ x: num
       startAt = index;
     }
   }
-  startAt = (startAt + Math.floor(random() * 2)) % raw.length;
-  return [...raw.slice(startAt), ...raw.slice(0, startAt)];
+  startAt = (startAt + Math.floor(random() * raw.length)) % raw.length;
+  const ordered = [...raw.slice(startAt), ...raw.slice(0, startAt)];
+  return random() < 0.5 ? ordered.slice().reverse() : ordered;
 }
 
 function thinWaypoints(
@@ -365,23 +438,29 @@ function seedAlongWall(
   const b = waypoints[1] ?? waypoints[0];
   const along = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
   const headings = [0, 1, -1, 2, -2, 8].map((step) => snapHeading(along + step * CURVE_ANGLE));
-  for (const rotation of headings) {
-    const part: PlacedPart = {
-      instanceId: nextId(ctx, 'pr'),
-      partId,
-      label: 1,
-      x: a.x,
-      y: a.y,
-      rotation,
-    };
-    if (ctx.floorPlan && placementHitsRoom(part, ctx.catalog, ctx.floorPlan)) {
-      continue;
+  const origins = [0, 0.5, 0.3, 0.7, 0.2, 0.8].map((t) => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+  }));
+  for (const origin of origins) {
+    for (const rotation of headings) {
+      const part: PlacedPart = {
+        instanceId: nextId(ctx, 'pr'),
+        partId,
+        label: 1,
+        x: origin.x,
+        y: origin.y,
+        rotation,
+      };
+      if (ctx.floorPlan && placementHitsRoom(part, ctx.catalog, ctx.floorPlan)) {
+        continue;
+      }
+      const ports = worldPorts(ctx.catalog[partId], part);
+      const head = ports.reduce((best, port) =>
+        headingDelta(port.heading, along) < headingDelta(best.heading, along) ? port : best,
+      );
+      return { part, head };
     }
-    const ports = worldPorts(ctx.catalog[partId], part);
-    const head = ports.reduce((best, port) =>
-      headingDelta(port.heading, along) < headingDelta(best.heading, along) ? port : best,
-    );
-    return { part, head };
   }
   return null;
 }

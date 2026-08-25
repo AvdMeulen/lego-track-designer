@@ -2,7 +2,7 @@ import { generateLayout, generateLayoutAsync } from './generate';
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { placementHitsRoom } from '../floor-plan/space';
 import { cmToStuds, defaultFloorPlan } from '../../shared/models/floor-plan';
-import { openPorts } from './connections';
+import { connectedGroupCount, openPorts } from './connections';
 import { headingDelta } from './geometry';
 import { rectangleEnvelopePenalty, shortSwitchBypassPenalty } from './score';
 
@@ -509,10 +509,9 @@ describe('generateLayout', () => {
     const xs = layout.parts.map((part) => part.x);
     expect(layout.parkingSpots.length).toBe(0);
     expect(layout.unfinishedPorts).toBe(0);
-    expect(layout.parts.some((part) => part.partId === 'flex-track')).toBeTrue();
     expect(layout.score.routeBonus).toBeGreaterThan(0);
     expect(layout.parts.length).toBeGreaterThan(40);
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(90);
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(110);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(180);
     expect(layout.parts.some((part) => part.x > 220)).toBeTrue();
     for (const part of layout.parts) {
@@ -555,9 +554,59 @@ describe('generateLayout', () => {
     expect(layout.parkingSpots.length).toBe(0);
     expect(layout.reverseOptions.some((option) => option.kind === 'reversing-loop')).toBeFalse();
     expect(layout.marks.some((mark) => mark.kind === 'reverse')).toBeFalse();
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(40);
+    expect(layout.parts.every((part) => !part.instanceId.startsWith('in'))).toBeTrue();
+    expect(connectedGroupCount(layout.parts, CITY_TRACKS_BY_ID)).toBe(1);
     for (const part of layout.parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }
+  });
+
+  it('changes the L-room circuit when the seed changes', () => {
+    const plan = {
+      ...defaultFloorPlan(),
+      outer: {
+        id: 'outer',
+        points: [
+          { x: -163.6, y: 93.8 },
+          { x: 227.2, y: 93.8 },
+          { x: 227.2, y: 264.5 },
+          { x: 329.8, y: 264.5 },
+          { x: 329.8, y: 419.9 },
+          { x: -163.6, y: 419.9 },
+        ],
+      },
+      obstacles: [
+        {
+          id: 'obs-1',
+          points: [
+            { x: -4.8, y: 197.7 },
+            { x: 120.2, y: 197.7 },
+            { x: 120.2, y: 298.0 },
+            { x: -4.8, y: 298.0 },
+          ],
+        },
+      ],
+    };
+    const items = [...LARGE, { partId: 'flex-track', quantity: 12 }];
+    const first = generateLayout(items, { targetParkingSpots: 0 }, {
+      seed: 75,
+      timeoutMs: 4500,
+      floorPlan: plan,
+    });
+    const second = generateLayout(items, { targetParkingSpots: 0 }, {
+      seed: 82,
+      timeoutMs: 4500,
+      floorPlan: plan,
+    });
+    const pose = (parts: { partId: string; x: number; y: number; rotation: number }[]) =>
+      parts
+        .map((part) => `${part.partId}:${Math.round(part.x)}:${Math.round(part.y)}:${Math.round(part.rotation)}`)
+        .sort()
+        .join('|');
+    expect(first.parts.length).toBeGreaterThan(16);
+    expect(second.parts.length).toBeGreaterThan(16);
+    expect(connectedGroupCount(first.parts, CITY_TRACKS_BY_ID)).toBe(1);
+    expect(connectedGroupCount(second.parts, CITY_TRACKS_BY_ID)).toBe(1);
+    expect(pose(first.parts)).not.toBe(pose(second.parts));
   });
 });

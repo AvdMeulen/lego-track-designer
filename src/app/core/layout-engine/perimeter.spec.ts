@@ -1,7 +1,7 @@
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
 import { defaultFloorPlan } from '../../shared/models/floor-plan';
 import { placementHitsRoom, wallWaypoints } from '../floor-plan/space';
-import { openPorts } from './connections';
+import { connectedGroupCount, openPorts } from './connections';
 import { rng } from './place';
 import { closeOpenHeads } from './explore';
 import { addInnerLoops, insetVertices, isRectilinear, tracePerimeter } from './perimeter';
@@ -86,10 +86,41 @@ describe('tracePerimeter', () => {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, USER_L)).toBeFalse();
     }
   });
+
+  it('starts from a different wall when the seed changes', () => {
+    const ctx66 = {
+      catalog: CITY_TRACKS_BY_ID,
+      random: rng(66),
+      deadline: Date.now() + 2500,
+      seq: 0,
+      floorPlan: USER_L,
+    };
+    const ctx91 = {
+      ...ctx66,
+      random: rng(91),
+      deadline: Date.now() + 2500,
+    };
+    const a = tracePerimeter(LARGE, {
+      ...ctx66,
+      deadline: Date.now() + 2500,
+    });
+    const b = tracePerimeter(LARGE, {
+      ...ctx91,
+      deadline: Date.now() + 2500,
+    });
+    const pose = (parts: { partId: string; x: number; y: number; rotation: number }[]) =>
+      parts
+        .map((part) => `${part.partId}:${Math.round(part.x)}:${Math.round(part.y)}:${Math.round(part.rotation)}`)
+        .sort()
+        .join('|');
+    expect(a.length).toBeGreaterThan(16);
+    expect(b.length).toBeGreaterThan(16);
+    expect(pose(a)).not.toBe(pose(b));
+  });
 });
 
 describe('addInnerLoops', () => {
-  it('walks leftover track around a furniture obstacle', () => {
+  it('keeps leftover fill connected to the circuit', () => {
     const plan = {
       ...USER_L,
       outer: {
@@ -125,11 +156,12 @@ describe('addInnerLoops', () => {
     const outer = closeOpenHeads(tracePerimeter(LARGE, ctx), LARGE, { ...ctx, deadline: Date.now() + 2000 }, 0);
     expect(outer.length).toBeGreaterThan(24);
     const filled = addInnerLoops(outer, LARGE, { ...ctx, seq: 200, deadline: Date.now() + 4000 }, 0);
-    expect(filled.length).toBeGreaterThan(outer.length + 10);
+    expect(connectedGroupCount(filled, CITY_TRACKS_BY_ID)).toBe(1);
     expect(openPorts(filled, CITY_TRACKS_BY_ID).length).toBeLessThanOrEqual(
       Math.max(2, openPorts(outer, CITY_TRACKS_BY_ID).length),
     );
-    expect(filled.some((part) => part.instanceId.startsWith('in'))).toBeTrue();
+    expect(filled.every((part) => !part.instanceId.startsWith('in'))).toBeTrue();
+    expect(filled.length).toBeGreaterThanOrEqual(outer.length);
     for (const part of filled) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }

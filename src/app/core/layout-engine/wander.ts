@@ -1,7 +1,5 @@
-import { FloorPlan } from '../../shared/models/floor-plan';
 import { PlacedPart, TrackPart } from '../../shared/models/track';
 import { distanceToFloorEdge, floorBounds, placementHitsRoom, pointInPolygon } from '../floor-plan/space';
-import { placementCollides } from './collide';
 import { detectConnections, openPorts, remainingInventory } from './connections';
 import {
   CURVE_ANGLE,
@@ -1167,7 +1165,7 @@ export function fillEmptySpace(
     const left = stockOf(inventory, result);
     const leftover = (left['straight-16'] ?? 0) + (left['curve-22'] ?? 0);
     const spendableS = Math.max(0, (left['straight-16'] ?? 0) - keepStraights);
-    if (spendableS < 4 || leftover <= keepStraights + 8) {
+    if (spendableS < 2 || leftover <= keepStraights + 8) {
       break;
     }
     const runs = rankStraightRuns(colinearStraightRuns(result, ctx.catalog), preferNear, ctx.random);
@@ -1179,9 +1177,11 @@ export function fillEmptySpace(
       if (filled || Date.now() >= ctx.deadline - 220) {
         break;
       }
-      const sizes = [...new Set([run.length, run.length - 1, 6, 5, 7, 8].filter(
-        (size) => size >= 5 && size <= run.length,
-      ))];
+      const sizes = [
+        ...new Set(
+          [run.length, run.length - 1, 12, 10, 8, 7, 6, 5].filter((size) => size >= 5 && size <= run.length),
+        ),
+      ];
       for (const size of sizes) {
         const from = Math.max(0, Math.floor((run.length - size) / 2));
         const span = run.slice(from, from + size);
@@ -1230,136 +1230,90 @@ export function fillEmptySpace(
   return result;
 }
 
-/** Drop closed leftover ovals into empty floor so unused curves and straights still get built. */
-export function plantInnerRing(
+/** Splice leftover pieces into a connected parallel run along the main circuit. */
+export function spliceParallelRun(
   parts: PlacedPart[],
   inventory: Record<string, number>,
   ctx: GenContext,
+  keepStraights = 0,
 ): PlacedPart[] {
+  if (!joinedCoreCloses(parts, ctx.catalog)) {
+    return parts;
+  }
   let result = parts;
-  for (let step = 0; step < 2; step += 1) {
-    if (Date.now() >= ctx.deadline - 240) {
+  for (let step = 0; step < 3 && Date.now() < ctx.deadline - 240; step += 1) {
+    const left = stockOf(inventory, result);
+    const spendableS = Math.max(0, (left['straight-16'] ?? 0) - keepStraights);
+    if ((left['curve-22'] ?? 0) < 16 || spendableS < 4) {
       break;
     }
-    const next = plantOneInnerRing(result, inventory, ctx);
-    if (next.length === result.length) {
+    const preferNear = uncoveredCenter(result, ctx);
+    const runs = rankStraightRuns(colinearStraightRuns(result, ctx.catalog), preferNear, ctx.random);
+    let grew = false;
+    for (const run of runs.slice(0, 8)) {
+      if (grew || Date.now() >= ctx.deadline - 200) {
+        break;
+      }
+      if (run.length < 6) {
+        continue;
+      }
+      const sizes = [...new Set([run.length, run.length - 1, 12, 10, 8, 6].filter((size) => size >= 6 && size <= run.length))];
+      for (const size of sizes) {
+        const from = Math.max(0, Math.floor((run.length - size) * ctx.random()));
+        const span = run.slice(from, from + size);
+        const spanIds = new Set(span.map((part) => part.instanceId));
+        const without = result.filter((part) => !spanIds.has(part.instanceId));
+        const heads = spanHeads(without, span, ctx);
+        if (heads.length < 2) {
+          continue;
+        }
+        const joined =
+          tryLongParallel(without, heads[0], heads[1], inventory, ctx, preferNear, keepStraights) ??
+          tryLongParallel(without, heads[1], heads[0], inventory, ctx, preferNear, keepStraights) ??
+          tryPocketDetour(without, heads[0], heads[1], inventory, ctx, preferNear, keepStraights) ??
+          tryPocketDetour(without, heads[1], heads[0], inventory, ctx, preferNear, keepStraights);
+        if (
+          joined &&
+          joined.length > result.length &&
+          joinedCoreCloses(joined, ctx.catalog)
+        ) {
+          result = joined;
+          grew = true;
+          break;
+        }
+      }
+    }
+    if (!grew) {
       break;
     }
-    result = next;
   }
   return result;
 }
 
-function plantOneInnerRing(
-  parts: PlacedPart[],
-  inventory: Record<string, number>,
-  ctx: GenContext,
-): PlacedPart[] {
+function uncoveredCenter(parts: PlacedPart[], ctx: GenContext): { x: number; y: number } | null {
   if (!ctx.floorPlan) {
-    return parts;
+    const cx = parts.reduce((sum, part) => sum + part.x, 0) / Math.max(1, parts.length);
+    const cy = parts.reduce((sum, part) => sum + part.y, 0) / Math.max(1, parts.length);
+    return { x: cx, y: cy };
   }
-  const left = remainingInventory(inventory, parts);
-  const curves = left['curve-22'] ?? 0;
-  const straights = left['straight-16'] ?? 0;
-  if (curves < 16) {
-    return parts;
-  }
-  const spots = openFloorSpots(parts, ctx.floorPlan);
-  if (spots.length === 0) {
-    return parts;
-  }
-  const buildCtx: GenContext = {
-    ...ctx,
-    floorPlan: null,
-    origin: { x: 0, y: 0 },
-  };
-  const stocks: Array<Record<string, number>> = [{ 'straight-16': 0, 'curve-22': 16 }];
-  if (straights >= 4) {
-    stocks.push({ 'straight-16': 4, 'curve-22': 16 });
-  }
-  if (straights >= 8) {
-    stocks.push({ 'straight-16': 8, 'curve-22': 16 });
-  }
-  for (const stock of stocks) {
-    if (Date.now() >= ctx.deadline - 180) {
-      break;
-    }
-    const ring =
-      stock['straight-16'] > 0
-        ? organicRing(stock, buildCtx, 'in')
-        : curveCircle(buildCtx, 16, 'in');
-    ctx.seq = buildCtx.seq;
-    if (!ring || openPorts(ring, ctx.catalog).length > 0) {
-      continue;
-    }
-    const placed = sitRingInFloor(ring, parts, spots, ctx);
-    if (placed) {
-      return placed;
-    }
-  }
-  return parts;
-}
-
-function sitRingInFloor(
-  ring: PlacedPart[],
-  existing: PlacedPart[],
-  spots: Array<{ x: number; y: number; clearance: number }>,
-  ctx: GenContext,
-): PlacedPart[] | null {
-  const rcx = ring.reduce((sum, part) => sum + part.x, 0) / ring.length;
-  const rcy = ring.reduce((sum, part) => sum + part.y, 0) / ring.length;
-  const extent = ring.reduce(
-    (max, part) => Math.max(max, Math.hypot(part.x - rcx, part.y - rcy)),
-    0,
-  );
-  for (const spot of spots) {
-    if (spot.clearance < extent + 12) {
-      continue;
-    }
-    const dx = spot.x - rcx;
-    const dy = spot.y - rcy;
-    const moved = ring.map((part) => ({ ...part, x: part.x + dx, y: part.y + dy }));
-    if (moved.every((part) => ringPartFits(part, existing, ctx))) {
-      return [...existing, ...moved];
-    }
-  }
-  return null;
-}
-
-function ringPartFits(part: PlacedPart, existing: PlacedPart[], ctx: GenContext): boolean {
-  if (ctx.floorPlan && placementHitsRoom(part, ctx.catalog, ctx.floorPlan)) {
-    return false;
-  }
-  return !placementCollides(part, existing, ctx.catalog, []);
-}
-
-function openFloorSpots(
-  parts: PlacedPart[],
-  plan: FloorPlan,
-): Array<{ x: number; y: number; clearance: number }> {
-  const bounds = floorBounds(plan);
-  const spots: Array<{ x: number; y: number; clearance: number }> = [];
-  for (let y = bounds.minY + 24; y < bounds.maxY - 24; y += 16) {
-    for (let x = bounds.minX + 24; x < bounds.maxX - 24; x += 16) {
+  const bounds = floorBounds(ctx.floorPlan);
+  let best: { x: number; y: number; score: number } | null = null;
+  for (let y = bounds.minY + 24; y < bounds.maxY - 24; y += 24) {
+    for (let x = bounds.minX + 24; x < bounds.maxX - 24; x += 24) {
       const point = { x, y };
-      if (!pointInPolygon(point, plan.outer.points, false)) {
+      if (!pointInPolygon(point, ctx.floorPlan.outer.points, false)) {
         continue;
       }
-      if (plan.obstacles.some((shape) => pointInPolygon(point, shape.points, true))) {
+      if (ctx.floorPlan.obstacles.some((shape) => pointInPolygon(point, shape.points, true))) {
         continue;
       }
-      const wall = distanceToFloorEdge(point, plan);
-      const track = parts.reduce(
-        (min, part) => Math.min(min, Math.hypot(part.x - x, part.y - y)),
-        1e9,
-      );
-      const clearance = Math.min(wall, track);
-      if (clearance >= 40) {
-        spots.push({ ...point, clearance });
+      const track = parts.reduce((min, part) => Math.min(min, Math.hypot(part.x - x, part.y - y)), 1e9);
+      if (!best || track > best.score) {
+        best = { ...point, score: track };
       }
     }
   }
-  return spots.sort((a, b) => b.clearance - a.clearance).slice(0, 40);
+  return best;
 }
 
 function colinearStraightRuns(parts: PlacedPart[], catalog: Record<string, TrackPart>): PlacedPart[][] {
@@ -1470,6 +1424,59 @@ function tryOffsetDetour(
   return tryBumpDetour(parts, start, target, inventory, ctx, [1, 2, 0], 2);
 }
 
+function tryLongParallel(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  toward: { x: number; y: number } | null,
+  keepStraights = 0,
+): PlacedPart[] | null {
+  const gap = distance(start, target);
+  if (gap < 96 || gap > 420) {
+    return null;
+  }
+  if (headingDelta(start.heading, target.heading + 180) > 18) {
+    return null;
+  }
+  const left = stockOf(inventory, parts);
+  const curves = left['curve-22'] ?? 0;
+  const straights = Math.max(0, (left['straight-16'] ?? 0) - keepStraights);
+  if (curves < 16 || straights < 8) {
+    return null;
+  }
+  const alongGuess = Math.max(0, Math.round((gap - 80) / 16));
+  const alongs = [alongGuess, alongGuess + 1, alongGuess - 1].filter(
+    (value, index, all) => value >= 0 && all.indexOf(value) === index,
+  );
+  const turns: Array<'a' | 'b'> = toward ? preferTurnToward(start, toward) : ['a', 'b'];
+  for (const inward of turns) {
+    const other: 'a' | 'b' = inward === 'a' ? 'b' : 'a';
+    for (const along of alongs) {
+      const depths = [8, 7, 6, 5, 4].filter((depth) => depth * 2 + along <= straights);
+      for (const depth of depths) {
+        if (Date.now() >= ctx.deadline - 200) {
+          return null;
+        }
+        const sequence: Array<{ partId: string; portId?: string }> = [];
+        pushCorners(sequence, inward, 4);
+        pushStraights(sequence, depth);
+        pushCorners(sequence, other, 4);
+        pushStraights(sequence, along);
+        pushCorners(sequence, other, 4);
+        pushStraights(sequence, depth);
+        pushCorners(sequence, inward, 4);
+        const built = attachSequenceFrom(parts, start, sequence, target, ctx, 'par');
+        if (built && built.length >= parts.length + 16 + depth) {
+          return built;
+        }
+      }
+    }
+  }
+  return wanderJoin(parts, start, target, inventory, ctx, 'par', 'inward', 10);
+}
+
 function tryPocketDetour(
   parts: PlacedPart[],
   start: WorldPort,
@@ -1480,7 +1487,7 @@ function tryPocketDetour(
   keepStraights = 0,
 ): PlacedPart[] | null {
   const gap = distance(start, target);
-  if (gap < 72 || gap > 192) {
+  if (gap < 64 || gap > 400) {
     return null;
   }
   if (headingDelta(start.heading, target.heading + 180) > 18) {
@@ -1493,14 +1500,14 @@ function tryPocketDetour(
     return null;
   }
   const alongGuess = Math.max(0, Math.round((gap - 80) / 16));
-  const alongs = [alongGuess, alongGuess + 1, alongGuess - 1].filter(
+  const alongs = [alongGuess, alongGuess + 1, alongGuess - 1, alongGuess + 2].filter(
     (value, index, all) => value >= 0 && all.indexOf(value) === index,
   );
   const turns: Array<'a' | 'b'> = toward ? preferTurnToward(start, toward) : ['a', 'b'];
   for (const inward of turns) {
     const other: 'a' | 'b' = inward === 'a' ? 'b' : 'a';
     for (const along of alongs) {
-      const depths = [2, 3, 4, 5].filter((depth) => depth * 2 + along <= straights);
+      const depths = [2, 3, 4, 5, 6, 7, 8].filter((depth) => depth * 2 + along <= straights);
       for (const depth of depths) {
         if (Date.now() >= ctx.deadline - 200) {
           return null;

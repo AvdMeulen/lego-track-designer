@@ -10,7 +10,7 @@ import {
 } from '../../shared/models/track';
 import { remainingInventory, unusedItems, openPorts } from './connections';
 import { closeOpenHeads, exploreSpace, uncoveredSpot } from './explore';
-import { tracePerimeter } from './perimeter';
+import { addInnerLoops, tracePerimeter } from './perimeter';
 import { approachThenFlex, closeWithFlex } from './flex-closer';
 import { applyCrossover, applyRouteFeatures, placeParking, placeRemainingSpecials } from './features';
 import { GenContext, inventoryMap, rng } from './place';
@@ -19,11 +19,9 @@ import { planTopology } from './topology';
 import { growStockTree } from './tree';
 import {
   curveCircle,
-  fillEmptySpace,
   inflateLoop,
   loopCloses,
   organicRing,
-  plantInnerRing,
   pointToPoint,
   wanderHomeLoop,
 } from './wander';
@@ -88,20 +86,7 @@ function finalize(
     }
   }
   const withFlex = closeWithFlex(ready, catalog, remainingInventory(inventory, ready), allowFlex, floorPlan);
-  let filled = withFlex;
-  if (floorPlan && openPorts(filled, catalog).length === 0) {
-    const stock = remainingInventory(inventory, filled);
-    if ((stock['curve-22'] ?? 0) >= 16) {
-      filled = plantInnerRing(filled, inventory, {
-        catalog,
-        random: rng((filled.length * 9973 + (stock['curve-22'] ?? 0) * 13) >>> 0),
-        deadline: Date.now() + 800,
-        seq: 20000,
-        floorPlan,
-      });
-    }
-  }
-  const labeled = filled.map((part, index) => ({ ...part, label: index + 1 }));
+  const labeled = withFlex.map((part, index) => ({ ...part, label: index + 1 }));
   const layout = analyzeLayout(labeled, catalog, unusedItems(inventory, labeled), message, prefs);
   layout.notes = preferenceNotes(layout, prefs, inventory);
   if (layout.notes.length) {
@@ -300,15 +285,7 @@ function* buildCandidateSteps(
       }
       const fillCtx: GenContext = { ...ctx, deadline: Date.now() + 900 };
       if (openPorts(parts, ctx.catalog).length === 0) {
-        parts = plantInnerRing(parts, inventory, fillCtx);
-        parts = fillEmptySpace(
-          parts,
-          inventory,
-          fillCtx,
-          4,
-          keepPark,
-          uncoveredSpot(parts, ctx.floorPlan)?.point ?? null,
-        );
+        parts = addInnerLoops(parts, inventory, fillCtx, keepPark);
       }
       parts = inflateLoop(parts, inventory, ctx, 20, keepPark, false, uncoveredSpot(parts, ctx.floorPlan)?.point ?? null);
       const stillLeft = remainingInventory(inventory, parts);
@@ -337,15 +314,7 @@ function* buildCandidateSteps(
       if ((afterPark['straight-16'] ?? 0) + (afterPark['curve-22'] ?? 0) > 16) {
         const extraCtx: GenContext = { ...ctx, deadline: Date.now() + 700 };
         if (openPorts(parts, ctx.catalog).length === 0) {
-          parts = plantInnerRing(parts, inventory, extraCtx);
-          parts = fillEmptySpace(
-            parts,
-            inventory,
-            extraCtx,
-            4,
-            0,
-            uncoveredSpot(parts, ctx.floorPlan)?.point ?? null,
-          );
+          parts = addInnerLoops(parts, inventory, extraCtx, 0);
         }
         if (plan.parking > 0) {
           const retryPark = placeParking(parts, inventory, ctx, plan.parking);
@@ -477,8 +446,8 @@ function* generateLayoutSteps(
       layout.score.routeBonus > 0 &&
       layout.unfinishedPorts === 0 &&
       layout.parkingSpots.length === prefs.targetParkingSpots &&
-      unusedRigidTrack(layout) < 8 &&
-      poseKey(layout.parts) !== previousKey
+      poseKey(layout.parts) !== previousKey &&
+      (options.floorPlan || unusedRigidTrack(layout) < 8)
     ) {
       break;
     }
