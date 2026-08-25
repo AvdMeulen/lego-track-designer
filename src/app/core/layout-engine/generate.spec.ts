@@ -548,13 +548,14 @@ describe('generateLayout', () => {
     };
     const layout = generateLayout([...LARGE, { partId: 'flex-track', quantity: 12 }], { targetParkingSpots: 0 }, {
       seed: 68,
-      timeoutMs: 5000,
+      timeoutMs: 5500,
       floorPlan: plan,
     });
     expect(layout.unfinishedPorts).toBe(0);
     expect(layout.parkingSpots.length).toBe(0);
     expect(layout.reverseOptions.some((option) => option.kind === 'reversing-loop')).toBeFalse();
     expect(layout.marks.some((mark) => mark.kind === 'reverse')).toBeFalse();
+    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(40);
     for (const part of layout.parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }

@@ -17,7 +17,16 @@ import { GenContext, inventoryMap, rng } from './place';
 import { layoutIsValid, scoreLayout } from './score';
 import { planTopology } from './topology';
 import { growStockTree } from './tree';
-import { curveCircle, inflateLoop, loopCloses, organicRing, pointToPoint, wanderHomeLoop } from './wander';
+import {
+  curveCircle,
+  fillEmptySpace,
+  inflateLoop,
+  loopCloses,
+  organicRing,
+  plantInnerRing,
+  pointToPoint,
+  wanderHomeLoop,
+} from './wander';
 
 export type GeneratePhase =
   | 'core'
@@ -79,7 +88,20 @@ function finalize(
     }
   }
   const withFlex = closeWithFlex(ready, catalog, remainingInventory(inventory, ready), allowFlex, floorPlan);
-  const labeled = withFlex.map((part, index) => ({ ...part, label: index + 1 }));
+  let filled = withFlex;
+  if (floorPlan && openPorts(filled, catalog).length === 0) {
+    const stock = remainingInventory(inventory, filled);
+    if ((stock['curve-22'] ?? 0) >= 16) {
+      filled = plantInnerRing(filled, inventory, {
+        catalog,
+        random: rng((filled.length * 9973 + (stock['curve-22'] ?? 0) * 13) >>> 0),
+        deadline: Date.now() + 800,
+        seq: 20000,
+        floorPlan,
+      });
+    }
+  }
+  const labeled = filled.map((part, index) => ({ ...part, label: index + 1 }));
   const layout = analyzeLayout(labeled, catalog, unusedItems(inventory, labeled), message, prefs);
   layout.notes = preferenceNotes(layout, prefs, inventory);
   if (layout.notes.length) {
@@ -276,14 +298,26 @@ function* buildCandidateSteps(
           parts = closedCore;
         }
       }
-      parts = inflateLoop(parts, inventory, ctx, 36, keepPark, false, uncoveredSpot(parts, ctx.floorPlan)?.point ?? null);
+      const fillCtx: GenContext = { ...ctx, deadline: Date.now() + 900 };
+      if (openPorts(parts, ctx.catalog).length === 0) {
+        parts = plantInnerRing(parts, inventory, fillCtx);
+        parts = fillEmptySpace(
+          parts,
+          inventory,
+          fillCtx,
+          4,
+          keepPark,
+          uncoveredSpot(parts, ctx.floorPlan)?.point ?? null,
+        );
+      }
+      parts = inflateLoop(parts, inventory, ctx, 20, keepPark, false, uncoveredSpot(parts, ctx.floorPlan)?.point ?? null);
       const stillLeft = remainingInventory(inventory, parts);
       if ((stillLeft['straight-16'] ?? 0) + (stillLeft['curve-22'] ?? 0) > 24) {
         parts = inflateLoop(
           parts,
           inventory,
           ctx,
-          24,
+          16,
           keepPark,
           false,
           uncoveredSpot(parts, ctx.floorPlan)?.point ?? null,
@@ -298,6 +332,27 @@ function* buildCandidateSteps(
         openPorts(parts, ctx.catalog).length > plan.parking
       ) {
         parts = beforeSpecials;
+      }
+      const afterPark = remainingInventory(inventory, parts);
+      if ((afterPark['straight-16'] ?? 0) + (afterPark['curve-22'] ?? 0) > 16) {
+        const extraCtx: GenContext = { ...ctx, deadline: Date.now() + 700 };
+        if (openPorts(parts, ctx.catalog).length === 0) {
+          parts = plantInnerRing(parts, inventory, extraCtx);
+          parts = fillEmptySpace(
+            parts,
+            inventory,
+            extraCtx,
+            4,
+            0,
+            uncoveredSpot(parts, ctx.floorPlan)?.point ?? null,
+          );
+        }
+        if (plan.parking > 0) {
+          const retryPark = placeParking(parts, inventory, ctx, plan.parking);
+          if (openPorts(retryPark, ctx.catalog).length <= plan.parking) {
+            parts = retryPark;
+          }
+        }
       }
       applyPause(clock, ctx, ctx, yield { phase: 'parking', attempt, parts });
       return parts;

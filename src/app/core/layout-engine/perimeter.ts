@@ -5,7 +5,7 @@ import { openPorts, remainingInventory } from './connections';
 import { closeOpenHeads } from './explore';
 import { CURVE_ANGLE, distance, headingDelta, normalizeHeading, WorldPort, worldPorts } from './geometry';
 import { GenContext, nextId, placeOnHead, tryAttach } from './place';
-import { headingSteps, joinHeads, ovalJoin } from './wander';
+import { headingSteps, joinHeads, ovalJoin, plantInnerRing } from './wander';
 
 const WALL_INSET = 16;
 const CORNER_LEAD = 56;
@@ -23,6 +23,19 @@ export function tracePerimeter(inventory: Record<string, number>, ctx: GenContex
     }
   }
   return walkGreedy(inventory, ctx);
+}
+
+/** Fill empty floor inside the main ring with leftover track. */
+export function addInnerLoops(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  _keepStraights = 0,
+): PlacedPart[] {
+  if (!ctx.floorPlan?.obstacles.length) {
+    return parts;
+  }
+  return plantInnerRing(parts, inventory, ctx);
 }
 
 function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
@@ -260,6 +273,7 @@ function turnToHeading(
   target: number,
   inventory: Record<string, number>,
   ctx: GenContext,
+  prefix = 'pr',
 ): { parts: PlacedPart[]; head: WorldPort } | null {
   const steps = headingSteps(head.heading, target);
   if (Math.abs(steps) < 1) {
@@ -275,7 +289,7 @@ function turnToHeading(
     let tip = head;
     let ok = true;
     for (let index = 0; index < count; index += 1) {
-      const move = placeOnHead('curve-22', portId, tip, trail, ctx, 'pr');
+      const move = placeOnHead('curve-22', portId, tip, trail, ctx, prefix);
       if (!move) {
         ok = false;
         break;
@@ -429,17 +443,18 @@ function closeGap(
   to: WorldPort,
   inventory: Record<string, number>,
   ctx: GenContext,
+  prefix = 'pr',
 ): PlacedPart[] | null {
   const face = normalizeHeading(to.heading + 180);
-  const turned = turnToHeading(parts, from, face, inventory, ctx);
+  const turned = turnToHeading(parts, from, face, inventory, ctx, prefix);
   const pretuned = turned ?? { parts, head: from };
   const joined =
-    joinHeads(pretuned.parts, pretuned.head, to, inventory, ctx, 'pr') ??
-    joinHeads(parts, from, to, inventory, ctx, 'pr') ??
-    joinHeads(parts, to, from, inventory, ctx, 'pr') ??
-    ovalJoin(parts, from, to, inventory, ctx, 'pr', false) ??
-    ovalJoin(parts, to, from, inventory, ctx, 'pr', false) ??
-    ovalJoin(pretuned.parts, pretuned.head, to, inventory, ctx, 'pr', true);
+    joinHeads(pretuned.parts, pretuned.head, to, inventory, ctx, prefix) ??
+    joinHeads(parts, from, to, inventory, ctx, prefix) ??
+    joinHeads(parts, to, from, inventory, ctx, prefix) ??
+    ovalJoin(parts, from, to, inventory, ctx, prefix, false) ??
+    ovalJoin(parts, to, from, inventory, ctx, prefix, false) ??
+    ovalJoin(pretuned.parts, pretuned.head, to, inventory, ctx, prefix, true);
   if (joined && openPorts(joined, ctx.catalog).length === 0) {
     return joined;
   }

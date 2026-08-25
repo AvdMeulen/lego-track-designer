@@ -1,8 +1,9 @@
 import { CITY_TRACKS_BY_ID } from '../catalog/city-tracks';
+import { placementHitsRoom } from '../floor-plan/space';
 import { openPorts } from './connections';
 import { worldPorts } from './geometry';
 import { GenContext, nextId, rng } from './place';
-import { ovalJoin, organicRing, wanderJoin } from './wander';
+import { ovalJoin, organicRing, wanderJoin, fillEmptySpace, plantInnerRing } from './wander';
 
 describe('ovalJoin', () => {
   it('closes a switch through-route with the reversing-loop balloon', () => {
@@ -93,5 +94,76 @@ describe('wanderJoin', () => {
     expect(joined).toBeTruthy();
     expect(openPorts(joined!, CITY_TRACKS_BY_ID).length).toBe(0);
     expect(joined!.length).toBeGreaterThan(without.length);
+  });
+});
+
+describe('fillEmptySpace', () => {
+  it('spends leftover pieces as an inward detour on a closed oval', () => {
+    const ctx: GenContext = {
+      catalog: CITY_TRACKS_BY_ID,
+      random: rng(4),
+      deadline: Date.now() + 4000,
+      seq: 1,
+    };
+    const ring = organicRing({ 'straight-16': 24, 'curve-22': 16 }, ctx);
+    expect(ring).toBeTruthy();
+    const center = {
+      x: ring!.reduce((sum, part) => sum + part.x, 0) / ring!.length,
+      y: ring!.reduce((sum, part) => sum + part.y, 0) / ring!.length,
+    };
+    const filled = fillEmptySpace(
+      ring!,
+      { 'straight-16': 50, 'curve-22': 80 },
+      { ...ctx, deadline: Date.now() + 2500 },
+      4,
+      0,
+      center,
+    );
+    expect(openPorts(filled, CITY_TRACKS_BY_ID).length).toBe(0);
+    expect(filled.length).toBeGreaterThanOrEqual(ring!.length);
+  });
+});
+
+describe('plantInnerRing', () => {
+  it('sits leftover track in empty floor around furniture', () => {
+    const plan = {
+      id: 'room-default',
+      name: 'Room',
+      outer: {
+        id: 'outer',
+        points: [
+          { x: -163.6, y: 93.8 },
+          { x: 227.2, y: 93.8 },
+          { x: 227.2, y: 264.5 },
+          { x: 329.8, y: 264.5 },
+          { x: 329.8, y: 419.9 },
+          { x: -163.6, y: 419.9 },
+        ],
+      },
+      obstacles: [
+        {
+          id: 'obs-1',
+          points: [
+            { x: -4.8, y: 197.7 },
+            { x: 120.2, y: 197.7 },
+            { x: 120.2, y: 298.0 },
+            { x: -4.8, y: 298.0 },
+          ],
+        },
+      ],
+    };
+    const ctx: GenContext = {
+      catalog: CITY_TRACKS_BY_ID,
+      random: rng(8),
+      deadline: Date.now() + 2500,
+      seq: 1,
+      floorPlan: plan,
+    };
+    const planted = plantInnerRing([], { 'straight-16': 12, 'curve-22': 32 }, ctx);
+    expect(planted.length).toBeGreaterThan(12);
+    expect(openPorts(planted, CITY_TRACKS_BY_ID).length).toBe(0);
+    for (const part of planted) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
+    }
   });
 });
