@@ -11,6 +11,8 @@ const WALL_INSET = 16;
 const CORNER_LEAD = 56;
 const LOOK_AHEAD = 80;
 const REACH = 22;
+/** Outer bay side after which a 16-stud inset still fits a closed ring. */
+const MIN_BAY_SIDE = 128;
 
 export function tracePerimeter(inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
   if (!ctx.floorPlan) {
@@ -46,21 +48,26 @@ export function addInnerLoops(
 
 function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
   const outer = ctx.floorPlan!.outer.points;
-  const varied = walkOrthoRing(
-    outer,
-    WALL_INSET,
-    inventory,
-    { ...ctx, deadline: Math.min(ctx.deadline, Date.now() + 700) },
-    true,
-  );
-  if (varied.length >= 8 && openPorts(varied, ctx.catalog).length === 0) {
-    return varied;
+  const bays = lBayRectangles(outer).filter((bay) => !ringHitsObstacle(bay, ctx.floorPlan!));
+  const rings = [...bays, outer];
+  const n = rings.length;
+  const choice =
+    ctx.variant != null ? ((ctx.variant % n) + n) % n : Math.floor(ctx.random() * n);
+  const preferred = rings[choice] ?? outer;
+  let best: PlacedPart[] = [];
+  for (const varyStart of [false, true]) {
+    if (Date.now() >= ctx.deadline) {
+      break;
+    }
+    const walked = walkOrthoRing(preferred, WALL_INSET, inventory, ctx, varyStart);
+    if (walked.length >= 8 && openPorts(walked, ctx.catalog).length === 0) {
+      return walked;
+    }
+    if (walked.length > best.length) {
+      best = walked;
+    }
   }
-  const classic = walkOrthoRing(outer, WALL_INSET, inventory, ctx, false);
-  if (classic.length >= 8 && openPorts(classic, ctx.catalog).length === 0) {
-    return classic;
-  }
-  return classic.length >= varied.length ? classic : varied;
+  return best.length >= 8 ? closeOpenHeads(best, inventory, ctx, 0) : best;
 }
 
 function walkOrthoRing(
@@ -100,7 +107,7 @@ function walkOrthoRing(
   const closed: PlacedPart[][] = [];
   let best: { parts: PlacedPart[]; head: WorldPort } | null = null;
   for (const ports of mappings) {
-    if (Date.now() >= ctx.deadline - 200) {
+    if (Date.now() >= ctx.deadline) {
       break;
     }
     const sequence = orthoSequence(inset, ports.left, ports.right);
@@ -122,12 +129,12 @@ function walkOrthoRing(
     }
   }
   if (closed.length > 0) {
-    return closed[Math.floor(ctx.random() * closed.length)] ?? closed[0];
+    return closed[0];
   }
   if (!best) {
     return [start.part];
   }
-  return best.parts.length >= 8 ? closeOpenHeads(best.parts, inventory, ctx, 0) : best.parts;
+  return best.parts;
 }
 
 function orthoSequence(inset: Point[], left: 'a' | 'b', right: 'a' | 'b'): Array<{ partId: string; portId?: string }> {
@@ -162,7 +169,7 @@ function attachRun(
   let trail = parts;
   let tip = head;
   for (const item of sequence) {
-    if (Date.now() >= ctx.deadline - 80) {
+    if (Date.now() >= ctx.deadline) {
       break;
     }
     const left = remainingInventory(inventory, trail);
@@ -260,6 +267,76 @@ function pickStartEdge(points: Point[], random: () => number): number {
   const long = edges.filter((edge) => edge.length >= 48);
   const pool = long.length ? long : edges;
   return pool[Math.floor(random() * pool.length)]?.index ?? 0;
+}
+
+function lBayRectangles(points: Point[]): Point[][] {
+  const xs = [...new Set(points.map((point) => point.x))].sort((a, b) => a - b);
+  const ys = [...new Set(points.map((point) => point.y))].sort((a, b) => a - b);
+  if (xs.length !== 3 || ys.length !== 3) {
+    return [];
+  }
+  const clockwise = polygonArea(points) < 0;
+  const bays: Point[][] = [];
+  for (let j = 0; j < 2; j += 1) {
+    const midLeft = { x: (xs[0] + xs[1]) / 2, y: (ys[j] + ys[j + 1]) / 2 };
+    const midRight = { x: (xs[1] + xs[2]) / 2, y: (ys[j] + ys[j + 1]) / 2 };
+    if (pointInPolygon(midLeft, points, true) && pointInPolygon(midRight, points, true)) {
+      bays.push(rectRing(xs[0], ys[j], xs[2], ys[j + 1], clockwise));
+    }
+  }
+  for (let i = 0; i < 2; i += 1) {
+    const midLow = { x: (xs[i] + xs[i + 1]) / 2, y: (ys[0] + ys[1]) / 2 };
+    const midHigh = { x: (xs[i] + xs[i + 1]) / 2, y: (ys[1] + ys[2]) / 2 };
+    if (pointInPolygon(midLow, points, true) && pointInPolygon(midHigh, points, true)) {
+      bays.push(rectRing(xs[i], ys[0], xs[i + 1], ys[2], clockwise));
+    }
+  }
+  return bays.filter(
+    (bay) =>
+      bay.every((point) => pointInPolygon(point, points, true)) &&
+      distance(bay[0], bay[1]) >= MIN_BAY_SIDE &&
+      distance(bay[1], bay[2]) >= MIN_BAY_SIDE,
+  );
+}
+
+function ringHitsObstacle(ring: Point[], plan: FloorPlan): boolean {
+  if (plan.obstacles.length === 0) {
+    return false;
+  }
+  const inset = insetVertices(ring, WALL_INSET);
+  if (inset.length < 4) {
+    return true;
+  }
+  for (let index = 0; index < inset.length; index += 1) {
+    const a = inset[index];
+    const b = inset[(index + 1) % inset.length];
+    for (const t of [0, 0.25, 0.5, 0.75]) {
+      const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      if (plan.obstacles.some((obstacle) => pointInPolygon(point, obstacle.points, true))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function rectRing(minX: number, minY: number, maxX: number, maxY: number, clockwise: boolean): Point[] {
+  const ccw: Point[] = [
+    { x: minX, y: minY },
+    { x: maxX, y: minY },
+    { x: maxX, y: maxY },
+    { x: minX, y: maxY },
+  ];
+  return clockwise ? [ccw[0], ccw[3], ccw[2], ccw[1]] : ccw;
+}
+
+function polygonArea(points: Point[]): number {
+  let area = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const next = points[(index + 1) % points.length];
+    area += points[index].x * next.y - next.x * points[index].y;
+  }
+  return area / 2;
 }
 
 function rotateToEdge(points: Point[], start: number): Point[] {

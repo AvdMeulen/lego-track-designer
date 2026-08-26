@@ -12,6 +12,8 @@ export interface GenContext {
   seq: number;
   floorPlan?: FloorPlan | null;
   origin?: { x: number; y: number };
+  /** Stable salt so consecutive seeds walk different room rings. */
+  variant?: number;
 }
 
 export function seedOrigin(ctx: GenContext): { x: number; y: number } {

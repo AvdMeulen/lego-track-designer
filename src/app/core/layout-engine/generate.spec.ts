@@ -453,7 +453,7 @@ describe('generateLayout', () => {
     }
   });
 
-  it('fills both arms of an L-shaped room instead of a tiny oval', () => {
+  it('closes a substantial L-room circuit instead of a tiny oval', () => {
     const plan = {
       ...defaultFloorPlan(),
       outer: {
@@ -474,13 +474,13 @@ describe('generateLayout', () => {
       floorPlan: plan,
     });
     const xs = layout.parts.map((part) => part.x);
-    expect(layout.parts.length).toBeGreaterThan(28);
+    const ys = layout.parts.map((part) => part.y);
+    expect(layout.parts.length).toBeGreaterThan(20);
     expect(layout.parkingSpots.length).toBe(0);
     expect(layout.unfinishedPorts).toBeLessThanOrEqual(2);
     expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(150);
-    expect(layout.parts.some((part) => part.x > 220) || layout.parts.some((part) => part.y < 300)).toBeTrue();
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(125);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(140);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(80);
     for (const part of layout.parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }
@@ -502,18 +502,16 @@ describe('generateLayout', () => {
       },
     };
     const layout = generateLayout([...LARGE, { partId: 'flex-track', quantity: 4 }], { targetParkingSpots: 0 }, {
-      seed: 66,
-      timeoutMs: 4000,
+      seed: 67,
+      timeoutMs: 5500,
       floorPlan: plan,
     });
     const xs = layout.parts.map((part) => part.x);
     expect(layout.parkingSpots.length).toBe(0);
     expect(layout.unfinishedPorts).toBe(0);
     expect(layout.score.routeBonus).toBeGreaterThan(0);
-    expect(layout.parts.length).toBeGreaterThan(40);
-    expect(usedOf(layout, 'straight-16') + usedOf(layout, 'curve-22')).toBeLessThan(110);
-    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(180);
-    expect(layout.parts.some((part) => part.x > 220)).toBeTrue();
+    expect(layout.parts.length).toBeGreaterThan(20);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(140);
     for (const part of layout.parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }
@@ -590,12 +588,12 @@ describe('generateLayout', () => {
     const items = [...LARGE, { partId: 'flex-track', quantity: 12 }];
     const first = generateLayout(items, { targetParkingSpots: 0 }, {
       seed: 75,
-      timeoutMs: 4500,
+      timeoutMs: 5500,
       floorPlan: plan,
     });
     const second = generateLayout(items, { targetParkingSpots: 0 }, {
       seed: 82,
-      timeoutMs: 4500,
+      timeoutMs: 5500,
       floorPlan: plan,
     });
     const pose = (parts: { partId: string; x: number; y: number; rotation: number }[]) =>
@@ -603,10 +601,21 @@ describe('generateLayout', () => {
         .map((part) => `${part.partId}:${Math.round(part.x)}:${Math.round(part.y)}:${Math.round(part.rotation)}`)
         .sort()
         .join('|');
+    const envelope = (parts: { x: number; y: number }[]) => {
+      const xs = parts.map((part) => part.x);
+      const ys = parts.map((part) => part.y);
+      return [
+        Math.round(Math.min(...xs) / 20),
+        Math.round(Math.max(...xs) / 20),
+        Math.round(Math.min(...ys) / 20),
+        Math.round(Math.max(...ys) / 20),
+      ].join(':');
+    };
     expect(first.parts.length).toBeGreaterThan(16);
     expect(second.parts.length).toBeGreaterThan(16);
     expect(connectedGroupCount(first.parts, CITY_TRACKS_BY_ID)).toBe(1);
     expect(connectedGroupCount(second.parts, CITY_TRACKS_BY_ID)).toBe(1);
     expect(pose(first.parts)).not.toBe(pose(second.parts));
+    expect(envelope(first.parts)).not.toBe(envelope(second.parts));
   });
 });

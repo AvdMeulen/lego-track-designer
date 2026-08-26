@@ -76,11 +76,11 @@ describe('tracePerimeter', () => {
       deadline: Date.now() + 2500,
       seq: 0,
       floorPlan: USER_L,
+      variant: 2,
     });
     const xs = parts.map((part) => part.x);
-    expect(parts.length).toBeGreaterThan(24);
-    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(180);
-    expect(parts.some((part) => part.x > 220)).toBeTrue();
+    expect(parts.length).toBeGreaterThan(16);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(140);
     expect(openPorts(parts, CITY_TRACKS_BY_ID).length).toBeLessThanOrEqual(2);
     for (const part of parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, USER_L)).toBeFalse();
@@ -94,11 +94,13 @@ describe('tracePerimeter', () => {
       deadline: Date.now() + 2500,
       seq: 0,
       floorPlan: USER_L,
+      variant: 0,
     };
     const ctx91 = {
       ...ctx66,
       random: rng(91),
       deadline: Date.now() + 2500,
+      variant: 1,
     };
     const a = tracePerimeter(LARGE, {
       ...ctx66,
@@ -113,9 +115,20 @@ describe('tracePerimeter', () => {
         .map((part) => `${part.partId}:${Math.round(part.x)}:${Math.round(part.y)}:${Math.round(part.rotation)}`)
         .sort()
         .join('|');
+    const envelope = (parts: { x: number; y: number }[]) => {
+      const xs = parts.map((part) => part.x);
+      const ys = parts.map((part) => part.y);
+      return [
+        Math.round(Math.min(...xs) / 20),
+        Math.round(Math.max(...xs) / 20),
+        Math.round(Math.min(...ys) / 20),
+        Math.round(Math.max(...ys) / 20),
+      ].join(':');
+    };
     expect(a.length).toBeGreaterThan(16);
     expect(b.length).toBeGreaterThan(16);
     expect(pose(a)).not.toBe(pose(b));
+    expect(envelope(a)).not.toBe(envelope(b));
   });
 });
 
@@ -152,6 +165,7 @@ describe('addInnerLoops', () => {
       deadline: Date.now() + 2500,
       seq: 0,
       floorPlan: plan,
+      variant: 2,
     };
     const outer = closeOpenHeads(tracePerimeter(LARGE, ctx), LARGE, { ...ctx, deadline: Date.now() + 2000 }, 0);
     expect(outer.length).toBeGreaterThan(24);

@@ -1719,15 +1719,18 @@ export function placeRemainingSpecials(
   const placedSwitches = result.filter((part) => part.partId.startsWith('switch-')).length;
   if (switchesLeft.length >= 2 && (parking === 0 || placedSwitches < 2)) {
     const before = result;
+    const opensBefore = openPorts(before, ctx.catalog).length;
     result = insertPassingLoops(result, inventory, ctx, 1);
     if (divergesOf(result, ctx.catalog).length > 0) {
-      const openBefore = divergesOf(before, ctx.catalog).length;
       result = insertSwitches(before, inventory, ctx, 2, 'sw', true);
       result = joinOpenPairs(result, divergesOf(result, ctx.catalog), inventory, ctx, 'sw', false);
       result = joinOpenPairs(result, divergesOf(result, ctx.catalog), inventory, ctx, 'sw', true);
-      if (divergesOf(result, ctx.catalog).length > openBefore) {
-        result = before;
-      }
+    }
+    if (
+      divergesOf(result, ctx.catalog).length > 0 ||
+      openPorts(result, ctx.catalog).length > opensBefore
+    ) {
+      result = before;
     }
   }
   return lengthenShortBypasses(result, inventory, ctx);

@@ -9,7 +9,7 @@ import {
   TrackLayout,
 } from '../../shared/models/track';
 import { remainingInventory, unusedItems, openPorts } from './connections';
-import { closeOpenHeads, exploreSpace, uncoveredSpot } from './explore';
+import { closeOpenHeads, exploreSpace } from './explore';
 import { addInnerLoops, tracePerimeter } from './perimeter';
 import { approachThenFlex, closeWithFlex } from './flex-closer';
 import { applyCrossover, applyRouteFeatures, placeParking, placeRemainingSpecials } from './features';
@@ -233,7 +233,8 @@ function* buildCandidateSteps(
     const periCtx: GenContext = {
       ...ctx,
       random: rng((seed + attempt * 9973 + 17) >>> 0),
-      deadline: Math.min(ctx.deadline - 900, Date.now() + 1600),
+      deadline: Math.min(ctx.deadline - 600, Date.now() + 2800),
+      variant: seed + attempt,
     };
     let explored = tracePerimeter(inventory, periCtx);
     applyPause(clock, ctx, periCtx, yield { phase: 'paths', attempt, parts: explored });
@@ -256,11 +257,10 @@ function* buildCandidateSteps(
       }
       applyPause(clock, ctx, ctx, yield { phase: 'core', attempt, parts });
       const keepPark = plan.parking * 6;
-      const empty = uncoveredSpot(parts, ctx.floorPlan);
       const leftover = remainingInventory(inventory, parts);
       const rigidLeft = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
       const keepFeatures = plan.crossovers + plan.dualRoutes > 0 ? Math.min(12, Math.floor(rigidLeft * 0.15)) : 0;
-      parts = inflateLoop(parts, inventory, ctx, 36, keepPark + keepFeatures, false, empty?.point ?? null);
+      parts = inflateLoop(parts, inventory, ctx, 12, keepPark + keepFeatures, false, null);
       parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
       const closedCore = parts;
       const mainClosed = openPorts(parts, ctx.catalog).length <= plan.parking;
@@ -287,19 +287,7 @@ function* buildCandidateSteps(
       if (openPorts(parts, ctx.catalog).length === 0) {
         parts = addInnerLoops(parts, inventory, fillCtx, keepPark);
       }
-      parts = inflateLoop(parts, inventory, ctx, 20, keepPark, false, uncoveredSpot(parts, ctx.floorPlan)?.point ?? null);
-      const stillLeft = remainingInventory(inventory, parts);
-      if ((stillLeft['straight-16'] ?? 0) + (stillLeft['curve-22'] ?? 0) > 24) {
-        parts = inflateLoop(
-          parts,
-          inventory,
-          ctx,
-          16,
-          keepPark,
-          false,
-          uncoveredSpot(parts, ctx.floorPlan)?.point ?? null,
-        );
-      }
+      parts = inflateLoop(parts, inventory, ctx, 8, keepPark, false, null);
       const beforeSpecials = parts;
       parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
       parts = placeParking(parts, inventory, ctx, plan.parking);
@@ -445,15 +433,15 @@ function* generateLayoutSteps(
     if (
       layout.score.routeBonus > 0 &&
       layout.unfinishedPorts === 0 &&
-      layout.parkingSpots.length === prefs.targetParkingSpots &&
       poseKey(layout.parts) !== previousKey &&
-      (options.floorPlan || unusedRigidTrack(layout) < 8)
+      (options.floorPlan ||
+        (layout.parkingSpots.length === prefs.targetParkingSpots && unusedRigidTrack(layout) < 8))
     ) {
       break;
     }
   }
 
-  const best = pickBest(candidates, inventory, fifteenCurves, previousKey, prefs);
+  const best = pickBest(candidates, inventory, fifteenCurves, previousKey, prefs, !!options.floorPlan);
   applyPause(clock, { catalog, random, deadline: clock.deadline, seq: 0 }, null, yield {
     phase: 'done',
     attempt: Math.max(1, attempts),
@@ -468,6 +456,7 @@ function pickBest(
   fifteenCurves: boolean,
   previousKey: string,
   prefs: GenerationPreferences,
+  floorPlan: boolean,
 ): TrackLayout {
   if (candidates.length === 0) {
     return finalize([], inventory, prefs, 'layout.couldNotPlace');
@@ -491,9 +480,12 @@ function pickBest(
           : usable.length
             ? usable
             : candidates;
-  pool.sort((a, b) => b.score.total - a.score.total);
   const distinct = previousKey ? pool.filter((layout) => poseKey(layout.parts) !== previousKey) : pool;
-  const best = (distinct.length ? distinct : pool)[0];
+  const ranked = distinct.length ? distinct : pool;
+  if (!floorPlan) {
+    ranked.sort((a, b) => b.score.total - a.score.total);
+  }
+  const best = ranked[0];
   if (best.parts.length === 0) {
     best.message = 'layout.couldNotPlace';
   }
