@@ -248,8 +248,8 @@ function* buildCandidateSteps(
       applyPause(clock, ctx, exploreCtx, yield { phase: 'paths', attempt, parts: explored });
     }
     if (explored.length >= 8) {
-      let parts = closeOpenHeads(explored, inventory, ctx, plan.parking);
-      if (openPorts(parts, ctx.catalog).length > plan.parking && Date.now() < ctx.deadline - 400) {
+      let parts = closeOpenHeads(explored, inventory, ctx, 0);
+      if (openPorts(parts, ctx.catalog).length > 0 && Date.now() < ctx.deadline - 400) {
         const wandered = wanderHomeLoop(inventory, { ...ctx, deadline: Math.min(ctx.deadline - 200, Date.now() + 700) });
         if (wandered && loopCloses(wandered, ctx.catalog) && fitsRoom(wandered, ctx)) {
           parts = wandered;
@@ -261,9 +261,9 @@ function* buildCandidateSteps(
       const rigidLeft = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
       const keepFeatures = plan.crossovers + plan.dualRoutes > 0 ? Math.min(12, Math.floor(rigidLeft * 0.15)) : 0;
       parts = inflateLoop(parts, inventory, ctx, 12, keepPark + keepFeatures, false, null);
-      parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
+      parts = closeOpenHeads(parts, inventory, ctx, 0);
       const closedCore = parts;
-      const mainClosed = openPorts(parts, ctx.catalog).length <= plan.parking;
+      const mainClosed = openPorts(parts, ctx.catalog).length === 0;
       if (mainClosed) {
         const afterCrossover = applyCrossover(parts, inventory, plan, ctx);
         if (afterCrossover !== parts) {
@@ -278,8 +278,8 @@ function* buildCandidateSteps(
             parts = afterCrossover;
           }
         }
-        parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
-        if (openPorts(parts, ctx.catalog).length > plan.parking) {
+        parts = closeOpenHeads(parts, inventory, ctx, 0);
+        if (openPorts(parts, ctx.catalog).length > 0) {
           parts = closedCore;
         }
       }
@@ -293,7 +293,7 @@ function* buildCandidateSteps(
       parts = placeParking(parts, inventory, ctx, plan.parking);
       parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
       if (
-        openPorts(beforeSpecials, ctx.catalog).length <= plan.parking &&
+        openPorts(beforeSpecials, ctx.catalog).length === 0 &&
         openPorts(parts, ctx.catalog).length > plan.parking
       ) {
         parts = beforeSpecials;

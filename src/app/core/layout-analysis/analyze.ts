@@ -191,7 +191,7 @@ function findParkingSpots(
       continue;
     }
     const { length, switchId } = walkClearLength(part.instanceId, graph, byId, catalog);
-    if (switchId && length >= 16) {
+    if (switchId && length >= 16 && length <= 160) {
       spots.push({
         id: `park-${part.instanceId}`,
         endInstanceId: part.instanceId,
@@ -223,7 +223,10 @@ function walkClearLength(
       length += 16;
     }
     if (category === 'switch') {
-      switchId = current;
+      const inbound = (graph.get(current) ?? []).find((edge) => edge.to === previous);
+      if (inbound?.via === 'diverge') {
+        switchId = current;
+      }
       break;
     }
     const neighbors = (graph.get(current) ?? []).map((edge) => edge.to).filter((id) => id !== previous);

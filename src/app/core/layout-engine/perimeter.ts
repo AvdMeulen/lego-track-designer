@@ -54,8 +54,9 @@ function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPa
   const choice =
     ctx.variant != null ? ((ctx.variant % n) + n) % n : Math.floor(ctx.random() * n);
   const preferred = rings[choice] ?? outer;
+  const varyFirst = ctx.variant != null ? ((ctx.variant >> 1) & 1) === 1 : ctx.random() < 0.5;
   let best: PlacedPart[] = [];
-  for (const varyStart of [false, true]) {
+  for (const varyStart of varyFirst ? [true, false] : [false, true]) {
     if (Date.now() >= ctx.deadline) {
       break;
     }

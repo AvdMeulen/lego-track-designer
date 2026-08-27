@@ -30,6 +30,12 @@ describe('layout analysis', () => {
     expect(layout.parkingSpots.length).toBe(0);
   });
 
+  it('only counts a switch diverge siding as parking, not an open main line', () => {
+    const layout = parkingSidingFixture();
+    expect(layout.parkingSpots.length).toBe(1);
+    expect(layout.parkingSpots[0].endInstanceId).toBe('sid1');
+  });
+
   it('detects a reversing loop when a balloon returns to the same switch', () => {
     const layout = reversingLoopFixture();
     expect(layout.reverseOptions.some((option) => option.kind === 'reversing-loop')).toBeTrue();
