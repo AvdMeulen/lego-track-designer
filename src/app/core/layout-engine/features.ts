@@ -801,63 +801,71 @@ function joinOpenPairs(
   return result;
 }
 
+function placeCrossoverOnTriple(
+  parts: PlacedPart[],
+  triple: PlacedPart[],
+  ctx: GenContext,
+): PlacedPart[] | null {
+  const part = ctx.catalog['double-crossover'];
+  const incoming = worldPorts(ctx.catalog[triple[0].partId], triple[0]);
+  const connections = detectConnections(parts, ctx.catalog);
+  let attachOn: WorldPort | null = null;
+  for (const port of incoming) {
+    const hit = connections.find(
+      (connection) =>
+        (connection.fromInstanceId === triple[0].instanceId && connection.fromPortId === port.id) ||
+        (connection.toInstanceId === triple[0].instanceId && connection.toPortId === port.id),
+    );
+    if (!hit) {
+      continue;
+    }
+    const otherId =
+      hit.fromInstanceId === triple[0].instanceId ? hit.toInstanceId : hit.fromInstanceId;
+    if (triple.some((item) => item.instanceId === otherId)) {
+      continue;
+    }
+    const other = parts.find((item) => item.instanceId === otherId);
+    if (!other) {
+      continue;
+    }
+    const otherPort = hit.fromInstanceId === otherId ? hit.fromPortId : hit.toPortId;
+    attachOn = worldPorts(ctx.catalog[other.partId], other).find((item) => item.id === otherPort) ?? null;
+    if (attachOn) {
+      break;
+    }
+  }
+  if (!attachOn) {
+    return null;
+  }
+  const without = parts.filter((item) => !triple.some((piece) => piece.instanceId === item.instanceId));
+  const ignore = triple.map((item) => item.instanceId);
+  const center = centroid(without.length ? without : parts);
+  const preferInward = ctx.random() < 0.65;
+  let best: PlacedPart | null = null;
+  let bestOut = preferInward ? Number.POSITIVE_INFINITY : -1;
+  for (const xoPort of ['a', 'b', 'c', 'd']) {
+    const placed = tryAttach(part, xoPort, attachOn, without, ctx.catalog, nextId(ctx, 'xo'), ignore, ctx.floorPlan);
+    if (!placed) {
+      continue;
+    }
+    const unused = worldPorts(ctx.catalog['double-crossover'], placed).filter((port) => port.id !== xoPort);
+    const out = unused.reduce((sum, port) => sum + distance(port, center), 0);
+    if (preferInward ? out <= bestOut : out >= bestOut) {
+      best = placed;
+      bestOut = out;
+    }
+  }
+  return best ? [...without, best] : null;
+}
+
 function insertCrossover(parts: PlacedPart[], inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
   if ((stockOf(inventory, parts)['double-crossover'] ?? 0) <= 0) {
     return parts;
   }
-  const triples = tripleStraights(parts, ctx.catalog);
-  const part = ctx.catalog['double-crossover'];
-  for (const triple of triples) {
-    const incoming = worldPorts(ctx.catalog[triple[0].partId], triple[0]);
-    const connections = detectConnections(parts, ctx.catalog);
-    let attachOn: WorldPort | null = null;
-    for (const port of incoming) {
-      const hit = connections.find(
-        (connection) =>
-          (connection.fromInstanceId === triple[0].instanceId && connection.fromPortId === port.id) ||
-          (connection.toInstanceId === triple[0].instanceId && connection.toPortId === port.id),
-      );
-      if (!hit) {
-        continue;
-      }
-      const otherId =
-        hit.fromInstanceId === triple[0].instanceId ? hit.toInstanceId : hit.fromInstanceId;
-      if (triple.some((item) => item.instanceId === otherId)) {
-        continue;
-      }
-      const other = parts.find((item) => item.instanceId === otherId);
-      if (!other) {
-        continue;
-      }
-      const otherPort = hit.fromInstanceId === otherId ? hit.fromPortId : hit.toPortId;
-      attachOn = worldPorts(ctx.catalog[other.partId], other).find((item) => item.id === otherPort) ?? null;
-      if (attachOn) {
-        break;
-      }
-    }
-    if (!attachOn) {
-      continue;
-    }
-    const without = parts.filter((item) => !triple.some((piece) => piece.instanceId === item.instanceId));
-    const ignore = triple.map((item) => item.instanceId);
-    const center = centroid(without.length ? without : parts);
-    const preferInward = ctx.random() < 0.65;
-    let best: PlacedPart | null = null;
-    let bestOut = preferInward ? Number.POSITIVE_INFINITY : -1;
-    for (const xoPort of ['a', 'b', 'c', 'd']) {
-      const placed = tryAttach(part, xoPort, attachOn, without, ctx.catalog, nextId(ctx, 'xo'), ignore, ctx.floorPlan);
-      if (!placed) {
-        continue;
-      }
-      const unused = worldPorts(ctx.catalog['double-crossover'], placed).filter((port) => port.id !== xoPort);
-      const out = unused.reduce((sum, port) => sum + distance(port, center), 0);
-      if (preferInward ? out <= bestOut : out >= bestOut) {
-        best = placed;
-        bestOut = out;
-      }
-    }
-    if (best) {
-      return [...without, best];
+  for (const triple of tripleStraights(parts, ctx.catalog)) {
+    const placed = placeCrossoverOnTriple(parts, triple, ctx);
+    if (placed) {
+      return placed;
     }
   }
   if (parts.length === 0) {
@@ -1163,19 +1171,15 @@ function placeDualRoutes(
   return result;
 }
 
-function tryPlaceCrossover(
-  parts: PlacedPart[],
+function closeCrossoverPorts(
+  result: PlacedPart[],
   inventory: Record<string, number>,
   ctx: GenContext,
-): PlacedPart[] {
-  const before = parts;
-  let result = insertCrossover(parts, inventory, ctx);
-  if (!result.some((part) => part.partId === 'double-crossover')) {
-    return before;
-  }
+  allowWander: boolean,
+): PlacedPart[] | null {
   const opens = specialOpens(result, ctx.catalog, 'double-crossover');
   if (opens.length >= 2) {
-    if (result.length >= 40 && ctx.deadline - Date.now() > 500) {
+    if (allowWander && result.length >= 40 && ctx.deadline - Date.now() > 500) {
       const bias = ctx.random() < 0.7 ? 'outward' : 'mixed';
       const walked = wanderJoin(result, opens[0], opens[1], inventory, ctx, 'xo', bias, 8);
       if (walked && specialOpens(walked, ctx.catalog, 'double-crossover').length === 0) {
@@ -1189,8 +1193,22 @@ function tryPlaceCrossover(
       return oval;
     }
   }
-  result = joinOpenPairs(result, specialOpens(result, ctx.catalog, 'double-crossover'), inventory, ctx, 'xo', false);
-  return specialOpens(result, ctx.catalog, 'double-crossover').length > 0 ? before : result;
+  const joined = joinOpenPairs(result, specialOpens(result, ctx.catalog, 'double-crossover'), inventory, ctx, 'xo', false);
+  return specialOpens(joined, ctx.catalog, 'double-crossover').length > 0 ? null : joined;
+}
+
+function tryPlaceCrossover(
+  parts: PlacedPart[],
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] {
+  const before = parts;
+  let result = insertCrossover(parts, inventory, ctx);
+  if (!result.some((part) => part.partId === 'double-crossover')) {
+    return before;
+  }
+  const closed = closeCrossoverPorts(result, inventory, ctx, true);
+  return closed ?? before;
 }
 
 export function applyCrossover(
