@@ -2,7 +2,7 @@
 
 How `generateLayout` builds a City network from inventory and an optional floor plan.
 
-The engine lives in `src/app/core/layout-engine/` (`generate.ts` orchestrates `explore.ts`, `wander.ts`, `features.ts`, `score.ts`). Room collision lives in `floor-plan/space.ts`. Analysis stays in `layout-analysis/`. Share a failed or interesting result as a JSON snapshot from the designer.
+The engine lives in `src/app/core/layout-engine/` (`generate.ts` orchestrates `explore.ts`, `wander.ts`, `features.ts`, `score.ts`). Room collision lives in `floor-plan/space.ts`. Analysis stays in `layout-analysis/`. Share a failed or interesting result as a JSON snapshot from the designer. To have an agent generate on the running site and score the result, follow [AGENT.md](AGENT.md).
 
 ## Solution direction
 

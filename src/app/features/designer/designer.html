@@ -1,4 +1,4 @@
-<section class="workspace">
+<section class="workspace" [attr.data-status]="store.generating() ? 'generating' : 'ready'">
   <div class="stage" #canvasHost>
     <app-track-canvas
       [layout]="store.layout()"
@@ -7,7 +7,7 @@
       (partSelect)="store.select($event)"
     />
     @if (store.generating()) {
-      <div class="busy" role="status" aria-live="polite">
+      <div class="busy" role="status" aria-live="polite" data-testid="generate-busy">
         <span class="busy-studs" aria-hidden="true">
           <span></span>
           <span></span>
@@ -34,10 +34,51 @@
       }
     </h1>
 
+    <dl
+      class="run-stats"
+      data-testid="run-stats"
+      [attr.data-status]="store.generating() ? 'generating' : store.layout().parts.length ? 'ready' : 'idle'"
+      [attr.data-report]="store.reportJson()"
+    >
+      <div>
+        <dt>{{ 'designer.statSeed' | t }}</dt>
+        <dd data-testid="stat-seed">{{ store.seed() }}</dd>
+      </div>
+      <div>
+        <dt>{{ 'designer.statScore' | t }}</dt>
+        <dd data-testid="stat-score">{{ store.layout().score.total }}</dd>
+      </div>
+      <div>
+        <dt>{{ 'designer.statLoop' | t }}</dt>
+        <dd data-testid="stat-loop">
+          @if (store.generating()) {
+            …
+          } @else if (store.layout().parts.length === 0) {
+            {{ 'designer.loopEmpty' | t }}
+          } @else if (store.layout().score.routeBonus > 0) {
+            {{ 'designer.loopYes' | t }}
+          } @else {
+            {{ 'designer.loopNo' | t }}
+          }
+        </dd>
+      </div>
+      <div>
+        <dt>{{ 'designer.statParking' | t }}</dt>
+        <dd data-testid="stat-parking">
+          {{ store.layout().parkingSpots.length }}/{{ store.preferences().targetParkingSpots }}
+        </dd>
+      </div>
+      <div>
+        <dt>{{ 'designer.statOpen' | t }}</dt>
+        <dd data-testid="stat-open">{{ store.layout().unfinishedPorts }}</dd>
+      </div>
+    </dl>
+
     <div class="actions">
       <button
         type="button"
         class="primary"
+        data-testid="generate"
         (click)="generate()"
         [disabled]="store.generating()"
         [attr.title]="'designer.generateHint' | t"
@@ -46,6 +87,7 @@
       </button>
       <button
         type="button"
+        data-testid="rebuild"
         (click)="rebuild()"
         [disabled]="store.generating() || !store.canRebuild()"
         [attr.title]="'designer.rebuildHint' | t"
@@ -62,6 +104,7 @@
     >
       {{ 'designer.parkingSpots' | t }}
       <select
+        data-testid="parking"
         [ngModel]="store.preferences().targetParkingSpots"
         (ngModelChange)="setParking('' + $event)"
       >

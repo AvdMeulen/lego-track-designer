@@ -1,10 +1,12 @@
-import { Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { exportSvgElementToPng } from '../../core/export/png-export';
 import { downloadJson, parseSnapshotText } from '../../core/export/snapshot';
 import { TPipe } from '../../core/i18n/t.pipe';
 import { FloorPlanStore } from '../../core/floor-plan/floor-plan.store';
+import { agentQueryKey, parseAgentQuery } from '../../core/layout-store/agent-query';
 import { LayoutStore } from '../../core/layout-store/layout.store';
 import { TrackCanvas } from '../../shared/canvas/track-canvas';
 
@@ -17,10 +19,15 @@ import { TrackCanvas } from '../../shared/canvas/track-canvas';
 export class Designer {
   protected readonly store = inject(LayoutStore);
   protected readonly floorPlan = inject(FloorPlanStore);
+  private readonly route = inject(ActivatedRoute);
   private readonly canvasHost = viewChild<ElementRef<HTMLElement>>('canvasHost');
   private readonly canvas = viewChild(TrackCanvas);
   private readonly snapshotFile = viewChild<ElementRef<HTMLInputElement>>('snapshotFile');
   private readonly pieceList = viewChild<ElementRef<HTMLUListElement>>('pieceList');
+  private readonly queryParams = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+  private lastQueryKey = '';
 
   protected readonly snapshotStatus = signal<string | null>(null);
 
@@ -33,6 +40,35 @@ export class Designer {
       }
       queueMicrotask(() => {
         list.querySelector<HTMLElement>('li.active')?.scrollIntoView({ block: 'nearest' });
+      });
+    });
+    effect(() => {
+      const query = parseAgentQuery(this.queryParams());
+      const key = agentQueryKey(query);
+      if (key === this.lastQueryKey) {
+        return;
+      }
+      this.lastQueryKey = key;
+      untracked(() => {
+        if (!query.generate) {
+          if (query.scene) {
+            this.store.applySetup({
+              scene: query.scene,
+              ...(query.parking != null ? { parking: query.parking } : {}),
+            });
+          } else if (query.parking != null) {
+            this.store.updatePreferences({ targetParkingSpots: query.parking });
+          }
+          if (query.seed != null) {
+            this.store.seed.set(query.seed);
+          }
+          return;
+        }
+        void this.store.runGeneration({
+          ...(query.seed != null ? { seed: query.seed } : { increment: true }),
+          ...(query.parking != null ? { parking: query.parking } : {}),
+          ...(query.scene ? { scene: query.scene } : {}),
+        });
       });
     });
   }

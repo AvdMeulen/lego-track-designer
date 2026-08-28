@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { emptyLayout } from '../../core/layout-engine/generate';
 import { LayoutStore } from '../../core/layout-store/layout.store';
 import { BrowserStorage } from '../../core/storage/browser-storage';
@@ -36,6 +37,9 @@ describe('Designer', () => {
     expect(compiled.querySelector('.unused')).toBeFalsy();
     expect(compiled.querySelector('.workspace')).toBeTruthy();
     expect(compiled.querySelector('.busy')).toBeFalsy();
+    expect(compiled.querySelector('[data-testid="run-stats"]')).toBeTruthy();
+    expect(compiled.querySelector('[data-testid="stat-seed"]')?.textContent?.trim()).toBe('1');
+    expect(compiled.textContent).toContain('Seed');
   });
 
   it('shows a busy overlay while generating', () => {
@@ -72,6 +76,60 @@ describe('Designer', () => {
 
     expect(store.selectedLabel()).toBe(4);
     expect(fixture.nativeElement.querySelector('.piece-list li.active')?.textContent).toContain('4');
+  });
+});
+
+describe('Designer query params', () => {
+  it('starts a seeded run from generate/seed/parking', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [Designer],
+      providers: [
+        provideRouter([]),
+        { provide: BrowserStorage, useValue: { read: () => null, write: () => undefined } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({ generate: '1', seed: '42', parking: '2' }) },
+            queryParamMap: of(convertToParamMap({ generate: '1', seed: '42', parking: '2' })),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const store = TestBed.inject(LayoutStore);
+    const run = spyOn(store, 'runGeneration').and.resolveTo(store.agentReport());
+    const fixture = TestBed.createComponent(Designer);
+    fixture.detectChanges();
+    expect(run).toHaveBeenCalledWith({ seed: 42, parking: 2 });
+  });
+
+  it('loads the eval room and collection before generating', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [Designer],
+      providers: [
+        provideRouter([]),
+        { provide: BrowserStorage, useValue: { read: () => null, write: () => undefined } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParamMap: convertToParamMap({ generate: '1', seed: '90', parking: '2', scene: 'eval' }),
+            },
+            queryParamMap: of(
+              convertToParamMap({ generate: '1', seed: '90', parking: '2', scene: 'eval' }),
+            ),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const store = TestBed.inject(LayoutStore);
+    const run = spyOn(store, 'runGeneration').and.resolveTo(store.agentReport());
+    const fixture = TestBed.createComponent(Designer);
+    fixture.detectChanges();
+    expect(run).toHaveBeenCalledWith({ seed: 90, parking: 2, scene: 'eval' });
   });
 });
 

@@ -108,6 +108,32 @@ h1 {
   line-height: 1.3;
 }
 
+.run-stats {
+  display: grid;
+  gap: 0.12rem 0;
+  margin: 0 0 0.55rem;
+  font-size: 0.75rem;
+}
+
+.run-stats > div {
+  display: grid;
+  grid-template-columns: 5.6rem 1fr;
+  gap: 0.35rem;
+  align-items: baseline;
+}
+
+.run-stats dt {
+  margin: 0;
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.run-stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
 h2 {
   font-size: 0.82rem;
 }

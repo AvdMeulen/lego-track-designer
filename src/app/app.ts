@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { I18nService } from './core/i18n/i18n.service';
+import { AgentBridge } from './core/layout-store/agent-bridge';
 import { TPipe } from './core/i18n/t.pipe';
 import { APP_VERSION } from './core/version';
 import { LanguageToggle } from './shared/language-toggle/language-toggle';
@@ -27,6 +28,7 @@ export class App {
 
   constructor() {
     inject(I18nService);
+    inject(AgentBridge);
     effect(() => {
       document.body.classList.toggle('immersive', !!this.immersive());
     });

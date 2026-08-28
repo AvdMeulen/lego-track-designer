@@ -21,6 +21,8 @@ npm start
 
 Open [http://localhost:4200](http://localhost:4200).
 
+A coding agent can generate and score a layout on the running site. Instruct it with [docs/AGENT.md](docs/AGENT.md) (also [AGENTS.md](AGENTS.md)). Short form: `/designer?generate=1&seed=90&parking=2&scene=eval` or `await legoTrackAgent.generate({ scene: 'eval', seed: 90, parking: 2 })`.
+
 ```bash
 npm run test:ci
 npm run build
@@ -31,6 +33,7 @@ npm run build
 | File | Contents |
 | --- | --- |
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Setup |
+| [docs/AGENT.md](docs/AGENT.md) | Instruct an agent to generate and judge layouts on the site |
 | [docs/PRODUCT.md](docs/PRODUCT.md) | Product goal |
 | [docs/DOMAIN.md](docs/DOMAIN.md) | Track model |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code shape |

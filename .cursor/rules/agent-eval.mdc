@@ -1,0 +1,12 @@
+---
+description: Generate and evaluate layouts on the live designer as an agent
+alwaysApply: true
+---
+
+# Agent layout evaluation
+
+When generating or judging a layout on the website, follow [docs/AGENT.md](docs/AGENT.md). Do not rely on leftover room or inventory in the browser.
+
+Default: open `/designer?generate=1&seed=90&parking=2&scene=eval` (local `http://localhost:4200`, live GitHub Pages with `/lego-track-designer` prefix), or `await legoTrackAgent.generate({ scene: 'eval', seed: 90, parking: 2 })`.
+
+Wait until `html[data-lego-track="ready"]`. Read `[data-testid="run-stats"]` and `legoTrackAgent.report()`. Judge the **core loop** first (closed, not fake parking), then leftover stock, unused L-arm, crossover, and parking vs target.

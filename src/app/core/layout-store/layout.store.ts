@@ -16,6 +16,8 @@ import { refreshReverseAnalysis } from '../layout-analysis/analyze';
 import { emptyLayout, generateLayoutAsync, GeneratePhaseSnapshot } from '../layout-engine/generate';
 import { InventoryStore } from '../inventory/inventory.store';
 import { BrowserStorage } from '../storage/browser-storage';
+import { AgentLayoutReport, buildAgentReport } from './agent-report';
+import { AgentGenerateOptions, AgentSetupInput, resolveAgentSetup } from './agent-setup';
 
 interface PersistedLayout {
   layout: TrackLayout;
@@ -53,8 +55,9 @@ export class LayoutStore {
   readonly generating = signal(false);
   readonly generatePhase = signal<GeneratePhaseSnapshot | null>(null);
   readonly selectedLabel = signal<number | null>(null);
+  readonly seed = signal(1);
   private readonly usedInventory = signal<InventoryItem[] | null>(null);
-  private seed = 1;
+  private inFlight: Promise<AgentLayoutReport> | null = null;
 
   readonly canRebuild = computed(
     () =>
@@ -79,13 +82,15 @@ export class LayoutStore {
     return [...counts.entries()].map(([partId, quantity]) => ({ partId, quantity }));
   });
 
+  readonly reportJson = computed(() => JSON.stringify(this.agentReport()));
+
   constructor() {
     const saved = this.storage.read<PersistedLayout>(LAYOUT_STORAGE_KEY);
     if (saved?.layout) {
       const prefs = normalizePreferences(saved.preferences, switchCountOf(this.inventory.snapshot()));
       this.layout.set(refreshReverseAnalysis(saved.layout, CITY_TRACKS_BY_ID, prefs));
       this.preferences.set(prefs);
-      this.seed = saved.seed ?? 1;
+      this.seed.set(saved.seed ?? 1);
       this.usedInventory.set(saved.usedInventory ?? this.inventory.snapshot());
     }
   }
@@ -105,17 +110,43 @@ export class LayoutStore {
     if (this.generating()) {
       return;
     }
-    if (this.usedInventory() !== null || this.layout().parts.length > 0) {
-      this.seed += 1;
-    }
-    this.startRun();
+    void this.runGeneration({ increment: true });
   }
 
   rebuild(): void {
     if (this.generating() || !this.canRebuild()) {
       return;
     }
-    this.startRun();
+    void this.runGeneration({ increment: false });
+  }
+
+  async runGeneration(options: AgentGenerateOptions & { increment?: boolean } = {}): Promise<AgentLayoutReport> {
+    if (this.generating() && this.inFlight) {
+      await this.inFlight;
+    }
+    if (this.generating()) {
+      return this.agentReport();
+    }
+    this.applySetup(options);
+    if (options.seed != null) {
+      this.seed.set(clampSeed(options.seed));
+    } else if (options.increment !== false && (this.usedInventory() !== null || this.layout().parts.length > 0)) {
+      this.seed.update((current) => current + 1);
+    }
+    return this.startRun();
+  }
+
+  applySetup(input: AgentSetupInput): void {
+    const applied = resolveAgentSetup(input);
+    if (applied.inventory) {
+      this.inventory.replaceAll(applied.inventory);
+    }
+    if (applied.floorPlan) {
+      this.floorPlans.replaceActive(applied.floorPlan);
+    }
+    if (applied.parking != null) {
+      this.updatePreferences({ targetParkingSpots: applied.parking });
+    }
   }
 
   show(layout: TrackLayout): void {
@@ -125,12 +156,23 @@ export class LayoutStore {
   }
 
   currentSeed(): number {
-    return this.seed;
+    return this.seed();
+  }
+
+  agentReport(): AgentLayoutReport {
+    return buildAgentReport({
+      seed: this.seed(),
+      status: this.generating() ? 'generating' : this.layout().parts.length > 0 ? 'ready' : 'idle',
+      preferences: this.preferences(),
+      layout: this.layout(),
+      collection: this.inventory.snapshot(),
+      floorPlan: this.floorPlans.plan(),
+    });
   }
 
   exportSnapshot(): DesignerSnapshot {
     return buildSnapshot({
-      seed: this.seed,
+      seed: this.seed(),
       preferences: this.preferences(),
       inventory: this.usedInventory() ?? this.inventory.snapshot(),
       layout: this.layout(),
@@ -143,7 +185,7 @@ export class LayoutStore {
     const prefs = normalizePreferences(snapshot.preferences, switchCountOf(snapshot.inventory));
     this.preferences.set(prefs);
     this.layout.set(refreshReverseAnalysis(snapshot.layout, CITY_TRACKS_BY_ID, prefs));
-    this.seed = snapshot.seed;
+    this.seed.set(snapshot.seed);
     this.usedInventory.set(snapshot.inventory);
     this.selectedLabel.set(null);
     if (snapshot.floorPlan) {
@@ -152,22 +194,27 @@ export class LayoutStore {
     this.persist();
   }
 
-  private startRun(): void {
+  private startRun(): Promise<AgentLayoutReport> {
     this.generating.set(true);
     this.generatePhase.set(null);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => void this.finishRun());
+    this.inFlight = new Promise((resolve, reject) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          void this.finishRun().then(resolve, reject);
+        });
+      });
     });
+    return this.inFlight;
   }
 
-  private async finishRun(): Promise<void> {
+  private async finishRun(): Promise<AgentLayoutReport> {
     const used = this.inventory.snapshot();
     const prefs = normalizePreferences(this.preferences(), switchCountOf(used));
     this.preferences.set(prefs);
     const previous = this.layout().parts;
     try {
       const layout = await generateLayoutAsync(used, prefs, {
-        seed: this.seed,
+        seed: this.seed(),
         timeoutMs: 4000,
         previous,
         floorPlan: this.floorPlans.plan(),
@@ -186,14 +233,22 @@ export class LayoutStore {
       this.generatePhase.set(null);
       this.generating.set(false);
     }
+    return this.agentReport();
   }
 
   private persist(): void {
     this.storage.write(LAYOUT_STORAGE_KEY, {
       layout: this.layout(),
       preferences: this.preferences(),
-      seed: this.seed,
+      seed: this.seed(),
       usedInventory: this.usedInventory() ?? undefined,
     } satisfies PersistedLayout);
   }
+}
+
+function clampSeed(value: number): number {
+  if (!Number.isFinite(value) || value < 1) {
+    return 1;
+  }
+  return Math.floor(value);
 }

@@ -21,6 +21,9 @@ Open [http://localhost:4200](http://localhost:4200).
 - `/room` floor plan editor
 - `/inventory` collection
 - `/designer` generate, inspect numbered parts, export PNG or JSON, import a snapshot
+- `/designer?generate=1&seed=90&parking=2&scene=eval` agent search with the eval room and collection (see [AGENT.md](AGENT.md))
+
+To have a coding agent run the designer itself, point it at [AGENT.md](AGENT.md) (repo-root [AGENTS.md](../AGENTS.md) links there too).
 
 Inventory, the last layout, and the floor plan are stored in this browser. Export PNG for a printable plan. Export or copy JSON (`lego-track-designer.snapshot`) to share a seed, inventory, preferences, optional floor plan, and the exact layout. Import the same file to restore it.
 
