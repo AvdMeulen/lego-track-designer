@@ -4,7 +4,7 @@ import { floorBounds, pointInPolygon, placementHitsRoom, wallWaypoints } from '.
 import { openPorts, remainingInventory } from './connections';
 import { distance, headingDelta, portsConnect, WorldPort, worldPorts } from './geometry';
 import { GenContext, neighborsOf, nextId, placeOnHead, tryAttach } from './place';
-import { homeScore, inflateLoop, joinHeads, loopCloses, ovalJoin, wanderJoin } from './wander';
+import { homeScore, inflateLoop, joinHeads, loopCloses, offsetJoin, ovalJoin, wanderJoin } from './wander';
 
 const MIN_SPECIAL_GAP = 72;
 
@@ -399,8 +399,10 @@ export function closeOpenHeads(
 ): PlacedPart[] {
   let result = parts;
   for (let attempt = 0; attempt < 24 && Date.now() < ctx.deadline; attempt += 1) {
-    const heads = openPorts(result, ctx.catalog);
-    if (heads.length < 2 || heads.length - 2 < keepOpen) {
+    const heads = openPorts(result, ctx.catalog).filter((port) =>
+      keepOpen > 0 ? !port.instanceId.startsWith('sid') : true,
+    );
+    if (heads.length < 2) {
       break;
     }
     const pairs: Array<[WorldPort, WorldPort, number]> = [];
@@ -412,7 +414,9 @@ export function closeOpenHeads(
     pairs.sort((a, b) => a[2] - b[2]);
     let progressed = false;
     for (const [from, to] of pairs) {
-      const joined = tryJoinHeads(result, from, to, inventory, ctx);
+      const joined =
+        tryPeelJoin(result, from, to, inventory, ctx) ??
+        tryJoinHeads(result, from, to, inventory, ctx);
       if (joined) {
         result = joined;
         progressed = true;
@@ -454,9 +458,17 @@ function tryJoinHeads(
   const roomy = stock > 24;
   const oval =
     ovalJoin(parts, from, to, inventory, ctx, 'jn', roomy) ??
-    ovalJoin(parts, to, from, inventory, ctx, 'jn', roomy);
+    ovalJoin(parts, to, from, inventory, ctx, 'jn', roomy) ??
+    ovalJoin(parts, from, to, inventory, ctx, 'jn', !roomy) ??
+    ovalJoin(parts, to, from, inventory, ctx, 'jn', !roomy);
   if (oval) {
     return oval;
+  }
+  const offset =
+    offsetJoin(parts, from, to, inventory, ctx, 'jn') ??
+    offsetJoin(parts, to, from, inventory, ctx, 'jn');
+  if (offset) {
+    return offset;
   }
   const hugged = hugWallJoin(parts, from, to, inventory, ctx);
   if (hugged) {
@@ -466,11 +478,93 @@ function tryJoinHeads(
   if (met) {
     return met;
   }
-  if (stock >= 8 && ctx.deadline - Date.now() > 250) {
+  if (stock >= 8 && ctx.deadline - Date.now() > 250 && !ctx.floorPlan) {
     return (
       wanderJoin(parts, from, to, inventory, ctx, 'jn', 'mixed') ??
       wanderJoin(parts, to, from, inventory, ctx, 'jn', 'mixed')
     );
+  }
+  return null;
+}
+
+function peelOpenHead(
+  parts: PlacedPart[],
+  head: WorldPort,
+  steps: number,
+  catalog: GenContext['catalog'],
+): { parts: PlacedPart[]; head: WorldPort } | null {
+  if (steps <= 0) {
+    return { parts, head };
+  }
+  let trail = parts;
+  let tip = head;
+  for (let step = 0; step < steps; step += 1) {
+    if (tip.instanceId.startsWith('sid') || tip.instanceId.startsWith('sw')) {
+      return null;
+    }
+    const neighbors = neighborsOf(tip.instanceId, trail, catalog);
+    if (neighbors.length !== 1) {
+      return null;
+    }
+    const without = trail.filter((part) => part.instanceId !== tip.instanceId);
+    const nextOpens = openPorts(without, catalog).filter((port) => port.instanceId === neighbors[0]);
+    if (nextOpens.length !== 1) {
+      return null;
+    }
+    trail = without;
+    tip = nextOpens[0];
+  }
+  return { parts: trail, head: tip };
+}
+
+function tryPeelJoin(
+  parts: PlacedPart[],
+  from: WorldPort,
+  to: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+): PlacedPart[] | null {
+  if (distance(from, to) > 220 || Date.now() >= ctx.deadline - 160) {
+    return null;
+  }
+  const peels: Array<[number, number]> = [
+    [0, 4],
+    [4, 0],
+    [4, 4],
+    [0, 8],
+    [8, 0],
+    [0, 6],
+    [6, 0],
+    [2, 2],
+    [1, 1],
+    [2, 0],
+    [0, 2],
+  ];
+  for (const [peelFrom, peelTo] of peels) {
+    if (Date.now() >= ctx.deadline - 120) {
+      return null;
+    }
+    const a = peelOpenHead(parts, from, peelFrom, ctx.catalog);
+    if (!a) {
+      continue;
+    }
+    const b = peelOpenHead(a.parts, to, peelTo, ctx.catalog);
+    if (!b) {
+      continue;
+    }
+    const liveFrom =
+      openPorts(b.parts, ctx.catalog).find(
+        (port) => port.instanceId === a.head.instanceId && port.id === a.head.id,
+      ) ?? openPorts(b.parts, ctx.catalog).find((port) => port.instanceId === a.head.instanceId);
+    if (!liveFrom) {
+      continue;
+    }
+    const joined =
+      offsetJoin(b.parts, liveFrom, b.head, inventory, ctx, 'jn') ??
+      offsetJoin(b.parts, b.head, liveFrom, inventory, ctx, 'jn');
+    if (joined && openPorts(joined, ctx.catalog).length < openPorts(parts, ctx.catalog).length) {
+      return joined;
+    }
   }
   return null;
 }

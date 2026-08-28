@@ -36,10 +36,10 @@ Catalog → room editor → inventory page → designer → `generateLayout` (wi
 
 Grow equal heads through the playable floor (room minus furniture), place switches as two new paths, then join. Wander-home or a 16-curve circle is only a fallback when that shape still fits.
 
-Details, instance-id prefixes, and snapshot-driven rules: [GENERATOR.md](GENERATOR.md). Browser-agent generate/judge API: [AGENT.md](AGENT.md).
+Details, instance-id prefixes, snapshot-driven rules, and the eval-scene quality bench: [GENERATOR.md](GENERATOR.md). Browser-agent generate/judge API: [AGENT.md](AGENT.md).
 
 ## Testing
 
 Golden fixtures live next to geometry (`fixtures.spec.ts`): 16-curve circle, oval, 15-curve refusal, switch/crossing/crossover, flex accept/refuse.
 
-Generator regressions live in `generate.spec.ts`: closed loops, parking sidings, S-bends, large-collection specials and leftovers. Snapshot parse/build is in `export/snapshot.spec.ts`.
+Generator regressions live in `generate.spec.ts`: closed loops, parking sidings, S-bends, large-collection specials and leftovers. Snapshot parse/build is in `export/snapshot.spec.ts`. Bulk eval-scene rates: `npm run bench:generator` (`scripts/bench-generator.ts`).

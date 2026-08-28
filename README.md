@@ -37,7 +37,7 @@ npm run build
 | [docs/PRODUCT.md](docs/PRODUCT.md) | Product goal |
 | [docs/DOMAIN.md](docs/DOMAIN.md) | Track model |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code shape |
-| [docs/GENERATOR.md](docs/GENERATOR.md) | How layouts are built, and lessons from snapshots |
+| [docs/GENERATOR.md](docs/GENERATOR.md) | How layouts are built, eval-scene quality bench, snapshot lessons |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Slices |
 
 ## Catalog

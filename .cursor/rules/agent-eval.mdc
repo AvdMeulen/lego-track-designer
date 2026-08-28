@@ -10,3 +10,5 @@ When generating or judging a layout on the website, follow [docs/AGENT.md](docs/
 Default: open `/designer?generate=1&seed=90&parking=2&scene=eval` (local `http://localhost:4200`, live GitHub Pages with `/lego-track-designer` prefix), or `await legoTrackAgent.generate({ scene: 'eval', seed: 90, parking: 2 })`.
 
 Wait until `html[data-lego-track="ready"]`. Read `[data-testid="run-stats"]` and `legoTrackAgent.report()`. Judge the **core loop** first (closed, not fake parking), then leftover stock, unused L-arm, crossover, and parking vs target.
+
+For many seeds, do not click Generate in a loop. Run `npm run bench:generator` (see [docs/GENERATOR.md](docs/GENERATOR.md) § Quality bench).

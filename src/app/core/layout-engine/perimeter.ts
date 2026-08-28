@@ -5,7 +5,7 @@ import { openPorts, remainingInventory } from './connections';
 import { closeOpenHeads } from './explore';
 import { CURVE_ANGLE, distance, headingDelta, normalizeHeading, WorldPort, worldPorts } from './geometry';
 import { GenContext, nextId, placeOnHead, tryAttach } from './place';
-import { fillEmptySpace, headingSteps, joinHeads, ovalJoin, spliceParallelRun } from './wander';
+import { fillEmptySpace, headingSteps, joinHeads, offsetJoin, ovalJoin, spliceParallelRun } from './wander';
 
 const WALL_INSET = 16;
 const CORNER_LEAD = 56;
@@ -18,13 +18,26 @@ export function tracePerimeter(inventory: Record<string, number>, ctx: GenContex
   if (!ctx.floorPlan) {
     return [];
   }
+  let ortho: PlacedPart[] = [];
   if (isRectilinear(ctx.floorPlan.outer.points)) {
-    const ortho = walkOrtho(inventory, ctx);
-    if (ortho.length >= 8) {
+    ortho = walkOrtho(inventory, ctx);
+    if (ortho.length >= 8 && openPorts(ortho, ctx.catalog).length === 0) {
       return ortho;
     }
   }
-  return walkGreedy(inventory, ctx);
+  const greedy = walkGreedy(inventory, ctx);
+  if (greedy.length >= 8 && openPorts(greedy, ctx.catalog).length === 0) {
+    return greedy;
+  }
+  if (ortho.length === 0) {
+    return greedy;
+  }
+  if (greedy.length === 0) {
+    return ortho;
+  }
+  const score = (parts: PlacedPart[]) =>
+    -openPorts(parts, ctx.catalog).length * 1000 + parts.length + ringCoverage(parts) * 0.01;
+  return score(greedy) > score(ortho) ? greedy : ortho;
 }
 
 /** Spend leftover pieces as connected inward / parallel runs on the main circuit. */
@@ -49,26 +62,56 @@ export function addInnerLoops(
 function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPart[] {
   const outer = ctx.floorPlan!.outer.points;
   const bays = lBayRectangles(outer).filter((bay) => !ringHitsObstacle(bay, ctx.floorPlan!));
-  const rings = [...bays, outer];
-  const n = rings.length;
-  const choice =
-    ctx.variant != null ? ((ctx.variant % n) + n) % n : Math.floor(ctx.random() * n);
-  const preferred = rings[choice] ?? outer;
+  const rings = [outer, ...bays];
   const varyFirst = ctx.variant != null ? ((ctx.variant >> 1) & 1) === 1 : ctx.random() < 0.5;
+  const closed: PlacedPart[][] = [];
   let best: PlacedPart[] = [];
-  for (const varyStart of varyFirst ? [true, false] : [false, true]) {
-    if (Date.now() >= ctx.deadline) {
-      break;
-    }
-    const walked = walkOrthoRing(preferred, WALL_INSET, inventory, ctx, varyStart);
-    if (walked.length >= 8 && openPorts(walked, ctx.catalog).length === 0) {
-      return walked;
-    }
-    if (walked.length > best.length) {
-      best = walked;
+  for (const ring of rings) {
+    for (const varyStart of varyFirst ? [true, false] : [false, true]) {
+      if (Date.now() >= ctx.deadline - 400) {
+        break;
+      }
+      const ringCtx: GenContext = {
+        ...ctx,
+        deadline: Math.min(ctx.deadline, Date.now() + (closed.length > 0 ? 500 : 900)),
+      };
+      const walked = walkOrthoRing(ring, WALL_INSET, inventory, ringCtx, varyStart);
+      if (walked.length >= 8 && openPorts(walked, ctx.catalog).length === 0) {
+        closed.push(walked);
+        continue;
+      }
+      if (walked.length > best.length) {
+        best = walked;
+      }
     }
   }
-  return best.length >= 8 ? closeOpenHeads(best, inventory, ctx, 0) : best;
+  if (closed.length > 0) {
+    return pickClosedRing(closed, ctx);
+  }
+  if (best.length < 8) {
+    return best;
+  }
+  return closeOpenHeads(best, inventory, { ...ctx, deadline: Math.max(ctx.deadline, Date.now() + 900) }, 0);
+}
+
+function pickClosedRing(closed: PlacedPart[][], ctx: GenContext): PlacedPart[] {
+  const scored = closed
+    .map((parts) => ({ parts, score: ringCoverage(parts) }))
+    .sort((a, b) => b.score - a.score);
+  const index =
+    ctx.variant != null ? ((ctx.variant % scored.length) + scored.length) % scored.length : 0;
+  return scored[index]?.parts ?? closed[0];
+}
+
+function ringCoverage(parts: PlacedPart[]): number {
+  if (parts.length === 0) {
+    return 0;
+  }
+  const xs = parts.map((part) => part.x);
+  const ys = parts.map((part) => part.y);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  return parts.length * 10 + width + height;
 }
 
 function walkOrthoRing(
@@ -145,8 +188,10 @@ function orthoSequence(inset: Point[], left: 'a' | 'b', right: 'a' | 'b'): Array
     const b = inset[(index + 1) % inset.length];
     const c = inset[(index + 2) % inset.length];
     const length = distance(a, b);
-    const run =
-      index === 0 || index === inset.length - 1 ? length / 2 - CORNER_LEAD : length - CORNER_LEAD * 2;
+    const half = index === 0 || index === inset.length - 1;
+    const corners = half ? 1 : 2;
+    const lead = cornerLead(length, corners);
+    const run = (half ? length / 2 : length) - lead * corners;
     const straights = Math.max(0, Math.floor(run / 16));
     for (let step = 0; step < straights; step += 1) {
       sequence.push({ partId: 'straight-16' });
@@ -158,6 +203,12 @@ function orthoSequence(inset: Point[], left: 'a' | 'b', right: 'a' | 'b'): Array
     }
   }
   return sequence;
+}
+
+/** Keep a 16-stud straight on short L-stub edges; full R40 lead on long walls. */
+function cornerLead(edgeLength: number, corners: 1 | 2): number {
+  const maxLead = Math.max(12, (edgeLength - 16) / corners);
+  return Math.min(CORNER_LEAD, maxLead);
 }
 
 function attachRun(
@@ -611,7 +662,11 @@ function closeGap(
     joinHeads(parts, to, from, inventory, ctx, prefix) ??
     ovalJoin(parts, from, to, inventory, ctx, prefix, false) ??
     ovalJoin(parts, to, from, inventory, ctx, prefix, false) ??
-    ovalJoin(pretuned.parts, pretuned.head, to, inventory, ctx, prefix, true);
+    ovalJoin(parts, from, to, inventory, ctx, prefix, true) ??
+    ovalJoin(parts, to, from, inventory, ctx, prefix, true) ??
+    ovalJoin(pretuned.parts, pretuned.head, to, inventory, ctx, prefix, true) ??
+    offsetJoin(parts, from, to, inventory, ctx, prefix) ??
+    offsetJoin(parts, to, from, inventory, ctx, prefix);
   if (joined && openPorts(joined, ctx.catalog).length === 0) {
     return joined;
   }

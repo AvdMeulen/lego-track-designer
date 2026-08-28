@@ -1250,7 +1250,10 @@ export function applyRouteFeatures(
   if (leftoverDiverges.length >= 2) {
     result = joinOpenPairs(result, leftoverDiverges, inventory, ctx, 'rte', true);
   } else if (leftoverDiverges.length === 1 && plan.parking === 0) {
-    result = closeKeerlus(result, inventory, ctx);
+    result = joinOpenPairs(result, leftoverDiverges, inventory, ctx, 'rte', true);
+    if (divergesOf(result, ctx.catalog).length > 0) {
+      result = closeKeerlus(result, inventory, ctx);
+    }
   }
 
   return result;

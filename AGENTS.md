@@ -17,3 +17,13 @@ await legoTrackAgent.generate({ scene: 'eval', seed: 90, parking: 2 })
 ```
 
 Wait for `html[data-lego-track="ready"]`, then read `[data-testid="run-stats"]` and `legoTrackAgent.report()`. Judge the core loop first.
+
+## Many seeds (offline bench)
+
+Do not click Generate in a loop. Same engine, no Angular:
+
+```bash
+npm run bench:generator
+```
+
+Args: `[runs=100] [parking=2] [startSeed=1]`. Writes `scripts/bench-generator-results.json` (gitignored). Command and metrics: [docs/GENERATOR.md](docs/GENERATOR.md) § Quality bench. Judge closed loop first.

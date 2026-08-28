@@ -2,7 +2,7 @@
 
 How `generateLayout` builds a City network from inventory and an optional floor plan.
 
-The engine lives in `src/app/core/layout-engine/` (`generate.ts` orchestrates `explore.ts`, `wander.ts`, `features.ts`, `score.ts`). Room collision lives in `floor-plan/space.ts`. Analysis stays in `layout-analysis/`. Share a failed or interesting result as a JSON snapshot from the designer. To have an agent generate on the running site and score the result, follow [AGENT.md](AGENT.md).
+The engine lives in `src/app/core/layout-engine/` (`generate.ts` orchestrates `explore.ts`, `wander.ts`, `features.ts`, `score.ts`). Room collision lives in `floor-plan/space.ts`. Analysis stays in `layout-analysis/`. Share a failed or interesting result as a JSON snapshot from the designer. To have an agent generate on the running site and score the result, follow [AGENT.md](AGENT.md). To compare many eval seeds without the browser, run the [quality bench](#quality-bench).
 
 ## Solution direction
 
@@ -36,6 +36,33 @@ Default search budget is 4 seconds. The designer pauses the deadline while a pha
 5. Score candidates; pick the best. `generateLayout()` stays synchronous for tests. The designer uses `generateLayoutAsync()`.
 
 Instance-id prefixes: `ex` explore, `sw` switch, `jn` join, plus the older feature prefixes (`xo`, `rte`, `kel`, `sid`, `inf`, `w`, `c`).
+
+## Quality bench
+
+Bulk eval-scene runs go through `generateLayout` (same engine as the designer, no browser). Use this when comparing seeds, judging leftover stock, or checking whether a generator change moved the product bar. For a single layout on the running site, follow [AGENT.md](AGENT.md).
+
+```bash
+npm run bench:generator                            # 100 runs, parking 2, seeds 1–100
+npm run bench:generator -- 20                      # 20 runs
+npm run bench:generator -- 100 2 1                 # runs, parking (0|1|2), start seed
+npx --yes tsx scripts/bench-generator.ts 100 2 1   # same, without the npm script
+```
+
+Each run uses the eval L-room and collection from `agent-scene.ts`, search budget 4 seconds (same default as the designer). Progress goes to stderr. A summary JSON (without needing the site) prints to stdout; the full per-seed table is written to `scripts/bench-generator-results.json` (gitignored).
+
+Rates to read first, in the same order as [AGENT.md](AGENT.md):
+
+| Field | Pass looks like |
+| --- | --- |
+| `rates.coreGood` / `closedPct` | Closed loop (`loop` and `unfinishedPorts === 0`). Product bar: about 80% closed. |
+| `rates.parkExact` | Parking found equals the requested target. |
+| `rates.bothArms` | Track in both arms of the eval L. |
+| `rates.crossover` / `rates.allSwitches` | Double crossover and spare switches used when they fit. |
+| `rates.flexUsed` | Flex only as a small gap closer (not a 15-curve close). |
+| `unusedRigid.median` | Leftovers that would collide, not a half-empty collection. |
+| `rates.gold` | Closed + parking match + crossover + all switches + both arms + one group + no isolated `in*` circles. |
+
+A smoke check is `npm run bench:generator -- 1`. A hundred eval runs take on the order of 8–10 minutes.
 
 ## Scoring
 

@@ -28,6 +28,18 @@ await legoTrackAgent.generate({ scene: 'eval', seed: 90, parking: 2 })
 
 `npm start` must be running for the local URL. Generation takes about four seconds of search plus phase pauses.
 
+## Many seeds (offline bench)
+
+The URL and `legoTrackAgent.generate` path above is for **one** layout on the running site. For 20 or 100 eval seeds, do not click Generate in a loop. Run the same engine from the repo:
+
+```bash
+npm run bench:generator           # 100 runs, parking 2, seeds 1–100
+npm run bench:generator -- 20     # 20 runs
+npx --yes tsx scripts/bench-generator.ts 100 2 1   # runs, parking (0|1|2), start seed
+```
+
+Command, metrics, and output file: [GENERATOR.md](GENERATOR.md#quality-bench). Judge the printed rates in the same order as **How to judge** below.
+
 ## Wait until it is done
 
 - `html[data-lego-track="ready"]` (while searching: `generating`)
@@ -134,6 +146,12 @@ Paste or point at this file:
 
 ```text
 Follow docs/AGENT.md. Generate seed 90 with parking 2 on the eval scene, wait until ready, and judge the core loop.
+```
+
+A hundred-seed quality check (no browser):
+
+```text
+Follow docs/GENERATOR.md § Quality bench. Run npm run bench:generator (or npx --yes tsx scripts/bench-generator.ts). Judge rates.coreGood first, then parking, both arms, crossover, leftovers.
 ```
 
 Cursor also loads `.cursor/rules/agent-eval.mdc` and the repo-root `AGENTS.md`, both of which point here.

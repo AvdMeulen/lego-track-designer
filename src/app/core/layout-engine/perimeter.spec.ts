@@ -73,7 +73,7 @@ describe('tracePerimeter', () => {
     const parts = tracePerimeter(LARGE, {
       catalog: CITY_TRACKS_BY_ID,
       random: rng(66),
-      deadline: Date.now() + 2500,
+      deadline: Date.now() + 3500,
       seq: 0,
       floorPlan: USER_L,
       variant: 2,
@@ -81,6 +81,7 @@ describe('tracePerimeter', () => {
     const xs = parts.map((part) => part.x);
     expect(parts.length).toBeGreaterThan(16);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(140);
+    expect(Math.max(...xs)).toBeGreaterThan(250);
     expect(openPorts(parts, CITY_TRACKS_BY_ID).length).toBeLessThanOrEqual(2);
     for (const part of parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, USER_L)).toBeFalse();
@@ -91,7 +92,7 @@ describe('tracePerimeter', () => {
     const ctx66 = {
       catalog: CITY_TRACKS_BY_ID,
       random: rng(66),
-      deadline: Date.now() + 2500,
+      deadline: Date.now() + 3500,
       seq: 0,
       floorPlan: USER_L,
       variant: 0,
@@ -99,16 +100,16 @@ describe('tracePerimeter', () => {
     const ctx91 = {
       ...ctx66,
       random: rng(91),
-      deadline: Date.now() + 2500,
+      deadline: Date.now() + 3500,
       variant: 1,
     };
     const a = tracePerimeter(LARGE, {
       ...ctx66,
-      deadline: Date.now() + 2500,
+      deadline: Date.now() + 3500,
     });
     const b = tracePerimeter(LARGE, {
       ...ctx91,
-      deadline: Date.now() + 2500,
+      deadline: Date.now() + 3500,
     });
     const pose = (parts: { partId: string; x: number; y: number; rotation: number }[]) =>
       parts

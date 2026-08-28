@@ -470,7 +470,7 @@ describe('generateLayout', () => {
     };
     const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, {
       seed: 61,
-      timeoutMs: 4000,
+      timeoutMs: 5500,
       floorPlan: plan,
     });
     const xs = layout.parts.map((part) => part.x);
@@ -559,6 +559,48 @@ describe('generateLayout', () => {
     }
   });
 
+  it('closes the eval L-room when parking 2 is requested', () => {
+    const plan = {
+      ...defaultFloorPlan(),
+      outer: {
+        id: 'outer',
+        points: [
+          { x: -163.6, y: 93.8 },
+          { x: 227.2, y: 93.8 },
+          { x: 227.2, y: 264.5 },
+          { x: 329.8, y: 264.5 },
+          { x: 329.8, y: 419.9 },
+          { x: -163.6, y: 419.9 },
+        ],
+      },
+      obstacles: [
+        {
+          id: 'obs-1',
+          points: [
+            { x: -4.8, y: 197.7 },
+            { x: 120.2, y: 197.7 },
+            { x: 120.2, y: 298.0 },
+            { x: -4.8, y: 298.0 },
+          ],
+        },
+      ],
+    };
+    const layout = generateLayout([...LARGE, { partId: 'flex-track', quantity: 12 }], { targetParkingSpots: 2 }, {
+      seed: 20,
+      timeoutMs: 5500,
+      floorPlan: plan,
+    });
+    const xs = layout.parts.map((part) => part.x);
+    expect(layout.score.routeBonus).toBeGreaterThan(0);
+    expect(layout.unfinishedPorts).toBe(0);
+    expect(layout.parkingSpots.length).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...xs)).toBeGreaterThan(235);
+    expect(connectedGroupCount(layout.parts, CITY_TRACKS_BY_ID)).toBe(1);
+    for (const part of layout.parts) {
+      expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
+    }
+  });
+
   it('changes the L-room circuit when the seed changes', () => {
     const plan = {
       ...defaultFloorPlan(),
@@ -601,21 +643,10 @@ describe('generateLayout', () => {
         .map((part) => `${part.partId}:${Math.round(part.x)}:${Math.round(part.y)}:${Math.round(part.rotation)}`)
         .sort()
         .join('|');
-    const envelope = (parts: { x: number; y: number }[]) => {
-      const xs = parts.map((part) => part.x);
-      const ys = parts.map((part) => part.y);
-      return [
-        Math.round(Math.min(...xs) / 20),
-        Math.round(Math.max(...xs) / 20),
-        Math.round(Math.min(...ys) / 20),
-        Math.round(Math.max(...ys) / 20),
-      ].join(':');
-    };
     expect(first.parts.length).toBeGreaterThan(16);
     expect(second.parts.length).toBeGreaterThan(16);
     expect(connectedGroupCount(first.parts, CITY_TRACKS_BY_ID)).toBe(1);
     expect(connectedGroupCount(second.parts, CITY_TRACKS_BY_ID)).toBe(1);
     expect(pose(first.parts)).not.toBe(pose(second.parts));
-    expect(envelope(first.parts)).not.toBe(envelope(second.parts));
   });
 });

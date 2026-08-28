@@ -1,6 +1,6 @@
 {
   "name": "lego-track-designer",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:ci": "ng test --watch=false --browsers=ChromeHeadlessCI",
-    "build:pages": "ng build --base-href /lego-track-designer/"
+    "build:pages": "ng build --base-href /lego-track-designer/",
+    "bench:generator": "npx --yes tsx scripts/bench-generator.ts"
   },
   "prettier": {
     "printWidth": 100,

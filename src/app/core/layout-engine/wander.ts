@@ -1137,6 +1137,17 @@ export function inflateLoop(
       if (closedAtStart && !joinedCoreCloses(joined, ctx.catalog)) {
         continue;
       }
+      if (!closedAtStart) {
+        const opensAfter = openPorts(joined, ctx.catalog).filter(
+          (port) => !port.instanceId.startsWith('sid'),
+        ).length;
+        const opensBefore = openPorts(result, ctx.catalog).filter(
+          (port) => !port.instanceId.startsWith('sid'),
+        ).length;
+        if (opensAfter > opensBefore) {
+          continue;
+        }
+      }
       result = joined;
       inflated = true;
     }
@@ -1638,6 +1649,103 @@ export function attachSequenceFrom(
     }
   }
   return portsConnect(tip, target) ? trail : null;
+}
+
+/** Join two facing heads with a dogleg when they sit on a lateral offset. */
+export function offsetJoin(
+  parts: PlacedPart[],
+  start: WorldPort,
+  target: WorldPort,
+  inventory: Record<string, number>,
+  ctx: GenContext,
+  prefix = 'jn',
+): PlacedPart[] | null {
+  if (portsConnect(start, target)) {
+    return parts;
+  }
+  const face = headingDelta(start.heading, target.heading + 180);
+  if (face > 100) {
+    return null;
+  }
+  const rad = (start.heading * Math.PI) / 180;
+  const dx = target.x - start.x;
+  const dy = target.y - start.y;
+  const along = dx * Math.cos(rad) + dy * Math.sin(rad);
+  const left = stockOf(inventory, parts);
+  const curves = left['curve-22'] ?? 0;
+  const straights = left['straight-16'] ?? 0;
+  if (curves < 2 || (straights < 1 && along > 20)) {
+    return null;
+  }
+  const alongN = Math.max(0, Math.round(along / 16));
+  const side = Math.abs(-dx * Math.sin(rad) + dy * Math.cos(rad));
+  const sideN = Math.max(0, Math.round(side / 16));
+  const turns = preferTurnToward(start, target);
+  const corners = [4, 2, 6, 3, 5, 8].filter((count) => count <= curves);
+  const alongs = uniqueCounts(alongN, straights, 4).sort(
+    (a, b) => Math.abs(a - (alongN - 3)) - Math.abs(b - (alongN - 3)),
+  );
+  const sides = uniqueCounts(sideN, straights, 3).sort(
+    (a, b) => Math.abs(a - (sideN - 3)) - Math.abs(b - (sideN - 3)),
+  );
+  let attempts = 0;
+  const trySeq = (sequence: Array<{ partId: string; portId?: string }>): PlacedPart[] | null => {
+    attempts += 1;
+    if (attempts > 120 || Date.now() >= ctx.deadline) {
+      return null;
+    }
+    return attachSequenceFrom(parts, start, sequence, target, ctx, prefix);
+  };
+  for (const turn of turns) {
+    for (const corner of corners) {
+      for (const run of alongs) {
+        for (const offset of sides) {
+          if (run + offset > straights) {
+            continue;
+          }
+          const ell: Array<{ partId: string; portId?: string }> = [];
+          pushStraights(ell, run);
+          pushCurves(ell, corner, turn);
+          pushStraights(ell, offset);
+          const found = trySeq(ell);
+          if (found) {
+            return found;
+          }
+        }
+      }
+    }
+  }
+  const otherOf = (turn: 'a' | 'b'): 'a' | 'b' => (turn === 'a' ? 'b' : 'a');
+  for (const turn of turns) {
+    for (const corner of [4, 2, 3].filter((count) => count * 2 <= curves)) {
+      for (const run of alongs.slice(0, 4)) {
+        for (const offset of sides.slice(0, 4)) {
+          if (run + offset > straights) {
+            continue;
+          }
+          const ess: Array<{ partId: string; portId?: string }> = [];
+          pushStraights(ess, run);
+          pushCurves(ess, corner, turn);
+          pushStraights(ess, offset);
+          pushCurves(ess, corner, otherOf(turn));
+          const found = trySeq(ess);
+          if (found) {
+            return found;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function uniqueCounts(center: number, max: number, span: number): number[] {
+  const values = new Set<number>();
+  for (let delta = 0; delta <= span; delta += 1) {
+    values.add(Math.max(0, center - delta));
+    values.add(Math.min(max, center + delta));
+  }
+  return [...values].filter((count) => count >= 0 && count <= max);
 }
 
 function pushCurves(

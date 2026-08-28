@@ -35,4 +35,4 @@ npm run build
 
 ## Documentation
 
-If a change alters product behavior, folder structure, or setup steps, update the matching file in `docs/`. Generator behavior and snapshot-driven rules belong in [docs/GENERATOR.md](docs/GENERATOR.md). Browser-agent generate/judge instructions belong in [docs/AGENT.md](docs/AGENT.md) (linked from [AGENTS.md](AGENTS.md) and `.cursor/rules/agent-eval.mdc`).
+If a change alters product behavior, folder structure, or setup steps, update the matching file in `docs/`. Generator behavior, snapshot-driven rules, and the eval-scene quality bench belong in [docs/GENERATOR.md](docs/GENERATOR.md). Browser-agent generate/judge instructions belong in [docs/AGENT.md](docs/AGENT.md) (linked from [AGENTS.md](AGENTS.md) and `.cursor/rules/agent-eval.mdc`). Re-run `npm run bench:generator` (or a shorter `-- 20`) when a generator change should move closed-loop or leftover rates.

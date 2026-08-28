@@ -248,10 +248,22 @@ function* buildCandidateSteps(
       applyPause(clock, ctx, exploreCtx, yield { phase: 'paths', attempt, parts: explored });
     }
     if (explored.length >= 8) {
-      let parts = closeOpenHeads(explored, inventory, ctx, 0);
+      let parts = closeOpenHeads(explored, inventory, {
+        ...ctx,
+        deadline: Math.max(ctx.deadline, Date.now() + 900),
+      }, 0);
       if (openPorts(parts, ctx.catalog).length > 0 && Date.now() < ctx.deadline - 400) {
-        const wandered = wanderHomeLoop(inventory, { ...ctx, deadline: Math.min(ctx.deadline - 200, Date.now() + 700) });
-        if (wandered && loopCloses(wandered, ctx.catalog) && fitsRoom(wandered, ctx)) {
+        const wandered = wanderHomeLoop(inventory, {
+          ...ctx,
+          deadline: Math.min(ctx.deadline - 200, Date.now() + 700),
+        });
+        if (
+          wandered &&
+          loopCloses(wandered, ctx.catalog) &&
+          fitsRoom(wandered, ctx) &&
+          (wandered.length > parts.length ||
+            (openPorts(parts, ctx.catalog).length > 0 && wandered.length >= 24))
+        ) {
           parts = wandered;
         }
       }
@@ -260,7 +272,11 @@ function* buildCandidateSteps(
       const leftover = remainingInventory(inventory, parts);
       const rigidLeft = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
       const keepFeatures = plan.crossovers + plan.dualRoutes > 0 ? Math.min(12, Math.floor(rigidLeft * 0.15)) : 0;
-      parts = inflateLoop(parts, inventory, ctx, 12, keepPark + keepFeatures, false, null);
+      const opensBeforeInflate = openPorts(parts, ctx.catalog).length;
+      const inflated = inflateLoop(parts, inventory, ctx, 12, keepPark + keepFeatures, false, null);
+      if (openPorts(inflated, ctx.catalog).length <= opensBeforeInflate) {
+        parts = inflated;
+      }
       parts = closeOpenHeads(parts, inventory, ctx, 0);
       const closedCore = parts;
       const mainClosed = openPorts(parts, ctx.catalog).length === 0;
@@ -283,13 +299,19 @@ function* buildCandidateSteps(
           parts = closedCore;
         }
       }
-      const fillCtx: GenContext = { ...ctx, deadline: Date.now() + 900 };
+      const fillCtx: GenContext = { ...ctx, deadline: Date.now() + 1400 };
       if (openPorts(parts, ctx.catalog).length === 0) {
         parts = addInnerLoops(parts, inventory, fillCtx, keepPark);
       }
-      parts = inflateLoop(parts, inventory, ctx, 8, keepPark, false, null);
+      const opensBeforeFillInflate = openPorts(parts, ctx.catalog).length;
+      const filledInflate = inflateLoop(parts, inventory, ctx, 8, keepPark, false, null);
+      if (openPorts(filledInflate, ctx.catalog).length <= opensBeforeFillInflate) {
+        parts = filledInflate;
+      }
       const beforeSpecials = parts;
-      parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
+      if (openPorts(parts, ctx.catalog).length === 0) {
+        parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
+      }
       parts = placeParking(parts, inventory, ctx, plan.parking);
       parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
       if (
@@ -300,7 +322,7 @@ function* buildCandidateSteps(
       }
       const afterPark = remainingInventory(inventory, parts);
       if ((afterPark['straight-16'] ?? 0) + (afterPark['curve-22'] ?? 0) > 16) {
-        const extraCtx: GenContext = { ...ctx, deadline: Date.now() + 700 };
+        const extraCtx: GenContext = { ...ctx, deadline: Date.now() + 900 };
         if (openPorts(parts, ctx.catalog).length === 0) {
           parts = addInnerLoops(parts, inventory, extraCtx, 0);
         }
@@ -434,14 +456,14 @@ function* generateLayoutSteps(
       layout.score.routeBonus > 0 &&
       layout.unfinishedPorts === 0 &&
       poseKey(layout.parts) !== previousKey &&
-      (options.floorPlan ||
-        (layout.parkingSpots.length === prefs.targetParkingSpots && unusedRigidTrack(layout) < 8))
+      layout.parkingSpots.length === prefs.targetParkingSpots &&
+      unusedRigidTrack(layout) < 24
     ) {
       break;
     }
   }
 
-  const best = pickBest(candidates, inventory, fifteenCurves, previousKey, prefs, !!options.floorPlan);
+  const best = pickBest(candidates, inventory, fifteenCurves, previousKey, prefs);
   applyPause(clock, { catalog, random, deadline: clock.deadline, seq: 0 }, null, yield {
     phase: 'done',
     attempt: Math.max(1, attempts),
@@ -456,7 +478,6 @@ function pickBest(
   fifteenCurves: boolean,
   previousKey: string,
   prefs: GenerationPreferences,
-  floorPlan: boolean,
 ): TrackLayout {
   if (candidates.length === 0) {
     return finalize([], inventory, prefs, 'layout.couldNotPlace');
@@ -482,9 +503,23 @@ function pickBest(
             : candidates;
   const distinct = previousKey ? pool.filter((layout) => poseKey(layout.parts) !== previousKey) : pool;
   const ranked = distinct.length ? distinct : pool;
-  if (!floorPlan) {
-    ranked.sort((a, b) => b.score.total - a.score.total);
-  }
+  ranked.sort((a, b) => {
+    const unfinished = a.unfinishedPorts - b.unfinishedPorts;
+    if (unfinished !== 0) {
+      return unfinished;
+    }
+    const park =
+      Math.abs(a.parkingSpots.length - prefs.targetParkingSpots) -
+      Math.abs(b.parkingSpots.length - prefs.targetParkingSpots);
+    if (park !== 0) {
+      return park;
+    }
+    const unused = unusedRigidTrack(a) - unusedRigidTrack(b);
+    if (unused !== 0) {
+      return unused;
+    }
+    return b.score.total - a.score.total;
+  });
   const best = ranked[0];
   if (best.parts.length === 0) {
     best.message = 'layout.couldNotPlace';
