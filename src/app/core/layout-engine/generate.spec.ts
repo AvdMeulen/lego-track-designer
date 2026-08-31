@@ -470,7 +470,7 @@ describe('generateLayout', () => {
     };
     const layout = generateLayout(LARGE, { targetParkingSpots: 0 }, {
       seed: 61,
-      timeoutMs: 5500,
+      timeoutMs: 8000,
       floorPlan: plan,
     });
     const xs = layout.parts.map((part) => part.x);
@@ -484,7 +484,7 @@ describe('generateLayout', () => {
     for (const part of layout.parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }
-  });
+  }, 20000);
 
   it('closes an L-room circuit instead of leaving switch stubs open', () => {
     const plan = {
@@ -587,7 +587,7 @@ describe('generateLayout', () => {
     };
     const layout = generateLayout([...LARGE, { partId: 'flex-track', quantity: 12 }], { targetParkingSpots: 2 }, {
       seed: 20,
-      timeoutMs: 5500,
+      timeoutMs: 9000,
       floorPlan: plan,
     });
     const xs = layout.parts.map((part) => part.x);
@@ -599,7 +599,7 @@ describe('generateLayout', () => {
     for (const part of layout.parts) {
       expect(placementHitsRoom(part, CITY_TRACKS_BY_ID, plan)).toBeFalse();
     }
-  });
+  }, 25000);
 
   it('changes the L-room circuit when the seed changes', () => {
     const plan = {

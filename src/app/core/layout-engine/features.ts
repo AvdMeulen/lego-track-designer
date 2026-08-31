@@ -1681,14 +1681,23 @@ export function placeParking(
     return parts;
   }
   let result = parts;
-  const openDiverges = divergesOf(result, ctx.catalog).length;
-  if (openDiverges < count) {
-    result = insertSwitches(result, inventory, ctx, count - openDiverges, 'sid');
+  for (let n = 0; n < count; n += 1) {
+    const before = result;
+    if (divergesOf(result, ctx.catalog).length === 0) {
+      result = insertSwitches(result, inventory, ctx, 1, 'sid');
+    }
+    result = addParking(result, inventory, ctx, 1);
+    if (divergesOf(result, ctx.catalog).length > 0) {
+      result = before;
+      break;
+    }
   }
-  result = addParking(result, inventory, ctx, count);
   if (!hasParkingSiding(result, ctx)) {
-    result = insertSwitches(result, inventory, ctx, count, 'sid');
+    result = insertSwitches(parts, inventory, ctx, count, 'sid');
     result = addParking(result, inventory, ctx, count);
+    if (divergesOf(result, ctx.catalog).length > 0) {
+      result = parts;
+    }
   }
   if (!hasParkingSiding(result, ctx) && result.length <= 28) {
     const seeded = seedFromSwitch(inventory, ctx, PARK_SIDING);

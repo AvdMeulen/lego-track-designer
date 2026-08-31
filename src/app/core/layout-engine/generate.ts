@@ -299,7 +299,7 @@ function* buildCandidateSteps(
           parts = closedCore;
         }
       }
-      const fillCtx: GenContext = { ...ctx, deadline: Date.now() + 1400 };
+      const fillCtx: GenContext = { ...ctx, deadline: Math.min(ctx.deadline, Date.now() + 1400) };
       if (openPorts(parts, ctx.catalog).length === 0) {
         parts = addInnerLoops(parts, inventory, fillCtx, keepPark);
       }
@@ -322,7 +322,7 @@ function* buildCandidateSteps(
       }
       const afterPark = remainingInventory(inventory, parts);
       if ((afterPark['straight-16'] ?? 0) + (afterPark['curve-22'] ?? 0) > 16) {
-        const extraCtx: GenContext = { ...ctx, deadline: Date.now() + 900 };
+        const extraCtx: GenContext = { ...ctx, deadline: Math.min(ctx.deadline, Date.now() + 900) };
         if (openPorts(parts, ctx.catalog).length === 0) {
           parts = addInnerLoops(parts, inventory, extraCtx, 0);
         }

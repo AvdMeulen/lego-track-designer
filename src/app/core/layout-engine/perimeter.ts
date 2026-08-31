@@ -154,7 +154,7 @@ function walkOrthoRing(
     if (Date.now() >= ctx.deadline) {
       break;
     }
-    const sequence = orthoSequence(inset, ports.left, ports.right);
+    const sequence = trimTrailingCorner(orthoSequence(inset, ports.left, ports.right));
     const walked = attachRun([start.part], start.head, sequence, inventory, ctx);
     if (!walked) {
       continue;
@@ -203,6 +203,19 @@ function orthoSequence(inset: Point[], left: 'a' | 'b', right: 'a' | 'b'): Array
     }
   }
   return sequence;
+}
+
+function trimTrailingCorner(
+  sequence: Array<{ partId: string; portId?: string }>,
+): Array<{ partId: string; portId?: string }> {
+  if (sequence.length < 4) {
+    return sequence;
+  }
+  const tail = sequence.slice(-4);
+  if (tail.some((item) => item.partId !== 'curve-22')) {
+    return sequence;
+  }
+  return sequence.slice(0, -4);
 }
 
 /** Keep a 16-stud straight on short L-stub edges; full R40 lead on long walls. */
