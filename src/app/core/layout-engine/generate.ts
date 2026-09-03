@@ -121,6 +121,33 @@ function reserveForFeatures(
   };
 }
 
+/** Hold parking and one parallel run out of the wall-hug so fill/crossover can spend them. */
+function reserveForPerimeter(
+  inventory: Record<string, number>,
+  plan: { dualRoutes: number; crossovers: number; crossings: number; parking: number },
+): Record<string, number> {
+  const straights = inventory['straight-16'] ?? 0;
+  const curves = inventory['curve-22'] ?? 0;
+  const reservedPark = Math.min(plan.parking > 0 ? 6 : 0, Math.max(0, straights - 28));
+  const wantFill = plan.dualRoutes + plan.crossovers + plan.crossings > 0 || curves >= 40;
+  const reservedS = wantFill ? Math.min(6, Math.max(0, straights - reservedPark - 28)) : 0;
+  const reservedC = wantFill ? Math.min(16, Math.max(0, curves - 40)) : 0;
+  return {
+    ...inventory,
+    'straight-16': Math.max(0, straights - reservedPark - reservedS),
+    'curve-22': Math.max(0, curves - reservedC),
+  };
+}
+
+function leftoverHeads(
+  parts: PlacedPart[],
+  catalog: GenContext['catalog'],
+): number {
+  return openPorts(parts, catalog).filter(
+    (port) => !port.instanceId.startsWith('sid') || port.id === 'diverge',
+  ).length;
+}
+
 function fitsRoom(parts: PlacedPart[], ctx: GenContext): boolean {
   if (!ctx.floorPlan) {
     return true;
@@ -236,7 +263,7 @@ function* buildCandidateSteps(
       deadline: Math.min(ctx.deadline - 600, Date.now() + 2800),
       variant: seed + attempt,
     };
-    let explored = tracePerimeter(inventory, periCtx);
+    let explored = tracePerimeter(reserveForPerimeter(inventory, plan), periCtx);
     applyPause(clock, ctx, periCtx, yield { phase: 'paths', attempt, parts: explored });
     if (explored.length < 8) {
       const exploreCtx: GenContext = {
@@ -268,7 +295,7 @@ function* buildCandidateSteps(
         }
       }
       applyPause(clock, ctx, ctx, yield { phase: 'core', attempt, parts });
-      const keepPark = plan.parking * 6;
+      const keepPark = plan.parking > 0 ? 6 : 0;
       const leftover = remainingInventory(inventory, parts);
       const rigidLeft = (leftover['straight-16'] ?? 0) + (leftover['curve-22'] ?? 0);
       const keepFeatures = plan.crossovers + plan.dualRoutes > 0 ? Math.min(12, Math.floor(rigidLeft * 0.15)) : 0;
@@ -281,6 +308,11 @@ function* buildCandidateSteps(
       const closedCore = parts;
       const mainClosed = openPorts(parts, ctx.catalog).length === 0;
       if (mainClosed) {
+        const fillEarly: GenContext = { ...ctx, deadline: Math.min(ctx.deadline, Date.now() + 1000) };
+        parts = addInnerLoops(parts, inventory, fillEarly, 0, plan.parking > 0);
+        if (openPorts(parts, ctx.catalog).length > 0) {
+          parts = closedCore;
+        }
         const afterCrossover = applyCrossover(parts, inventory, plan, ctx);
         if (afterCrossover !== parts) {
           parts = afterCrossover;
@@ -301,7 +333,7 @@ function* buildCandidateSteps(
       }
       const fillCtx: GenContext = { ...ctx, deadline: Math.min(ctx.deadline, Date.now() + 1400) };
       if (openPorts(parts, ctx.catalog).length === 0) {
-        parts = addInnerLoops(parts, inventory, fillCtx, keepPark);
+        parts = addInnerLoops(parts, inventory, fillCtx, 0, plan.parking > 0);
       }
       const opensBeforeFillInflate = openPorts(parts, ctx.catalog).length;
       const filledInflate = inflateLoop(parts, inventory, ctx, 8, keepPark, false, null);
@@ -312,23 +344,23 @@ function* buildCandidateSteps(
       if (openPorts(parts, ctx.catalog).length === 0) {
         parts = placeRemainingSpecials(parts, inventory, ctx, plan.parking);
       }
-      parts = placeParking(parts, inventory, ctx, plan.parking);
-      parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
-      if (
-        openPorts(beforeSpecials, ctx.catalog).length === 0 &&
-        openPorts(parts, ctx.catalog).length > plan.parking
-      ) {
-        parts = beforeSpecials;
+      const beforePark = parts;
+      if (leftoverHeads(parts, ctx.catalog) === 0) {
+        parts = placeParking(parts, inventory, ctx, plan.parking);
+        parts = closeOpenHeads(parts, inventory, ctx, plan.parking);
+        if (leftoverHeads(parts, ctx.catalog) > leftoverHeads(beforePark, ctx.catalog)) {
+          parts = beforePark;
+        }
       }
       const afterPark = remainingInventory(inventory, parts);
       if ((afterPark['straight-16'] ?? 0) + (afterPark['curve-22'] ?? 0) > 16) {
         const extraCtx: GenContext = { ...ctx, deadline: Math.min(ctx.deadline, Date.now() + 900) };
         if (openPorts(parts, ctx.catalog).length === 0) {
-          parts = addInnerLoops(parts, inventory, extraCtx, 0);
+          parts = addInnerLoops(parts, inventory, extraCtx, 0, plan.parking > 0);
         }
-        if (plan.parking > 0) {
+        if (plan.parking > 0 && leftoverHeads(parts, ctx.catalog) === 0) {
           const retryPark = placeParking(parts, inventory, ctx, plan.parking);
-          if (openPorts(retryPark, ctx.catalog).length <= plan.parking) {
+          if (leftoverHeads(retryPark, ctx.catalog) === 0) {
             parts = retryPark;
           }
         }

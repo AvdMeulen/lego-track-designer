@@ -1454,7 +1454,7 @@ function tryLongParallel(
   const left = stockOf(inventory, parts);
   const curves = left['curve-22'] ?? 0;
   const straights = Math.max(0, (left['straight-16'] ?? 0) - keepStraights);
-  if (curves < 16 || straights < 8) {
+  if (curves < 16 || straights < 4) {
     return null;
   }
   const alongGuess = Math.max(0, Math.round((gap - 80) / 16));
@@ -1465,7 +1465,7 @@ function tryLongParallel(
   for (const inward of turns) {
     const other: 'a' | 'b' = inward === 'a' ? 'b' : 'a';
     for (const along of alongs) {
-      const depths = [8, 7, 6, 5, 4].filter((depth) => depth * 2 + along <= straights);
+      const depths = [8, 7, 6, 5, 4, 3, 2].filter((depth) => depth * 2 + along <= straights);
       for (const depth of depths) {
         if (Date.now() >= ctx.deadline - 200) {
           return null;
@@ -1484,6 +1484,9 @@ function tryLongParallel(
         }
       }
     }
+  }
+  if (ctx.floorPlan) {
+    return null;
   }
   return wanderJoin(parts, start, target, inventory, ctx, 'par', 'inward', 10);
 }

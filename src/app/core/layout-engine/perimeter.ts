@@ -36,7 +36,7 @@ export function tracePerimeter(inventory: Record<string, number>, ctx: GenContex
     return ortho;
   }
   const score = (parts: PlacedPart[]) =>
-    -openPorts(parts, ctx.catalog).length * 1000 + parts.length + ringCoverage(parts) * 0.01;
+    -openPorts(parts, ctx.catalog).length * 1000 + parts.length + ringCoverage(parts, ctx) * 0.01;
   return score(greedy) > score(ortho) ? greedy : ortho;
 }
 
@@ -46,13 +46,14 @@ export function addInnerLoops(
   inventory: Record<string, number>,
   ctx: GenContext,
   keepStraights = 0,
+  parallel = false,
 ): PlacedPart[] {
   if (!ctx.floorPlan) {
     return parts;
   }
   const opened = openPorts(parts, ctx.catalog).length;
-  let result = fillEmptySpace(parts, inventory, ctx, 6, keepStraights, null);
-  result = spliceParallelRun(result, inventory, ctx, keepStraights);
+  let result = parallel ? spliceParallelRun(parts, inventory, ctx, keepStraights) : parts;
+  result = fillEmptySpace(result, inventory, ctx, 6, keepStraights, null);
   if (openPorts(result, ctx.catalog).length > opened) {
     return parts;
   }
@@ -96,14 +97,14 @@ function walkOrtho(inventory: Record<string, number>, ctx: GenContext): PlacedPa
 
 function pickClosedRing(closed: PlacedPart[][], ctx: GenContext): PlacedPart[] {
   const scored = closed
-    .map((parts) => ({ parts, score: ringCoverage(parts) }))
+    .map((parts) => ({ parts, score: ringCoverage(parts, ctx) }))
     .sort((a, b) => b.score - a.score);
   const index =
     ctx.variant != null ? ((ctx.variant % scored.length) + scored.length) % scored.length : 0;
   return scored[index]?.parts ?? closed[0];
 }
 
-function ringCoverage(parts: PlacedPart[]): number {
+function ringCoverage(parts: PlacedPart[], ctx: GenContext): number {
   if (parts.length === 0) {
     return 0;
   }
@@ -111,7 +112,19 @@ function ringCoverage(parts: PlacedPart[]): number {
   const ys = parts.map((part) => part.y);
   const width = Math.max(...xs) - Math.min(...xs);
   const height = Math.max(...ys) - Math.min(...ys);
-  return parts.length * 10 + width + height;
+  let reach = 0;
+  if (ctx.floorPlan) {
+    const outline = ctx.floorPlan.outer.points;
+    const roomMaxX = Math.max(...outline.map((point) => point.x));
+    const roomMinY = Math.min(...outline.map((point) => point.y));
+    if (Math.max(...xs) > roomMaxX - 48) {
+      reach += 220;
+    }
+    if (Math.min(...ys) < roomMinY + 48) {
+      reach += 140;
+    }
+  }
+  return parts.length * 10 + width + height + reach;
 }
 
 function walkOrthoRing(
@@ -154,7 +167,12 @@ function walkOrthoRing(
     if (Date.now() >= ctx.deadline) {
       break;
     }
-    const sequence = trimTrailingCorner(orthoSequence(inset, ports.left, ports.right));
+    const xs = inset.map((point) => point.x);
+    const ys = inset.map((point) => point.y);
+    const compact =
+      Math.max(...xs) - Math.min(...xs) < 300 || Math.max(...ys) - Math.min(...ys) < 180;
+    const raw = orthoSequence(inset, ports.left, ports.right);
+    const sequence = compact ? trimTrailingCorner(raw) : raw;
     const walked = attachRun([start.part], start.head, sequence, inventory, ctx);
     if (!walked) {
       continue;
